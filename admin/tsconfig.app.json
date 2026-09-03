@@ -19,7 +19,9 @@
     "noEmit": true,
     "skipLibCheck": true,
 
-    "baseUrl": ".",
+    // `baseUrl` ATAYLAB yo'q: TypeScript 7 uni olib tashlagan va u
+    // bilan build yiqiladi. Usiz `paths` shu faylning o'ziga nisbatan
+    // hisoblanadi — natija bir xil.
     "paths": {
       "@/*": ["./src/*"],
       "@shared/*": ["../shared/*"]
