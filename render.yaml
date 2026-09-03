@@ -58,7 +58,9 @@ services:
   - type: web
     name: cscrm-web
     runtime: static
-    plan: free
+    # `plan` YO'Q: statik saytlar Render'da rejaga ega emas (ular
+    # CDN'dan tarqatiladi va bepul). `plan: free` yozilsa blueprint
+    # "no such plan free for service type web" xatosi bilan rad etiladi.
     rootDir: admin
     buildCommand: npm ci && npm run build
     staticPublishPath: dist

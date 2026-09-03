@@ -9,7 +9,7 @@ import { errorHandler, notFoundHandler } from './middleware/error.js';
 import { adminRouter } from './routes/admin.js';
 import { authRouter } from './routes/auth.js';
 import { employeesRouter } from './routes/employees.js';
-import { healthRouter } from './routes/health.js';
+import { healthRouter, pingRouter } from './routes/health.js';
 import { licenseRouter } from './routes/license.js';
 
 const app = express();
@@ -21,10 +21,11 @@ app.set('trust proxy', 1);
 app.use(
   pinoHttp({
     level: env.isProd ? 'info' : 'debug',
-    // Sog'liq tekshiruvi har necha soniyada keladi - loglarni bosib
-    // ketmasligi uchun jimlashtiramiz.
+    // Sog'liq tekshiruvi va uxlashga qarshi ping muntazam keladi -
+    // loglarni bosib ketmasligi uchun jimlashtiramiz.
     autoLogging: {
-      ignore: (req: { url?: string }) => req.url === '/api/v1/health',
+      ignore: (req: { url?: string }) =>
+        req.url === '/api/v1/health' || req.url === '/api/v1/ping',
     },
   }),
 );
@@ -44,6 +45,16 @@ app.use(
 );
 app.use(express.json({ limit: '1mb' }));
 
+// Sog'liq tekshiruvi va uxlashga qarshi ping so'rov CHEKLOVIDAN OLDIN
+// ulanadi.
+//
+// Bu shunchaki qulaylik emas: mijozlar yuki chegarani to'ldirsa,
+// Render'ning sog'liq tekshiruvi ham 429 olardi va u buni "xizmat
+// nosog'lom" deb tushunib, servisni qayta ishga tushirardi — aynan eng
+// band paytda. Ikkala yo'l ham arzon va maxfiy ma'lumot qaytarmaydi.
+app.use('/api/v1', pingRouter);
+app.use('/api/v1', healthRouter);
+
 app.use(
   '/api/',
   rateLimit({
@@ -58,7 +69,6 @@ app.use(
   }),
 );
 
-app.use('/api/v1', healthRouter);
 app.use('/api/v1/admin', adminRouter);
 app.use('/api/v1/auth', authRouter);
 app.use('/api/v1/employees', employeesRouter);
