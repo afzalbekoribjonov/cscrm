@@ -10,7 +10,11 @@ services:
     name: cscrm-api
     runtime: node
     plan: free
-    region: frankfurt
+    # Baza `asia-southeast1` (Singapur) da. API har bir so'rovda bazaga
+    # bir necha marta boradi, shuning uchun u BAZA BILAN BIR JOYDA
+    # turishi kerak. Frankfurt'da bo'lsa har bir baza chaqiruvi
+    # Yevropa-Osiyo oralig'ini bosib o'tardi.
+    region: singapore
     rootDir: backend
     buildCommand: npm ci && npm run build
     startCommand: npm run start
@@ -27,8 +31,27 @@ services:
       - key: FIREBASE_DATABASE_URL
         sync: false
       - key: LICENSE_SIGNING_SECRET
-        generateValue: true  # Render tasodifiy kalit yaratadi
+        # DIQQAT: bu yerda `generateValue: true` BO'LMASLIGI kerak.
+        # Ilova imzoni O'ZIDAGI nusxa bilan tekshiradi (`app/env/*.json`).
+        # Render boshqa kalit yaratsa, har bir foydalanuvchi "obuna
+        # javobining imzosi to'g'ri kelmadi" xatosini olardi.
+        # Ilovadagi qiymat bilan AYNAN bir xilini qo'lda kiriting.
+        sync: false
       - key: SUPER_ADMIN_UIDS
+        sync: false
+
+      # To'lov rekvizitlari — ilovadagi to'lov ekranida ko'rinadi.
+      # Kodda emas, shu yerda: karta almashsa ilovani qayta yig'ish
+      # shart emas, Render'da qiymatni o'zgartirish kifoya.
+      - key: PAYMENT_CARDS
+        sync: false          # vergul bilan; turi raqamdan aniqlanadi
+      - key: PAYMENT_CARD_HOLDER
+        sync: false
+      - key: PAYMENT_PHONE
+        sync: false
+      - key: PAYMENT_EMAIL
+        sync: false
+      - key: PAYMENT_TELEGRAM
         sync: false
 
   # --- Websayt (marketing + super-admin panel) ---
