@@ -25,6 +25,17 @@ qilib, keyin bajaramiz.
 
 ---
 
+## Joylashtirilgan
+
+**https://cscrm.onrender.com** — websayt ham, API ham BITTA Render
+servisida. Sabab: har bir web-servis alohida hisoblanadi, bitta bo'lsa
+bitta manzil, bitta uyg'oq tutish pingi va CORS umuman kerak emas.
+
+Bepul tarif 15 daqiqa harakatsizlikdan keyin uxlaydi. Buning uchun
+`HEAD /api/v1/ping` bor — u so'rov cheklovidan tashqarida va bazaga
+bormaydi. Tashqi kuzatuv xizmati shu manzilga 10 daqiqada bir so'rov
+yuborsa, servis uyg'oq turadi.
+
 ## Qabul qilingan qarorlar
 
 | # | Savol | Qaror |
