@@ -1,0 +1,156 @@
+{
+  "//": [
+    "CSCRM Realtime Database xavfsizlik qoidalari — KO'P IJARACHILI (multi-tenant).",
+    "",
+    "ASOSIY G'OYA: har bir biznes = bitta `tenant`. Foydalanuvchi FAQAT o'z",
+    "tenant'ining ma'lumotini ko'radi. Bu tekshiruv `auth.token.tenantId`",
+    "custom claim orqali bajariladi — claim'ni faqat backend (Admin SDK)",
+    "qo'ya oladi, shuning uchun uni ilova tomondan soxtalashtirib bo'lmaydi.",
+    "",
+    "MUHIM O'ZGARISH (eski loyihaga nisbatan): xodimlar endi ANONIM",
+    "kirmaydi. Eski qoidalarda `.read: auth != null` edi — bu o'sha Firebase",
+    "loyihasidagi HAR QANDAY anonim foydalanuvchiga butun bazani o'qish",
+    "imkonini berardi. Endi backend telefon+PIN ni tekshirib, `tenantId`,",
+    "`role` va `employeeId` claim'lari bilan CUSTOM TOKEN beradi.",
+    "",
+    "LITSENZIYA: `license` tugunini mijoz HECH QACHON yoza olmaydi",
+    "(.write: false). Uni faqat backend Admin SDK orqali yangilaydi —",
+    "aks holda obunani o'zi uzaytirib qo'yish mumkin bo'lardi."
+  ],
+
+  "rules": {
+    ".read": false,
+    ".write": false,
+
+    "super_admins": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": false
+      }
+    },
+
+    "admin_logins": {
+      "$login": {
+        ".read": false,
+        ".write": false
+      }
+    },
+
+    "employee_phone_index": {
+      "//": "Telefon -> tenant xaritasi. Mijozga BUTUNLAY berk: ochiq bo'lsa, tizimdagi barcha xodim raqamlarini yig'ib olish mumkin bo'lardi. Faqat backend (Admin SDK) o'qiydi va yozadi.",
+      ".read": false,
+      ".write": false
+    },
+
+    "user_tenants": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": false
+      }
+    },
+
+    "tenant_directory": {
+      "//": "Bizneslar ID'lari ro'yxati. Super-admin paneli SHU tugundan bizneslarni sanaydi. Nega kerak: `tenants` tugunini o'qish uning butun daraxtini - ya'ni barcha bizneslarning barcha buyurtmalarini - yuklab olardi. Mijozga butunlay berk.",
+      ".read": false,
+      ".write": false
+    },
+
+    "pending_payments": {
+      "//": "Ko'rib chiqilmagan to'lov so'rovlari navbati. Hal bo'lishi bilan yozuv O'CHIRILADI, shuning uchun tugun kattalashmaydi. Faqat backend yozadi va o'qiydi.",
+      ".read": false,
+      ".write": false,
+      ".indexOn": ["tenantId"]
+    },
+
+    "payments_log": {
+      "//": "Barcha tasdiqlangan to'lovlar - daromad statistikasi uchun. `at` indeksi tufayli 'oxirgi 30 kun' so'rovi butun tarixni emas, faqat kerakli qismini o'qiydi.",
+      ".read": false,
+      ".write": false,
+      ".indexOn": ["at"]
+    },
+
+    "tenants": {
+      "$tenantId": {
+        "//": "Butun tenant faqat o'sha tenant a'zolariga ochiq.",
+
+        "profile": {
+          ".read": "auth != null && auth.token.tenantId === $tenantId",
+          ".write": "auth != null && auth.token.tenantId === $tenantId && auth.token.role === 'owner'",
+          "name": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 120" },
+          "phone": { ".validate": "newData.isString() && newData.val().length <= 32" },
+          "address": { ".validate": "newData.isString() && newData.val().length <= 300" },
+          "ownerUid": { ".validate": "newData.isString()" },
+          "createdAt": { ".validate": "newData.isNumber()" },
+          "$other": { ".validate": false }
+        },
+
+        "license": {
+          "//": "Faqat o'qish. Yozish — faqat backend (Admin SDK qoidalarni chetlab o'tadi).",
+          ".read": "auth != null && auth.token.tenantId === $tenantId",
+          ".write": false
+        },
+
+        "members": {
+          ".read": "auth != null && auth.token.tenantId === $tenantId",
+          ".write": false
+        },
+
+        "employees": {
+          ".read": "auth != null && auth.token.tenantId === $tenantId",
+          ".write": "auth != null && auth.token.tenantId === $tenantId && auth.token.role === 'owner'",
+          ".indexOn": ["phone", "active"],
+          "$employeeId": {
+            "pinHash": {
+              "//": "PIN hash'ini mijoz O'QIY OLMAYDI — tekshiruv backendda.",
+              ".read": false
+            }
+          }
+        },
+
+        "products": {
+          ".read": "auth != null && auth.token.tenantId === $tenantId",
+          ".write": "auth != null && auth.token.tenantId === $tenantId && auth.token.role === 'owner'"
+        },
+
+        "counters": {
+          ".read": "auth != null && auth.token.tenantId === $tenantId",
+          ".write": "auth != null && auth.token.tenantId === $tenantId"
+        },
+
+        "orders": {
+          ".read": "auth != null && auth.token.tenantId === $tenantId",
+          ".write": "auth != null && auth.token.tenantId === $tenantId",
+          "//": "active - operatsion ekranlar uchun; createdAt/deliveredAt - hisobotlar uchun; debtAmount - qarzdorlar uchun. Indekssiz bu so'rovlar butun daraxtni o'qib, keyin filtrlaydi.",
+          ".indexOn": ["active", "status", "createdAt", "deliveredAt", "createdBy", "debtAmount"]
+        },
+
+        "expenses": {
+          ".read": "auth != null && auth.token.tenantId === $tenantId",
+          ".write": "auth != null && auth.token.tenantId === $tenantId",
+          ".indexOn": ["spentAt"]
+        },
+
+        "order_history": {
+          "//": "Buyurtma o'zgarishlari jurnali. ATAYLAB buyurtma tugunidan TASHQARIDA: RTDB so'rovi buyurtmaning butun daraxtini qaytaradi, tarix ichida bo'lsa ro'yxat ekranlari uni ham yuklab olardi. Tekis tuzilma ikki xil so'rov uchun kerak - buyurtma bo'yicha (orderId) va davr bo'yicha (at).",
+          ".read": "auth != null && auth.token.tenantId === $tenantId",
+          ".write": "auth != null && auth.token.tenantId === $tenantId",
+          ".indexOn": ["orderId", "at"]
+        },
+
+        "payments": {
+          "//": "To'lovlar tarixi. Biznes o'z to'lovlarini KO'RA oladi, lekin yoza olmaydi - tasdiqlashni faqat super-admin backend orqali qiladi.",
+          ".read": "auth != null && auth.token.tenantId === $tenantId",
+          ".write": false
+        },
+
+        "payment_requests": {
+          "//": "Biznes yuborgan 'men to'ladim' so'rovlari. O'qish ochiq - ilova 'so'rovingiz kutilmoqda' deb ko'rsatadi. Yozish BERK: aks holda biznes o'z so'rovini 'tasdiqlangan' deb belgilab qo'yardi.",
+          ".read": "auth != null && auth.token.tenantId === $tenantId",
+          ".write": false
+        },
+
+        "$other": { ".validate": false }
+      }
+    }
+  }
+}

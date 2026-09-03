@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Native splash foni - AppColors.brand bilan bir xil (#0B5FFF). -->
+    <color name="launch_background">#0B5FFF</color>
+    <color name="ic_launcher_background">#0B5FFF</color>
+</resources>

@@ -1,0 +1,44 @@
+{
+  "name": "cscrm-backend",
+  "version": "1.0.0",
+  "private": true,
+  "description": "CSCRM API — obuna/litsenziya, to'lov va super-admin xizmatlari",
+  "type": "module",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "sync:shared": "node scripts/sync-shared.mjs",
+    "predev": "npm run sync:shared",
+    "dev": "tsx watch src/index.ts",
+    "prebuild": "npm run sync:shared",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js",
+    "typecheck": "npm run sync:shared && tsc --noEmit",
+    "test": "npm run sync:shared && node scripts/run-tests.mjs"
+  },
+  "dependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "express-rate-limit": "^7.5.0",
+    "firebase-admin": "^13.0.2",
+    "helmet": "^8.0.0",
+    "nanoid": "^5.1.16",
+    "pino": "^9.6.0",
+    "pino-http": "^10.4.0",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/node": "^22.10.5",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3"
+  },
+  "overrides": {
+    "uuid": "^11.1.1"
+  }
+}

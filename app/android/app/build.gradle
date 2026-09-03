@@ -1,0 +1,79 @@
+plugins {
+    id "com.android.application"
+    id "kotlin-android"
+    // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
+    id "dev.flutter.flutter-gradle-plugin"
+    // NOTE: google-services plugin ATAYLAB o'chirilgan. Firebase sozlamalari
+    // kodda `DefaultFirebaseOptions` orqali aniq uzatiladi (--dart-define),
+    // shuning uchun `google-services.json` hozir KERAK EMAS - repo kalitsiz
+    // qoladi va loyiha darhol yig'iladi.
+    //
+    // FCM (push bildirishnoma) qo'shilganda quyidagi qatorni yoqing va
+    // Firebase Console'dan olingan google-services.json faylini
+    // android/app/ ichiga tashlang (u .gitignore'da).
+    //   id "com.google.gms.google-services"
+}
+
+// Release imzo kalitlari repoga TUSHMAYDI: android/key.properties faylida
+// saqlanadi (gitignore'da). Fayl bo'lmasa - debug kalit bilan imzolanadi,
+// shunda `flutter run --release` mahalliy mashinada baribir ishlaydi.
+def keystoreProperties = new Properties()
+def keystorePropertiesFile = rootProject.file("key.properties")
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+}
+
+android {
+    namespace = "uz.cscrm.uzafo"
+    compileSdk = flutter.compileSdkVersion
+    ndkVersion = flutter.ndkVersion
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+        coreLibraryDesugaringEnabled = true
+    }
+
+    kotlinOptions {
+        jvmTarget = JavaVersion.VERSION_17
+    }
+
+    defaultConfig {
+        applicationId = "uz.cscrm.uzafo"
+        minSdk = 23
+        targetSdk = flutter.targetSdkVersion
+        versionCode = flutter.versionCode
+        versionName = flutter.versionName
+        multiDexEnabled = true
+    }
+
+    signingConfigs {
+        release {
+            if (keystorePropertiesFile.exists()) {
+                keyAlias = keystoreProperties["keyAlias"]
+                keyPassword = keystoreProperties["keyPassword"]
+                storeFile = keystoreProperties["storeFile"] ? file(keystoreProperties["storeFile"]) : null
+                storePassword = keystoreProperties["storePassword"]
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            signingConfig = keystorePropertiesFile.exists()
+                ? signingConfigs.release
+                : signingConfigs.debug
+            minifyEnabled = true
+            shrinkResources = true
+            proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
+        }
+    }
+}
+
+flutter {
+    source = "../.."
+}
+
+dependencies {
+    coreLibraryDesugaring "com.android.tools:desugar_jdk_libs:2.1.2"
+}

@@ -1,0 +1,72 @@
+{
+  "_comment": "CSCRM obuna rejalari — YAGONA MANBA. Backend va admin websayt bu faylni to'g'ridan-to'g'ri import qiladi; ilova esa rejalarni `/license/plans` orqali serverdan oladi - ya'ni narx o'zgarsa ilovani qayta yig'ish SHART EMAS. Narxni FAQAT shu yerda o'zgartiring.",
+  "currency": "UZS",
+  "usdRateNote": "lifetimeAnnualFeeUsd dollarda saqlanadi; to'lov paytida joriy kursda hisoblanadi.",
+  "plans": [
+    {
+      "id": "trial",
+      "name": "Sinov muddati",
+      "months": 0,
+      "days": 14,
+      "price": 0,
+      "kind": "trial",
+      "description": "Ro'yxatdan o'tgan har bir biznes uchun 14 kun bepul — barcha imkoniyatlar ochiq.",
+      "highlight": false
+    },
+    {
+      "id": "m1",
+      "name": "1 oylik",
+      "months": 1,
+      "price": 199000,
+      "kind": "subscription",
+      "description": "Qisqa muddatli sinov yoki mavsumiy ish uchun.",
+      "highlight": false
+    },
+    {
+      "id": "m3",
+      "name": "3 oylik",
+      "months": 3,
+      "price": 537000,
+      "kind": "subscription",
+      "description": "Eng ko'p tanlanadigan reja.",
+      "highlight": true
+    },
+    {
+      "id": "m5",
+      "name": "5 oylik",
+      "months": 5,
+      "price": 845000,
+      "kind": "subscription",
+      "description": "Uzoqroq muddat, arzonroq oylik narx.",
+      "highlight": false
+    },
+    {
+      "id": "y1",
+      "name": "1 yillik",
+      "months": 12,
+      "price": 1790000,
+      "kind": "subscription",
+      "description": "Eng foydali reja — yil davomida uzluksiz ishlash.",
+      "highlight": false
+    },
+    {
+      "id": "lifetime",
+      "name": "Bir umrlik",
+      "months": null,
+      "price": 4500000,
+      "kind": "lifetime",
+      "lifetimeAnnualFeeUsd": 50,
+      "description": "Bir marta to'lang va ilovadan cheksiz foydalaning. Har yili faqat ma'lumotlar bazasi uchun $50 to'lov olinadi.",
+      "highlight": false
+    }
+  ],
+  "grace": {
+    "_comment": "Muddat tugagach beriladigan qo'shimcha kunlar — bu davrda ilova ishlaydi, lekin ogohlantirish ko'rsatiladi.",
+    "days": 3
+  },
+  "warnBeforeDays": [
+    7,
+    3,
+    1
+  ]
+}
