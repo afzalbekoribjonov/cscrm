@@ -11,6 +11,7 @@ import { authRouter } from './routes/auth.js';
 import { employeesRouter } from './routes/employees.js';
 import { healthRouter, pingRouter } from './routes/health.js';
 import { licenseRouter } from './routes/license.js';
+import { FIREBASE_CONNECT_SRC, mountWeb, resolveWebDir } from './web.js';
 
 const app = express();
 
@@ -30,17 +31,56 @@ app.use(
   }),
 );
 
-app.use(helmet());
+// Websayt shu servisdan tarqatilsa, brauzer Firebase Auth'ga chiqa
+// olishi kerak. Helmet'ning odatiy CSP'sida `connect-src` yo'q va u
+// `default-src 'self'` ga tushadi — natijada kirish so'rovi bloklanadi.
 app.use(
-  cors({
-    origin(origin, cb) {
-      // Origin yo'q = mobil ilova yoki server-to-server. Ularga ruxsat,
-      // chunki CORS brauzer himoyasi - ilovaga aloqasi yo'q.
-      if (!origin) return cb(null, true);
-      if (env.corsOrigins.includes(origin)) return cb(null, true);
-      cb(new Error(`CORS: ${origin} ruxsat etilmagan`));
+  helmet({
+    contentSecurityPolicy: {
+      useDefaults: true,
+      directives: {
+        'connect-src': ["'self'", ...FIREBASE_CONNECT_SRC],
+      },
     },
-    credentials: true,
+  }),
+);
+/**
+ * So'rov shu servisning O'ZIDAN kelganmi.
+ *
+ * Websayt shu servisdan tarqatilganda uning origin'i `CORS_ORIGINS`
+ * ro'yxatida bo'lmasligi mumkin - lekin u begona emas, o'zimiz.
+ * `trust proxy` yoqilgani uchun `req.protocol` proksi ortida ham
+ * to'g'ri sxemani beradi.
+ */
+function isSameOrigin(req: Request, origin: string): boolean {
+  const host = req.get('host');
+  return Boolean(host) && origin === `${req.protocol}://${host}`;
+}
+
+/**
+ * CORS faqat `/api/` ga qo'llanadi - statik fayllarga u umuman kerak
+ * emas va u yerda faqat xalaqit beradi.
+ */
+app.use(
+  '/api/',
+  cors((req, cb) => {
+    const origin = req.headers.origin;
+
+    // Origin yo'q = mobil ilova yoki server-to-server. Ularga ruxsat,
+    // chunki CORS brauzer himoyasi - ilovaga aloqasi yo'q.
+    if (
+      !origin ||
+      env.corsOrigins.includes(origin) ||
+      isSameOrigin(req as Request, origin)
+    ) {
+      return cb(null, { origin: true, credentials: true });
+    }
+
+    // Rad etamiz, lekin XATOLIK TASHLAMAYMIZ. `throw` qilinsa Express
+    // 500 qaytaradi va begona sayt bizning servisimizni xato holatga
+    // tushira oladi. To'g'ri xatti-harakat - CORS sarlavhasini
+    // qo'ymaslik; javobni o'qishni brauzerning o'zi to'xtatadi.
+    cb(null, { origin: false });
   }),
 );
 app.use(express.json({ limit: '1mb' }));
@@ -73,6 +113,11 @@ app.use('/api/v1/admin', adminRouter);
 app.use('/api/v1/auth', authRouter);
 app.use('/api/v1/employees', employeesRouter);
 app.use('/api/v1/license', licenseRouter);
+
+// Websayt (agar yig'ilgan bo'lsa) - API yo'llaridan KEYIN, xatolik
+// ishlovchisidan OLDIN.
+const webDir = resolveWebDir(process.env.WEB_DIR);
+if (webDir) mountWeb(app, webDir);
 
 app.use(notFoundHandler);
 app.use(errorHandler);

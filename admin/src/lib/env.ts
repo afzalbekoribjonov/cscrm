@@ -20,7 +20,15 @@ function required(name: string, value: string | undefined): string {
 const raw = import.meta.env;
 
 export const env = {
-  apiBaseUrl: raw.VITE_API_BASE_URL ?? 'http://localhost:8080',
+  /**
+   * API manzili.
+   *
+   * Ishlab chiqarishda odatda BO'SH: sayt va API bir xil servisda,
+   * ya'ni bir xil origin'da turadi va `/api/v1/...` nisbiy so'rovi
+   * to'g'ri joyga boradi. Sayt alohida joylashtirilsa, bu qiymat
+   * aniq ko'rsatiladi.
+   */
+  apiBaseUrl: raw.VITE_API_BASE_URL ?? (raw.DEV ? 'http://localhost:8080' : ''),
   isDev: raw.DEV,
 } as const;
 

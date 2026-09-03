@@ -35,3 +35,6 @@ desktop.ini
 # --- Firebase CLI ---
 .firebase/
 firebase-debug.log
+
+# --- Claude Code (mahalliy vositalar sozlamasi, loyihaga aloqasi yo'q) ---
+.claude/

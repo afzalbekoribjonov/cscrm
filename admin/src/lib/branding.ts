@@ -10,7 +10,7 @@ export const branding = {
   shortDescription: 'Buyurtma, xodim va moliyani bitta joydan boshqaring',
   websiteUrl: 'https://cscrm.uz',
   supportPhone: '+998 94 108 09 16',
-  supportTelegram: 'https://t.me/cscrm_support',
+  supportTelegram: 'https://t.me/uzafo',
   supportEmail: 'oribjonovafzaliy@gmail.com',
   androidPackage: 'uz.cscrm.uzafo',
 } as const;

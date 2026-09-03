@@ -1,0 +1,13 @@
+{
+  "name": "cscrm",
+  "version": "1.0.0",
+  "private": true,
+  "description": "CSCRM — xizmat biznesi uchun ko'p ijarachili boshqaruv tizimi. Websayt va API BITTA servis bo'lib joylanadi.",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "build": "npm --prefix admin ci && npm --prefix admin run build && npm --prefix backend ci && npm --prefix backend run build",
+    "start": "npm --prefix backend run start"
+  }
+}
