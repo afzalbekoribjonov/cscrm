@@ -58,6 +58,24 @@ services:
       - key: SUPER_ADMIN_UIDS
         sync: false
 
+      # --- Websayt uchun Firebase (BUILD PAYTIDA kerak) ---
+      # Bular brauzerga chiqadigan ochiq identifikatorlar, maxfiy emas.
+      # Lekin ular YIG'ISH paytida bundlega kiradi: yetishmasa sayt
+      # ochiladi-yu, panelga kirib bo'lmaydi. Shu sabab `vite.config.ts`
+      # ularsiz yig'ishni butunlay to'xtatadi.
+      - key: VITE_FIREBASE_API_KEY
+        sync: false
+      - key: VITE_FIREBASE_AUTH_DOMAIN
+        sync: false
+      - key: VITE_FIREBASE_PROJECT_ID
+        sync: false
+      - key: VITE_FIREBASE_DATABASE_URL
+        sync: false
+      - key: VITE_FIREBASE_APP_ID
+        sync: false
+      - key: VITE_FIREBASE_MESSAGING_SENDER_ID
+        sync: false
+
       # --- To'lov rekvizitlari ---
       # Ilovadagi to'lov ekranida ko'rinadi. Kodda emas, shu yerda:
       # karta almashsa ilovani qayta yig'ish shart emas.
