@@ -32,14 +32,27 @@ class LogoutAction extends StatelessWidget {
     );
     if (confirmed != true) return;
     if (!context.mounted) return;
+
+    // Navigator OLDINDAN olinadi.
+    //
+    // Sabab: quyidagi tozalash bu tugmani ekrandan olib tashlashi
+    // mumkin. Masalan bloklash ekranidan chiqilganda
+    // `LicenseController.stop()` holatni tozalaydi, `LicenseGate` esa
+    // darhol boshqa ekranga o'tadi — tugma bilan birga uning
+    // `context`i ham o'ladi. Ilgari kod shundan keyin
+    // `context.mounted` ni tekshirib, JIMGINA chiqib ketardi:
+    // sessiya tozalangan, lekin login ekrani ochilmagan — foydalanuvchi
+    // bo'sh ekranda qolardi.
+    final navigator = Navigator.of(context);
+
     await AuthService().signOut();
     await SessionService().clearSession();
     // Keyingi foydalanuvchi oldingi biznesning obuna holatini ko'rib
     // qolmasligi uchun kesh ham tozalanadi.
     await LicenseController.instance.stop();
     await NotificationCenter.instance.stop();
-    if (!context.mounted) return;
-    Navigator.of(context).pushAndRemoveUntil(
+
+    navigator.pushAndRemoveUntil(
       MaterialPageRoute(builder: (_) => const LoginScreen()),
       (route) => false,
     );

@@ -194,7 +194,7 @@ void main() {
     await tester.pump(const Duration(seconds: 1));
 
     expect(find.text('Tekshirish'), findsOneWidget);
-    expect(find.text('Yordam'), findsOneWidget);
+    expect(find.text('Biz bilan bog\'laning'), findsOneWidget);
   });
 
   group('to\'lov so\'rovi', () {
@@ -277,9 +277,10 @@ void main() {
     });
   });
 
-
   group('to\'lov rekvizitlari', () {
-    testWidgets('ikkala karta ham turi bilan ko\'rsatiladi', (tester) async {
+    testWidgets('karta ma\'lumotlari KO\'RSATILMAYDI', (tester) async {
+      // Rekvizitlar endi Telegram yoki telefon orqali beriladi —
+      // ilovada karta raqami turmaydi.
       useTallSurface(tester);
       await tester.pumpWidget(wrap(SubscriptionBlockedScreen(
         status: status(),
@@ -288,13 +289,43 @@ void main() {
       )));
       await tester.pump();
 
-      expect(find.text('Humo kartasi'), findsOneWidget);
-      expect(find.text('Uzcard kartasi'), findsOneWidget);
-      expect(find.text('9860 0000 0000 0000'), findsOneWidget);
-      expect(find.text('8600 0000 0000 0000'), findsOneWidget);
+      expect(find.textContaining('9860'), findsNothing);
+      expect(find.textContaining('kartasi'), findsNothing);
+      expect(find.textContaining('Chekni yuborish'), findsNothing);
     });
 
-    testWidgets('xodimga karta ko\'rsatilmaydi', (tester) async {
+    testWidgets('aloqa tugmalari ikkala rolga ham ko\'rinadi',
+        (tester) async {
+      useTallSurface(tester);
+      for (final isOwner in [true, false]) {
+        await tester.pumpWidget(wrap(SubscriptionBlockedScreen(
+          status: status(),
+          isOwner: isOwner,
+          service: _FakeService(plans: const [_plan]),
+        )));
+        await tester.pump();
+
+        expect(find.text('Telegram'), findsOneWidget,
+            reason: 'isOwner=$isOwner');
+        expect(find.text('Qo\'ng\'iroq'), findsOneWidget,
+            reason: 'isOwner=$isOwner');
+      }
+    });
+
+    testWidgets('egaga reja tanlash beriladi', (tester) async {
+      useTallSurface(tester);
+      await tester.pumpWidget(wrap(SubscriptionBlockedScreen(
+        status: status(),
+        isOwner: true,
+        service: _FakeService(plans: const [_plan]),
+      )));
+      await tester.pump();
+
+      expect(find.text('Rejani tanlang'), findsOneWidget);
+      expect(find.text('3 oylik'), findsOneWidget);
+    });
+
+    testWidgets('xodimga reja ko\'rsatilmaydi', (tester) async {
       useTallSurface(tester);
       await tester.pumpWidget(wrap(SubscriptionBlockedScreen(
         status: status(),
@@ -303,11 +334,7 @@ void main() {
       )));
       await tester.pump();
 
-      expect(
-        find.text('Humo kartasi'),
-        findsNothing,
-        reason: 'to\'lovni rahbar qiladi',
-      );
+      expect(find.text('Rejani tanlang'), findsNothing);
     });
   });
 }
