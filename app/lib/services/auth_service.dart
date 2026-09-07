@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import '../branding/app_branding.dart';
 import '../models/staff_access.dart';
 import 'api_client.dart';
+import 'message_center.dart';
 import 'tenant_scope.dart';
 
 class AuthFailure implements Exception {
@@ -332,6 +333,8 @@ class AuthService {
 
   Future<void> signOut() async {
     TenantScope.clear();
+    // Keyingi foydalanuvchi oldingisining xabarlarini ko'rmasin.
+    MessageCenter.instance.clear();
     await _auth.signOut();
   }
 

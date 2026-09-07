@@ -5,6 +5,7 @@ import { env } from '../config/env.js';
 import { parseCards } from '../lib/card.js';
 import { requireAuth, requireTenant } from '../middleware/auth.js';
 import { ApiError, asyncRoute } from '../middleware/error.js';
+import { listBroadcasts } from '../services/broadcast.js';
 import { PLANS, evaluate, loadLicense, signed } from '../services/license.js';
 import {
   latestPaymentRequest,
@@ -132,5 +133,28 @@ licenseRouter.get(
   asyncRoute(async (req, res) => {
     const { tenantId } = requireTenant(req);
     res.json({ ok: true, request: await latestPaymentRequest(tenantId) });
+  }),
+);
+
+/**
+ * CSCRM'dan kelgan xabarlar.
+ *
+ * Ilovadagi qo'ng'iroq ostidagi "Xabarlar" bo'limi shu yerdan
+ * oziqlanadi. Xodimga ham ochiq: xabar biznesning o'ziga emas,
+ * ilovadan foydalanayotgan hammaga tegishli.
+ *
+ * Muddati o'tgan xabarlar bu yerda KO'RSATILMAYDI - eskirgan e'lon
+ * ro'yxatni to'ldirib turmasin.
+ */
+licenseRouter.get(
+  '/messages',
+  requireAuth,
+  asyncRoute(async (req, res) => {
+    // Tenant tekshiruvi: xabar faqat tizimga bog'langan hisoblarga.
+    requireTenant(req);
+    res.json({
+      ok: true,
+      messages: await listBroadcasts({ now: Date.now(), activeOnly: true }),
+    });
   }),
 );

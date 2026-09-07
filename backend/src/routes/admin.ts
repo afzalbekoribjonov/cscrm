@@ -10,6 +10,11 @@ import {
   listTenants,
   setSuspended,
 } from '../services/admin.js';
+import {
+  createBroadcast,
+  deleteBroadcast,
+  listBroadcasts,
+} from '../services/broadcast.js';
 import { PLANS } from '../services/license.js';
 import {
   changeOwnerLoginByAdmin,
@@ -232,5 +237,59 @@ adminRouter.post(
       changed,
       credentials: await ownerCredentials(tenantId),
     });
+  }),
+);
+
+const broadcastBody = z.object({
+  title: z.string().min(1).max(120),
+  body: z.string().min(1).max(2000),
+  kind: z.enum(['yangilik', 'eslatma', 'taklif']).default('yangilik'),
+  /** Muddat (ms). Berilmasa xabar muddatsiz turadi. */
+  expiresAt: z.number().int().positive().nullable().optional(),
+});
+
+/** Barcha bizneslarga yuboriladigan xabarlar ro'yxati (muddati o'tgani ham). */
+adminRouter.get(
+  '/broadcasts',
+  asyncRoute(async (_req, res) => {
+    res.json({
+      ok: true,
+      broadcasts: await listBroadcasts({ now: Date.now(), activeOnly: false }),
+    });
+  }),
+);
+
+/** Yangi xabar yuboradi — u barcha bizneslarning ilovasida ko'rinadi. */
+adminRouter.post(
+  '/broadcasts',
+  asyncRoute(async (req, res) => {
+    const parsed = broadcastBody.safeParse(req.body);
+    if (!parsed.success) {
+      throw ApiError.badRequest(
+        'Sarlavha va matnni to\'ldiring.',
+        parsed.error.flatten().fieldErrors,
+      );
+    }
+
+    const result = await createBroadcast({
+      title: parsed.data.title,
+      body: parsed.data.body,
+      kind: parsed.data.kind,
+      ...(parsed.data.expiresAt !== undefined
+        ? { expiresAt: parsed.data.expiresAt }
+        : {}),
+      byUid: req.user!.uid,
+      now: Date.now(),
+    });
+
+    res.status(201).json({ ok: true, ...result });
+  }),
+);
+
+adminRouter.delete(
+  '/broadcasts/:id',
+  asyncRoute(async (req, res) => {
+    await deleteBroadcast(req.params.id!);
+    res.json({ ok: true });
   }),
 );

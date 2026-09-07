@@ -62,6 +62,13 @@
       ".indexOn": ["tenantId"]
     },
 
+    "broadcasts": {
+      "//": "CSCRM'dan barcha bizneslarga xabarlar. O'qish tizimga kirgan hammaga ochiq - xabar biznesga emas, ilovadan foydalanuvchining hammasiga tegishli. Yozish FAQAT backend (super-admin) orqali. Ildizda turadi: har bir tenantga nusxa yozilsa, matnni tuzatish uchun hammasini yangilash kerak bo'lardi.",
+      ".read": "auth != null && auth.token.tenantId !== null",
+      ".write": false,
+      ".indexOn": ["createdAt"]
+    },
+
     "payments_log": {
       "//": "Barcha tasdiqlangan to'lovlar - daromad statistikasi uchun. `at` indeksi tufayli 'oxirgi 30 kun' so'rovi butun tarixni emas, faqat kerakli qismini o'qiydi.",
       ".read": false,

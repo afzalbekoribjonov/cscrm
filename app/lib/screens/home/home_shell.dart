@@ -7,6 +7,7 @@ import '../../models/order.dart';
 import '../../models/staff_access.dart';
 import '../../services/auth_service.dart';
 import '../../services/employee_service.dart';
+import '../../services/message_center.dart';
 import '../../services/notification_center.dart';
 import '../../services/order_service.dart';
 import '../../services/session_service.dart';
@@ -68,6 +69,9 @@ class _HomeShellState extends State<HomeShell> {
   void initState() {
     super.initState();
     NotificationCenter.instance.start(widget.session.actorId);
+    // CSCRM xabarlarini bir marta olib qo'yamiz - qo'ng'iroq ustidagi
+    // raqam ekran ochilishini kutmasdan to'g'ri ko'rinsin.
+    MessageCenter.instance.refresh();
     _listenToOrders();
     _listenToEmployee();
     _listenToWriteFailures();

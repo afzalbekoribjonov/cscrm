@@ -2,12 +2,13 @@ import 'package:flutter/material.dart';
 
 import '../models/staff_access.dart';
 import '../screens/notifications/notifications_screen.dart';
+import '../services/message_center.dart';
 import '../services/notification_center.dart';
 
 /// App bar'ning o'ng yuqori burchagidagi bildirishnoma qo'ng'irog'i.
 ///
-/// O'qilmaganlar soni ustida raqam bilan ko'rsatiladi. Raqam faqat
-/// BOSHQALAR qilgan hodisalarni sanaydi — xodim o'z ishidan o'ziga
+/// Raqam IKKI manbadan yig'iladi: CSCRM'dan kelgan o'qilmagan xabarlar
+/// va boshqalar qilgan buyurtma hodisalari. Xodim o'z ishidan o'ziga
 /// bildirishnoma olmaydi.
 class NotificationAction extends StatelessWidget {
   const NotificationAction({
@@ -24,9 +25,13 @@ class NotificationAction extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
-      listenable: NotificationCenter.instance,
+      listenable: Listenable.merge([
+        NotificationCenter.instance,
+        MessageCenter.instance,
+      ]),
       builder: (context, _) {
-        final count = NotificationCenter.instance.unreadCount;
+        final count = NotificationCenter.instance.unreadCount +
+            MessageCenter.instance.unreadCount;
         return IconButton(
           tooltip: 'Bildirishnomalar',
           icon: Badge(

@@ -5,6 +5,7 @@ import { AuthProvider, useAuth } from './lib/auth';
 import { NotFoundPage } from './pages/NotFoundPage';
 import { AdminLayout } from './pages/admin/AdminLayout';
 import { AdminLoginPage } from './pages/admin/AdminLoginPage';
+import { BroadcastsPage } from './pages/admin/BroadcastsPage';
 import { DashboardPage } from './pages/admin/DashboardPage';
 import { PaymentRequestsPage } from './pages/admin/PaymentRequestsPage';
 import { TenantDetailPage } from './pages/admin/TenantDetailPage';
@@ -62,6 +63,7 @@ export function App() {
         <Route path="/admin" element={<RequireSuperAdmin />}>
           <Route index element={<DashboardPage />} />
           <Route path="payment-requests" element={<PaymentRequestsPage />} />
+          <Route path="broadcasts" element={<BroadcastsPage />} />
           <Route path="tenants" element={<TenantsPage />} />
           <Route path="tenants/:tenantId" element={<TenantDetailPage />} />
         </Route>
