@@ -8,6 +8,7 @@ const NAV = [
   { to: '/admin/payment-requests', label: "To'lov so'rovlari" },
   { to: '/admin/tenants', label: 'Bizneslar' },
   { to: '/admin/broadcasts', label: 'Xabarlar' },
+  { to: '/admin/plans', label: 'Tariflar' },
 ];
 
 /** Super-admin panelining umumiy karkasi. */

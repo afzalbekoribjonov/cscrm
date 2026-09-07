@@ -7,6 +7,7 @@ import { AdminLayout } from './pages/admin/AdminLayout';
 import { AdminLoginPage } from './pages/admin/AdminLoginPage';
 import { BroadcastsPage } from './pages/admin/BroadcastsPage';
 import { DashboardPage } from './pages/admin/DashboardPage';
+import { PlansPage } from './pages/admin/PlansPage';
 import { PaymentRequestsPage } from './pages/admin/PaymentRequestsPage';
 import { TenantDetailPage } from './pages/admin/TenantDetailPage';
 import { TenantsPage } from './pages/admin/TenantsPage';
@@ -64,6 +65,7 @@ export function App() {
           <Route index element={<DashboardPage />} />
           <Route path="payment-requests" element={<PaymentRequestsPage />} />
           <Route path="broadcasts" element={<BroadcastsPage />} />
+          <Route path="plans" element={<PlansPage />} />
           <Route path="tenants" element={<TenantsPage />} />
           <Route path="tenants/:tenantId" element={<TenantDetailPage />} />
         </Route>

@@ -1,7 +1,11 @@
 import { branding } from '@/lib/branding';
-import { formatPrice, graceDays, isPriceUnset, monthlyPrice, plans } from '@/lib/plans';
+import { formatPrice, graceDays, isPriceUnset, monthlyPrice } from '@/lib/plans';
+import { usePlans } from '@/lib/use-plans';
 
 export function PricingPage() {
+  // Narx serverdan olinadi — panelda o'zgartirilsa sayt ham darhol
+  // yangisini ko'rsatadi.
+  const { plans } = usePlans();
   const paid = plans.filter((p) => p.kind !== 'trial');
   const trial = plans.find((p) => p.kind === 'trial');
   const anyPriceUnset = paid.some(isPriceUnset);

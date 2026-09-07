@@ -15,7 +15,11 @@ import {
   deleteBroadcast,
   listBroadcasts,
 } from '../services/broadcast.js';
-import { PLANS } from '../services/license.js';
+import {
+  plansWithPrices,
+  resetPlanPrice,
+  setPlanPrice,
+} from '../services/plan-prices.js';
 import {
   changeOwnerLoginByAdmin,
   ownerCredentials,
@@ -66,7 +70,7 @@ adminRouter.get(
   '/tenants/:tenantId',
   asyncRoute(async (req, res) => {
     const tenant = await getTenant(req.params.tenantId!, Date.now());
-    res.json({ ok: true, tenant, plans: PLANS });
+    res.json({ ok: true, tenant, plans: await plansWithPrices() });
   }),
 );
 
@@ -79,7 +83,11 @@ adminRouter.get(
 adminRouter.get(
   '/payment-requests',
   asyncRoute(async (_req, res) => {
-    res.json({ ok: true, requests: await listPendingPayments(), plans: PLANS });
+    res.json({
+      ok: true,
+      requests: await listPendingPayments(),
+      plans: await plansWithPrices(),
+    });
   }),
 );
 
@@ -291,5 +299,64 @@ adminRouter.delete(
   asyncRoute(async (req, res) => {
     await deleteBroadcast(req.params.id!);
     res.json({ ok: true });
+  }),
+);
+
+/** Rejalar joriy narxlari bilan. */
+adminRouter.get(
+  '/plans',
+  asyncRoute(async (_req, res) => {
+    res.json({ ok: true, plans: await plansWithPrices() });
+  }),
+);
+
+const priceBody = z.object({
+  price: z.number().min(0),
+  /** Faqat bir umrlik reja uchun — yillik baza to'lovi (dollarda). */
+  lifetimeAnnualFeeUsd: z.number().min(0).optional(),
+});
+
+/**
+ * Reja narxini o'zgartiradi.
+ *
+ * Narx BAZADA saqlanadi: o'zgartirilishi bilan ilova ham, websayt ham
+ * yangisini ko'radi — qayta joylash shart emas.
+ *
+ * Reja TUZILISHI (necha oy, turi) o'zgartirilmaydi: u dastur mantiqiga
+ * bog'liq, narx esa emas.
+ */
+adminRouter.post(
+  '/plans/:planId/price',
+  asyncRoute(async (req, res) => {
+    const parsed = priceBody.safeParse(req.body);
+    if (!parsed.success) {
+      throw ApiError.badRequest('Narxni to\'g\'ri kiriting.');
+    }
+
+    const plan = await setPlanPrice({
+      planId: req.params.planId!,
+      price: parsed.data.price,
+      ...(parsed.data.lifetimeAnnualFeeUsd !== undefined
+        ? { lifetimeAnnualFeeUsd: parsed.data.lifetimeAnnualFeeUsd }
+        : {}),
+      byUid: req.user!.uid,
+      now: Date.now(),
+    });
+
+    req.log?.info(
+      { planId: plan.id, price: plan.price, by: req.user!.uid },
+      'reja narxi o\'zgartirildi',
+    );
+
+    res.json({ ok: true, plan, plans: await plansWithPrices() });
+  }),
+);
+
+/** Narxni fayldagi boshlang'ich qiymatga qaytaradi. */
+adminRouter.delete(
+  '/plans/:planId/price',
+  asyncRoute(async (req, res) => {
+    await resetPlanPrice(req.params.planId!);
+    res.json({ ok: true, plans: await plansWithPrices() });
   }),
 );

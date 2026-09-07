@@ -3,7 +3,8 @@ import { Link } from 'react-router-dom';
 import { AppMockup } from '@/components/AppMockup';
 import { Icon, type IconName } from '@/components/Icon';
 import { branding } from '@/lib/branding';
-import { formatPrice, isPriceUnset, plans, trialDays } from '@/lib/plans';
+import { formatPrice, isPriceUnset, trialDays } from '@/lib/plans';
+import { usePlans } from '@/lib/use-plans';
 
 const FEATURES: { icon: IconName; title: string; text: string }[] = [
   {
@@ -81,7 +82,8 @@ const FAQ = [
 ];
 
 export function LandingPage() {
-  // Narxlar sahifasiga ishora uchun eng ommabop reja.
+  // Narxlar sahifasiga ishora uchun eng ommabop reja - joriy narxi bilan.
+  const { plans } = usePlans();
   const highlight = plans.find((p) => p.highlight);
 
   return (

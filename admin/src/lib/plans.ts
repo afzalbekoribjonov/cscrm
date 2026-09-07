@@ -45,3 +45,25 @@ export function monthlyPrice(plan: Plan): string | null {
   if (!plan.months || isPriceUnset(plan) || plan.kind === 'trial') return null;
   return `${formatNumber(Math.round(plan.price / plan.months))} so'm/oy`;
 }
+
+/**
+ * Serverdagi JORIY narxlar.
+ *
+ * Narx endi bazada va panelda o'zgartiriladi. Fayldagi qiymat esa
+ * build paytida bundlega kiradi — ya'ni u eskirishi mumkin.
+ *
+ * Shuning uchun sahifa avval fayl qiymatini ko'rsatadi (darhol, bo'sh
+ * ekran bo'lmasin), keyin serverdan kelganini qo'yadi. Server javob
+ * bermasa fayl qiymati qoladi — narx umuman ko'rinmagandan yaxshiroq.
+ */
+export async function fetchPlans(apiBaseUrl: string): Promise<Plan[] | null> {
+  try {
+    const res = await fetch(`${apiBaseUrl}/api/v1/license/plans`);
+    if (!res.ok) return null;
+    const json = (await res.json()) as { plans?: unknown };
+    if (!Array.isArray(json.plans)) return null;
+    return json.plans as Plan[];
+  } catch {
+    return null;
+  }
+}

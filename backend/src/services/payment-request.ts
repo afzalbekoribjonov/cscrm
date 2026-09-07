@@ -1,7 +1,7 @@
 import { db } from '../lib/firebase.js';
 import { ApiError } from '../middleware/error.js';
 import type { TenantProfile } from '../types/tenant.js';
-import { findPlan } from './license.js';
+import { findPlanWithPrice } from './plan-prices.js';
 
 /**
  * To'lov so'rovi — "men to'ladim, tekshiring".
@@ -72,7 +72,7 @@ export async function submitPaymentRequest(params: {
   uid: string;
   now: number;
 }): Promise<{ requestId: string; request: PaymentRequestRecord }> {
-  const plan = findPlan(params.planId);
+  const plan = await findPlanWithPrice(params.planId);
   if (!plan) throw ApiError.badRequest('Bunday reja topilmadi.');
   if (plan.kind === 'trial') {
     throw ApiError.badRequest('Sinov muddati uchun to\'lov qilinmaydi.');

@@ -2,7 +2,8 @@ import { db } from '../lib/firebase.js';
 import { ApiError } from '../middleware/error.js';
 import type { License, LicenseStatusPayload, Plan } from '../types/license.js';
 import type { TenantProfile } from '../types/tenant.js';
-import { computeExpiry, evaluate, findPlan } from './license.js';
+import { computeExpiry, evaluate } from './license.js';
+import { findPlanWithPrice } from './plan-prices.js';
 import {
   findPendingFor,
   latestPaymentRequest,
@@ -238,7 +239,9 @@ export async function confirmPayment(params: {
   byUid: string;
   now: number;
 }): Promise<{ license: License; payment: PaymentRecord }> {
-  const plan = findPlan(params.planId);
+  // Narx bazadagi JORIY qiymat bilan olinadi - summa ko'rsatilmasa
+  // o'sha yoziladi, ya'ni panelda o'zgartirilgan narx amal qiladi.
+  const plan = await findPlanWithPrice(params.planId);
   if (!plan) throw ApiError.badRequest('Bunday reja topilmadi.');
   if (plan.kind === 'trial') {
     throw ApiError.badRequest('Sinov muddatini qo\'lda berib bo\'lmaydi.');

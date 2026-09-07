@@ -69,6 +69,12 @@
       ".indexOn": ["createdAt"]
     },
 
+    "plan_prices": {
+      "//": "Reja narxlari. Panelda o'zgartiriladi, faqat backend yozadi. Mijozga BERK: narxni ilova to'g'ridan-to'g'ri emas, `/license/plans` orqali oladi - shunda fayl qiymati bilan birlashtirilgan, tekshirilgan natija keladi.",
+      ".read": false,
+      ".write": false
+    },
+
     "payments_log": {
       "//": "Barcha tasdiqlangan to'lovlar - daromad statistikasi uchun. `at` indeksi tufayli 'oxirgi 30 kun' so'rovi butun tarixni emas, faqat kerakli qismini o'qiydi.",
       ".read": false,

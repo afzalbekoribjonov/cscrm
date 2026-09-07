@@ -6,7 +6,8 @@ import { parseCards } from '../lib/card.js';
 import { requireAuth, requireTenant } from '../middleware/auth.js';
 import { ApiError, asyncRoute } from '../middleware/error.js';
 import { listBroadcasts } from '../services/broadcast.js';
-import { PLANS, evaluate, loadLicense, signed } from '../services/license.js';
+import { evaluate, loadLicense, signed } from '../services/license.js';
+import { plansWithPrices } from '../services/plan-prices.js';
 import {
   latestPaymentRequest,
   submitPaymentRequest,
@@ -19,9 +20,14 @@ export const licenseRouter: Router = Router();
  * narxlar bo'limi shu bitta manbadan oziqlanadi - narx ikki joyda
  * boshqacha ko'rinishi mumkin emas.
  */
-licenseRouter.get('/plans', (_req, res) => {
-  res.json({ ok: true, plans: PLANS, payment: paymentInfo() });
-});
+licenseRouter.get(
+  '/plans',
+  asyncRoute(async (_req, res) => {
+    // Narx bazadan olinadi - panelda o'zgartirilsa, ilova ham,
+    // websayt ham darhol yangisini ko'radi.
+    res.json({ ok: true, plans: await plansWithPrices(), payment: paymentInfo() });
+  }),
+);
 
 /**
  * To'lov ma'lumotlari — ilovadagi to'lov ekrani shulardan foydalanadi.
