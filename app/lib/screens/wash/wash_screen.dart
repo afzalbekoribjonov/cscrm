@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 
 import '../../models/staff_access.dart';
 import '../../models/work_section.dart';
+import '../../theme/app_colors.dart';
 import '../../utils/order_sections.dart';
-import '../../widgets/count_banner.dart';
+import '../../utils/wash_section_stats.dart';
+import '../../widgets/section_stats_bar.dart';
 import '../../widgets/employee_app_bar_title.dart';
 import '../../widgets/logout_action.dart';
 import '../../widgets/notification_action.dart';
@@ -34,6 +36,7 @@ class WashScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final filtered = sections.wash;
+    final stats = washSectionStats(filtered);
 
     return Scaffold(
       appBar: AppBar(
@@ -80,7 +83,12 @@ class WashScreen extends StatelessWidget {
               itemCount: filtered.length + 1,
               separatorBuilder: (_, __) => const SizedBox(height: 10),
               itemBuilder: (context, index) {
-                if (index == 0) return CountBanner(count: filtered.length);
+                if (index == 0) {
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: SectionStatsBar(stats: _statsFor(stats)),
+                  );
+                }
                 return OrderCard(
                   order: filtered[index - 1],
                   currentUserId: currentUserId,
@@ -92,4 +100,52 @@ class WashScreen extends StatelessWidget {
             ),
     );
   }
+}
+
+
+/// Ko'rsatkichlar MAZMUNIY tartibda: avval umumiy hajm, keyin ishni
+/// to'sib turgan narsalar, oxirida jarayondagi ish.
+///
+/// Nol bo'lgan "muammo" ko'rsatkichlari umuman chizilmaydi — sexdagi
+/// odamga "0 ta qayta yuvish" degan karta hech narsa bermaydi, faqat
+/// joy egallaydi.
+List<SectionStat> _statsFor(WashSectionStats s) {
+  return [
+    SectionStat(
+      icon: Icons.local_laundry_service_rounded,
+      color: AppColors.primary,
+      value: '${s.orderCount} ta',
+      label: 'Buyurtma yuvishda',
+    ),
+    if (s.rewashItems > 0)
+      SectionStat(
+        icon: Icons.replay_rounded,
+        color: AppColors.danger,
+        value: '${s.rewashItems} ta',
+        label: 'Qayta yuvish',
+        emphasise: true,
+      ),
+    if (s.ordersWithoutItems > 0)
+      SectionStat(
+        icon: Icons.playlist_add_rounded,
+        color: AppColors.warning,
+        value: '${s.ordersWithoutItems} ta',
+        label: 'Xizmat qo\'shilmagan',
+        emphasise: true,
+      ),
+    if (s.unmeasuredItems > 0)
+      SectionStat(
+        icon: Icons.straighten_rounded,
+        color: AppColors.warning,
+        value: '${s.unmeasuredItems} ta',
+        label: 'Mahsulot o\'lchanmagan',
+        emphasise: true,
+      ),
+    SectionStat(
+      icon: Icons.water_drop_rounded,
+      color: AppColors.statusWashing,
+      value: '${s.washingItems} ta',
+      label: 'Mahsulot yuvilmoqda',
+    ),
+  ];
 }
