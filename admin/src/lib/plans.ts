@@ -19,6 +19,16 @@ export interface Plan {
 export const plans = plansData.plans as Plan[];
 export const graceDays: number = plansData.grace.days;
 
+/**
+ * Sinov muddati kunlarda.
+ *
+ * Marketing matnida QO'LDA yozilmaydi: narx kabi bu ham yagona
+ * manbadan olinadi, aks holda `plans.json` o'zgarganda saytdagi va'da
+ * bilan haqiqiy muddat ajralib ketadi.
+ */
+export const trialDays: number =
+  (plansData.plans as Plan[]).find((p) => p.kind === 'trial')?.days ?? 0;
+
 /** Narx hali belgilanmagan rejalar (price === 0, lekin bepul emas). */
 export function isPriceUnset(plan: Plan): boolean {
   return plan.kind !== 'trial' && plan.price === 0;

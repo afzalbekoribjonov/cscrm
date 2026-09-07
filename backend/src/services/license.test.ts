@@ -21,7 +21,7 @@ function sub(overrides: Partial<License> = {}): License {
 describe('computeExpiry', () => {
   it('sinov muddatini kunlarda hisoblaydi', () => {
     const trial = findPlan('trial')!;
-    assert.equal(computeExpiry(trial, NOW), NOW + 14 * DAY);
+    assert.equal(computeExpiry(trial, NOW), NOW + 1 * DAY);
   });
 
   it('oylik rejani kalendar oyi bo\'yicha hisoblaydi', () => {
@@ -61,6 +61,26 @@ describe('evaluate — muddatli obuna', () => {
     const r = evaluate(sub({ expiresAt: NOW - 5 * DAY }), NOW);
     assert.equal(r.state, 'expired');
     assert.equal(r.blocked, true);
+  });
+
+  it('SINOVGA qo\'shimcha kun berilmaydi', () => {
+    // Grace - to'lagan mijoz uchun. Sinovda hech kim to'lamagan, aks
+    // holda 1 kunlik sinov amalda 4 kunga aylanardi.
+    const r = evaluate(
+      sub({ planId: 'trial', kind: 'trial', expiresAt: NOW - 1 * DAY }),
+      NOW,
+    );
+    assert.equal(r.state, 'expired');
+    assert.equal(r.blocked, true, 'sinov tugagach darhol bloklanadi');
+  });
+
+  it('to\'lagan mijozga qo\'shimcha kun beriladi', () => {
+    const r = evaluate(
+      sub({ kind: 'subscription', expiresAt: NOW - 1 * DAY }),
+      NOW,
+    );
+    assert.equal(r.state, 'grace');
+    assert.equal(r.blocked, false);
   });
 
   it('grace chegarasining aynan o\'zida hali bloklanmaydi', () => {

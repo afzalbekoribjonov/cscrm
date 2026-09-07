@@ -94,7 +94,7 @@ narx ikki joyda boshqacha ko'rinishi mumkin emas.
 
 | Reja | Muddat |
 |---|---|
-| Sinov | 14 kun, bepul |
+| Sinov | 1 kun, bepul (qo'shimcha kunsiz) |
 | 1 oylik / 3 oylik / 5 oylik / 1 yillik | obuna |
 | Bir umrlik | cheksiz + yiliga $50 (baza uchun) |
 

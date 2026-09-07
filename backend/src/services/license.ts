@@ -113,7 +113,15 @@ export function evaluate(license: License, now: number): LicenseStatusPayload {
   }
 
   const daysLeft = Math.ceil((expiresAt - now) / DAY_MS);
-  const graceEnd = expiresAt + GRACE_DAYS * DAY_MS;
+
+  // Qo'shimcha kunlar FAQAT to'lagan mijozga beriladi.
+  //
+  // Grace davri "pulini to'lab yurgan mijoz muddatni o'tkazib yuborsa,
+  // ishi to'xtab qolmasin" degan qoida. Sinov muddatida esa hech kim
+  // hech narsa to'lamagan — unga ham qo'shimcha kun berilsa, 1 kunlik
+  // sinov amalda 4 kunga aylanardi.
+  const graceDays = license.kind === 'trial' ? 0 : GRACE_DAYS;
+  const graceEnd = expiresAt + graceDays * DAY_MS;
 
   if (now > graceEnd) {
     return {
@@ -127,6 +135,8 @@ export function evaluate(license: License, now: number): LicenseStatusPayload {
   }
 
   if (now > expiresAt) {
+    // Sinovda graceDays = 0, ya'ni bu shoxga umuman tushmaydi:
+    // yuqoridagi `now > graceEnd` allaqachon bloklagan bo'ladi.
     const graceLeft = Math.ceil((graceEnd - now) / DAY_MS);
     return {
       ...base,

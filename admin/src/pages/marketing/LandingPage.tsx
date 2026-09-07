@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 
 import { branding } from '@/lib/branding';
+import { trialDays } from '@/lib/plans';
 
 const FEATURES = [
   {
@@ -99,7 +100,7 @@ export function LandingPage() {
             }}
           >
             <Link className="btn btn--primary" to="/narxlar">
-              14 kun bepul sinab ko'rish
+              {trialDays} kun bepul sinab ko'rish
             </Link>
             <Link className="btn btn--ghost" to="/imkoniyatlar">
               Imkoniyatlar bilan tanishish
@@ -150,7 +151,8 @@ export function LandingPage() {
         >
           <h2 style={{ color: '#fff' }}>Bugundan boshlang</h2>
           <p style={{ opacity: 0.92, maxWidth: 520, marginInline: 'auto' }}>
-            14 kun bepul. Yoqsa — obuna bo'lasiz, yoqmasa hech narsa to'lamaysiz.
+            {trialDays} kun bepul. Yoqsa — obuna bo'lasiz, yoqmasa hech narsa
+            to'lamaysiz.
           </p>
           <div
             style={{

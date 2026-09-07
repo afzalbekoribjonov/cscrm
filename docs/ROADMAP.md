@@ -50,7 +50,7 @@ yuborsa, servis uyg'oq turadi.
 |---|---|---|
 | 1 | Rejalar narxi qancha? | **TAKLIF yozildi** — tayanch 199 000 so'm/oy, tasdiqlash kerak |
 | 2 | $50 qachondan hisoblanadi? | belgilanmagan — hozir sotib olingan kundan +1 yil |
-| 3 | Sinov muddati 14 kun to'g'rimi? | `plans.json` da 14 |
+| 3 | Sinov muddati | **1 kun** — hal qilindi. Grace sinovga qo'llanmaydi |
 
 ### Taklif etilgan narxlar
 
