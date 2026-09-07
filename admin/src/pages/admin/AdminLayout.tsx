@@ -16,22 +16,8 @@ export function AdminLayout() {
 
   return (
     <div style={{ minHeight: '100dvh', display: 'flex', flexDirection: 'column' }}>
-      <header
-        style={{
-          borderBottom: '1px solid var(--border)',
-          background: 'var(--surface)',
-        }}
-      >
-        <div
-          className="container"
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 20,
-            minHeight: 64,
-            flexWrap: 'wrap',
-          }}
-        >
+      <header className="admin-header">
+        <div className="container admin-header__inner">
           <Wordmark size={30} />
           <span
             style={{
@@ -46,29 +32,28 @@ export function AdminLayout() {
             Boshqaruv
           </span>
 
-          <nav style={{ display: 'flex', gap: 4, marginInlineStart: 'auto' }}>
+          <nav className="admin-nav" aria-label="Panel menyusi">
             {NAV.map((item) => (
               <NavLink
                 key={item.to}
                 to={item.to}
                 end={item.end}
-                style={({ isActive }) => ({
-                  padding: '8px 12px',
-                  borderRadius: 10,
-                  fontWeight: 600,
-                  fontSize: 15,
-                  textDecoration: 'none',
-                  color: isActive ? 'var(--brand)' : 'var(--text-muted)',
-                  background: isActive ? 'var(--surface-muted)' : 'transparent',
-                })}
+                className={({ isActive }) => (isActive ? 'is-active' : '')}
               >
                 {item.label}
               </NavLink>
             ))}
           </nav>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span className="muted" style={{ fontSize: 13 }}>
+          <div
+            className="admin-header__user"
+            style={{ display: 'flex', alignItems: 'center', gap: 10 }}
+          >
+            <span
+              className="muted"
+              style={{ fontSize: 13, maxWidth: 180, overflow: 'hidden',
+                       textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+            >
               {user?.email}
             </span>
             <button

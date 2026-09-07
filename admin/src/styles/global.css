@@ -591,3 +591,220 @@ ul { margin: 0; padding: 0; list-style: none; }
     scroll-behavior: auto !important;
   }
 }
+
+/* ================================================================= */
+/* Super-admin paneli                                                */
+/* ================================================================= */
+
+.admin-header {
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  position: sticky;
+  top: 0;
+  z-index: 30;
+}
+.admin-header__inner {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 62px;
+}
+.admin-header__user { margin-inline-start: auto; }
+
+.admin-nav { display: flex; gap: 2px; }
+.admin-nav a {
+  padding: 8px 13px;
+  border-radius: var(--radius-sm);
+  font-weight: 600;
+  font-size: 0.93rem;
+  color: var(--text-muted);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.admin-nav a:hover { color: var(--text); background: var(--surface-muted); }
+.admin-nav a.is-active { color: var(--brand); background: var(--surface-muted); }
+
+/* Tor ekranda menyu yon tomonga suriladi — o'ralib ikki qatorga
+   cho'zilgandan ko'ra shu tartibliroq. */
+@media (max-width: 720px) {
+  .admin-nav {
+    order: 3;
+    width: 100%;
+    overflow-x: auto;
+    padding-bottom: 6px;
+    scrollbar-width: none;
+  }
+  .admin-nav::-webkit-scrollbar { display: none; }
+  .admin-header__inner { flex-wrap: wrap; padding-top: 8px; }
+}
+
+.page-title {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+.page-title h1 { font-size: clamp(1.4rem, 1.2rem + 1vw, 1.7rem); margin: 0; }
+
+/* --- Asboblar paneli: qidiruv + filtrlar --- */
+
+.toolbar {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.search-box { position: relative; flex: 1 1 260px; min-width: 200px; }
+.search-box input {
+  width: 100%;
+  padding: 10px 38px 10px 14px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+.search-box input:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 1px;
+}
+.search-box__hint {
+  position: absolute;
+  inset-inline-end: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 1px 6px;
+  pointer-events: none;
+}
+
+.chips { display: flex; gap: 6px; flex-wrap: wrap; }
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 13px;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.chip:hover { background: var(--surface-muted); color: var(--text); }
+.chip.is-active {
+  background: var(--brand);
+  border-color: var(--brand);
+  color: #fff;
+}
+.chip__count {
+  font-size: 0.78rem;
+  opacity: 0.75;
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- Jadval --- */
+
+.table-wrap {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+.table-scroll { overflow-x: auto; }
+
+.data-table { width: 100%; border-collapse: collapse; min-width: 720px; }
+.data-table th {
+  text-align: start;
+  padding: 12px 16px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-muted);
+  white-space: nowrap;
+}
+.data-table th button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+.data-table th button:hover { color: var(--text); }
+.data-table th button[aria-sort='ascending'],
+.data-table th button[aria-sort='descending'] { color: var(--brand); }
+
+.data-table td {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.9rem;
+  vertical-align: top;
+}
+.data-table tbody tr:last-child td { border-bottom: 0; }
+.data-table tbody tr:hover { background: var(--surface-muted); }
+
+.badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.empty-state {
+  padding: 44px 20px;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+/* Tor ekranda jadval kartalarga aylanadi — 720px li jadvalni
+   telefonda yon-yon surib o'qish qiyin. */
+@media (max-width: 700px) {
+  .data-table { min-width: 0; }
+  .data-table thead { display: none; }
+  .data-table tbody tr {
+    display: block;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--border);
+  }
+  .data-table td {
+    display: flex;
+    gap: 12px;
+    justify-content: space-between;
+    align-items: baseline;
+    padding: 4px 0;
+    border: 0;
+  }
+  .data-table td::before {
+    content: attr(data-label);
+    font-size: 0.72rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-muted);
+    flex-shrink: 0;
+  }
+  .data-table td:first-child { padding-bottom: 8px; }
+  .data-table td:first-child::before { display: none; }
+}

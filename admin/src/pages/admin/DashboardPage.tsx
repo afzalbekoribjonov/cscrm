@@ -22,15 +22,11 @@ export function DashboardPage() {
 
   return (
     <>
-      <h1 style={{ fontSize: 26, marginBottom: 20 }}>Umumiy holat</h1>
+      <div className="page-title">
+        <h1>Umumiy holat</h1>
+      </div>
 
-      <div
-        style={{
-          display: 'grid',
-          gap: 14,
-          gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-        }}
-      >
+      <div className="grid grid--4">
         <Stat label="Jami biznes" value={stats.totalTenants} />
         <Stat
           label="Faol"
