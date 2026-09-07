@@ -2,6 +2,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:intl/date_symbol_data_local.dart';
+import 'package:intl/intl.dart';
 
 import 'branding/app_branding.dart';
 import 'firebase_options.dart';
@@ -18,6 +21,11 @@ import 'widgets/license_gate.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Sana nomlarini O'ZBEKCHA chiqarish uchun. Busiz `DateFormat` va
+  // kalendar oy/kun nomlarini inglizcha yozadi.
+  await initializeDateFormatting('uz');
+  Intl.defaultLocale = 'uz';
   await ThemeController.instance.load();
 
   Object? firebaseError;
@@ -73,6 +81,15 @@ class CscrmApp extends StatelessWidget {
         return MaterialApp(
           title: AppBranding.name,
           debugShowCheckedModeBanner: false,
+          // Tizim vidjetlari (sana tanlagich, matn menyusi) ham
+          // o'zbekcha bo'lsin.
+          locale: const Locale('uz'),
+          supportedLocales: const [Locale('uz'), Locale('en')],
+          localizationsDelegates: const [
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
           theme: AppTheme.light(),
           darkTheme: AppTheme.dark(),
           themeMode: mode,

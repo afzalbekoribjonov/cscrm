@@ -12,6 +12,7 @@ import {
   latestPaymentRequest,
   submitPaymentRequest,
 } from '../services/payment-request.js';
+import { registerToken, removeToken } from '../services/push.js';
 
 export const licenseRouter: Router = Router();
 
@@ -162,5 +163,47 @@ licenseRouter.get(
       ok: true,
       messages: await listBroadcasts({ now: Date.now(), activeOnly: true }),
     });
+  }),
+);
+
+const pushTokenBody = z.object({
+  token: z.string().min(20).max(4096),
+  platform: z.string().max(20).default('android'),
+});
+
+/**
+ * Qurilma push tokenini ro'yxatga oladi.
+ *
+ * Ilova har ochilganda chaqiradi: FCM tokeni vaqti-vaqti bilan
+ * yangilanadi va eskisi ishlamay qoladi.
+ */
+licenseRouter.post(
+  '/push-token',
+  requireAuth,
+  asyncRoute(async (req, res) => {
+    const { tenantId, uid } = requireTenant(req);
+    const parsed = pushTokenBody.safeParse(req.body);
+    if (!parsed.success) throw ApiError.badRequest('Token noto\'g\'ri.');
+
+    await registerToken({
+      token: parsed.data.token,
+      platform: parsed.data.platform,
+      tenantId,
+      uid,
+      now: Date.now(),
+    });
+
+    res.json({ ok: true });
+  }),
+);
+
+/** Chiqishda: bu qurilmaga endi xabar yuborilmaydi. */
+licenseRouter.delete(
+  '/push-token/:token',
+  requireAuth,
+  asyncRoute(async (req, res) => {
+    requireTenant(req);
+    await removeToken(req.params.token!);
+    res.json({ ok: true });
   }),
 );

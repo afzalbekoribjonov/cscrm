@@ -8,6 +8,7 @@ import '../../models/staff_access.dart';
 import '../../services/auth_service.dart';
 import '../../services/employee_service.dart';
 import '../../services/message_center.dart';
+import '../../services/push_service.dart';
 import '../../services/notification_center.dart';
 import '../../services/order_service.dart';
 import '../../services/session_service.dart';
@@ -72,6 +73,8 @@ class _HomeShellState extends State<HomeShell> {
     // CSCRM xabarlarini bir marta olib qo'yamiz - qo'ng'iroq ustidagi
     // raqam ekran ochilishini kutmasdan to'g'ri ko'rinsin.
     MessageCenter.instance.refresh();
+    // Push - faqat CSCRM xabarlari uchun (qarang: PushService).
+    PushService.instance.start();
     _listenToOrders();
     _listenToEmployee();
     _listenToWriteFailures();

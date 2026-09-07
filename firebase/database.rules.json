@@ -69,6 +69,12 @@
       ".indexOn": ["createdAt"]
     },
 
+    "push_tokens": {
+      "//": "Qurilma FCM tokenlari. Mijozga BUTUNLAY berk: ochiq bo'lsa, birov boshqa qurilmalarning tokenini o'qib olishi mumkin bo'lardi. Faqat backend yozadi va o'qiydi. Ildizda: xabar barcha bizneslarga ketadi, ya'ni bitta so'rovda hamma token kerak.",
+      ".read": false,
+      ".write": false
+    },
+
     "plan_prices": {
       "//": "Reja narxlari. Panelda o'zgartiriladi, faqat backend yozadi. Mijozga BERK: narxni ilova to'g'ridan-to'g'ri emas, `/license/plans` orqali oladi - shunda fayl qiymati bilan birlashtirilgan, tekshirilgan natija keladi.",
       ".read": false,

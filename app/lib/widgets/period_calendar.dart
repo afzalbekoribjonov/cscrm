@@ -25,7 +25,11 @@ const _periodLabels = {
 }
 
 final _dayFormat = DateFormat('dd.MM.yyyy');
-final _monthFormat = DateFormat('MM.yyyy');
+
+/// Oy nomi o'zbekcha ("Mart 2026"). `main.dart` da
+/// `initializeDateFormatting('uz')` chaqirilgan - busiz istisno
+/// tashlanardi.
+final _monthFormat = DateFormat('MMMM yyyy', 'uz');
 
 /// Tanlangan davr: qaysi kun va qanday oraliq.
 ///
@@ -229,6 +233,11 @@ class _PeriodCalendarDialogState extends State<_PeriodCalendarDialog> {
                 ),
                 const SizedBox(height: 8),
                 TableCalendar(
+                  // Oy va kun nomlari o'zbekcha. `main.dart` da
+                  // `initializeDateFormatting('uz')` chaqirilgan -
+                  // busiz bu yerda istisno tashlanardi.
+                  locale: 'uz',
+                  startingDayOfWeek: StartingDayOfWeek.monday,
                   firstDay: DateTime(now.year - 2),
                   lastDay: DateTime(now.year + 1),
                   focusedDay: _focusedDay,

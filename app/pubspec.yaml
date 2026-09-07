@@ -9,10 +9,15 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  # Kalendar va sana tanlagichlarni o'zbek tilida ko'rsatish uchun.
+  flutter_localizations:
+    sdk: flutter
 
   firebase_core: ^3.8.0
   firebase_auth: ^5.3.3
   firebase_database: ^11.1.6
+  firebase_messaging: ^15.1.5
+  flutter_local_notifications: ^18.0.1
   shared_preferences: ^2.3.3
   audioplayers: ^6.1.0
   google_fonts: ^6.2.1

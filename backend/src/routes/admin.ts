@@ -15,6 +15,7 @@ import {
   deleteBroadcast,
   listBroadcasts,
 } from '../services/broadcast.js';
+import { sendToAll } from '../services/push.js';
 import {
   plansWithPrices,
   resetPlanPrice,
@@ -290,7 +291,17 @@ adminRouter.post(
       now: Date.now(),
     });
 
-    res.status(201).json({ ok: true, ...result });
+    // Push — QO'SHIMCHA yetkazish yo'li. Ishlamasa ham xabar bazada
+    // saqlangan va ilova ochilganda baribir ko'rinadi, shuning uchun
+    // bu yerda xatolik javobni buzmaydi.
+    const push = await sendToAll({
+      title: result.broadcast.title,
+      body: result.broadcast.body,
+      data: { type: 'broadcast', id: result.id },
+    });
+    req.log?.info({ broadcastId: result.id, push }, 'xabar yuborildi');
+
+    res.status(201).json({ ok: true, ...result, push });
   }),
 );
 

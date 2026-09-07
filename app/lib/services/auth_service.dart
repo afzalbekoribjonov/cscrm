@@ -5,6 +5,7 @@ import '../branding/app_branding.dart';
 import '../models/staff_access.dart';
 import 'api_client.dart';
 import 'message_center.dart';
+import 'push_service.dart';
 import 'tenant_scope.dart';
 
 class AuthFailure implements Exception {
@@ -335,6 +336,9 @@ class AuthService {
     TenantScope.clear();
     // Keyingi foydalanuvchi oldingisining xabarlarini ko'rmasin.
     MessageCenter.instance.clear();
+    // Telefonni boshqa odam ishlatishi mumkin - chiqib ketgan
+    // foydalanuvchining biznesi haqidagi xabar unga bormasin.
+    await PushService.instance.stop();
     await _auth.signOut();
   }
 
