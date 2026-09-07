@@ -78,6 +78,15 @@ export interface TenantDetail extends TenantSummary {
   paymentRequest: PaymentRequestRecord | null;
 }
 
+/** Biznes egasining kirish ma'lumotlari. Parol HECH QACHON kelmaydi. */
+export interface OwnerCredentials {
+  uid: string;
+  login: string | null;
+  email: string | null;
+  lastSignInAt: string | null;
+  disabled: boolean;
+}
+
 export interface AdminStats {
   totalTenants: number;
   activeTenants: number;

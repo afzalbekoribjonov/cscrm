@@ -53,3 +53,81 @@ export async function changeOwnerLogin(
 
   return { login: newLogin };
 }
+
+/**
+ * Biznes egasining hozirgi login ma'lumotlari.
+ *
+ * Super-admin panelida ko'rsatiladi: mijoz "loginimni unutdim" deb
+ * murojaat qilganda uni AYTIB berish uchun. Parolni ko'rsatib
+ * bo'lmaydi - Firebase faqat hash saqlaydi, ochiq matn hech qayerda
+ * yo'q. Shuning uchun parol bo'yicha yagona yo'l - yangisini qo'yish.
+ */
+export async function ownerCredentials(tenantId: string): Promise<{
+  uid: string;
+  login: string | null;
+  email: string | null;
+  lastSignInAt: string | null;
+  disabled: boolean;
+}> {
+  const snap = await db().ref(`tenants/${tenantId}/profile/ownerUid`).get();
+  if (!snap.exists()) throw ApiError.notFound('Biznes topilmadi.');
+  const uid = snap.val() as string;
+
+  const user = await auth().getUser(uid);
+  const email = user.email ?? null;
+  const login =
+    email && email.endsWith(AUTH_EMAIL_DOMAIN)
+      ? email.slice(0, -AUTH_EMAIL_DOMAIN.length)
+      : null;
+
+  return {
+    uid,
+    login,
+    email,
+    lastSignInAt: user.metadata.lastSignInTime ?? null,
+    disabled: user.disabled,
+  };
+}
+
+/** Tenant'ning ega UID'sini qaytaradi. */
+async function ownerUidOf(tenantId: string): Promise<string> {
+  const snap = await db().ref(`tenants/${tenantId}/profile/ownerUid`).get();
+  if (!snap.exists()) throw ApiError.notFound('Biznes topilmadi.');
+  return snap.val() as string;
+}
+
+/**
+ * Super-admin biznes egasiga YANGI PAROL qo'yadi.
+ *
+ * "Parolni unutdim" holati uchun: eski parolni bilish shart emas.
+ * Shu sabab bu yo'l faqat super-adminga ochiq va har chaqiruv logga
+ * tushadi (parolning O'ZI hech qayerda yozilmaydi).
+ *
+ * Mavjud seanslar BEKOR QILINADI. Sabab: parol almashtirilyaptimi,
+ * demak eskisiga ishonch yo'q — birov o'g'irlab olgan bo'lishi ham
+ * mumkin. Token bekor qilinmasa, u eski parol bilan kirgan holda
+ * ishlashda davom etardi.
+ */
+export async function resetOwnerPassword(params: {
+  tenantId: string;
+  newPassword: string;
+}): Promise<{ uid: string }> {
+  if (params.newPassword.length < 6) {
+    throw ApiError.badRequest('Parol kamida 6 ta belgidan iborat bo\'lsin.');
+  }
+
+  const uid = await ownerUidOf(params.tenantId);
+  await auth().updateUser(uid, { password: params.newPassword });
+  await auth().revokeRefreshTokens(uid);
+
+  return { uid };
+}
+
+/** Super-admin biznes egasining loginini almashtiradi. */
+export async function changeOwnerLoginByAdmin(params: {
+  tenantId: string;
+  newLogin: string;
+}): Promise<{ login: string }> {
+  const uid = await ownerUidOf(params.tenantId);
+  return changeOwnerLogin(uid, params.tenantId, params.newLogin);
+}

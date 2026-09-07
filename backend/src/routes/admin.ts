@@ -12,6 +12,11 @@ import {
 } from '../services/admin.js';
 import { PLANS } from '../services/license.js';
 import {
+  changeOwnerLoginByAdmin,
+  ownerCredentials,
+  resetOwnerPassword,
+} from '../services/credentials.js';
+import {
   listPendingPayments,
   rejectPaymentRequest,
 } from '../services/payment-request.js';
@@ -157,5 +162,75 @@ adminRouter.post(
     });
 
     res.json({ ok: true });
+  }),
+);
+
+/**
+ * Biznes egasining kirish ma'lumotlari.
+ *
+ * PAROL QAYTARILMAYDI va qaytarilishi ham mumkin emas - Firebase faqat
+ * hash saqlaydi. Mijoz parolini unutgan bo'lsa, yagona yo'l - yangisini
+ * qo'yish (quyidagi yo'l).
+ */
+adminRouter.get(
+  '/tenants/:tenantId/credentials',
+  asyncRoute(async (req, res) => {
+    res.json({
+      ok: true,
+      credentials: await ownerCredentials(req.params.tenantId!),
+    });
+  }),
+);
+
+const credentialsBody = z
+  .object({
+    login: z.string().min(3).max(64).optional(),
+    password: z.string().min(6).max(128).optional(),
+  })
+  .refine((v) => v.login !== undefined || v.password !== undefined, {
+    message: 'Login yoki parol - kamida bittasini kiriting.',
+  });
+
+/**
+ * Biznes egasining loginini va/yoki parolini almashtiradi.
+ *
+ * "Login-parolimni unutdim" holati uchun: mijoz yordam xizmatiga
+ * murojaat qiladi, super-admin esa shu yerdan yangisini qo'yib beradi.
+ *
+ * Eski parolni bilish TALAB QILINMAYDI - aynan shuning uchun bu yo'l
+ * faqat super-adminga ochiq. Parolning o'zi javobga ham, logga ham
+ * hech qachon tushmaydi.
+ */
+adminRouter.post(
+  '/tenants/:tenantId/credentials',
+  asyncRoute(async (req, res) => {
+    const parsed = credentialsBody.safeParse(req.body);
+    if (!parsed.success) {
+      throw ApiError.badRequest(
+        'Login kamida 3 ta, parol kamida 6 ta belgidan iborat bo\'lsin.',
+        parsed.error.flatten().fieldErrors,
+      );
+    }
+
+    const tenantId = req.params.tenantId!;
+    const changed: string[] = [];
+
+    if (parsed.data.login !== undefined) {
+      await changeOwnerLoginByAdmin({ tenantId, newLogin: parsed.data.login });
+      changed.push('login');
+    }
+    if (parsed.data.password !== undefined) {
+      await resetOwnerPassword({ tenantId, newPassword: parsed.data.password });
+      changed.push('parol');
+    }
+
+    req.log?.info({ tenantId, changed, by: req.user!.uid },
+      'egasining kirish ma\'lumotlari o\'zgartirildi');
+
+    res.json({
+      ok: true,
+      changed,
+      credentials: await ownerCredentials(tenantId),
+    });
   }),
 );

@@ -12,6 +12,8 @@ import {
 } from '@/lib/admin-types';
 import type { Plan } from '@/lib/plans';
 
+import { OwnerCredentialsCard } from './OwnerCredentialsCard';
+
 export function TenantDetailPage() {
   const { tenantId = '' } = useParams();
 
@@ -208,6 +210,9 @@ export function TenantDetailPage() {
             onReject={() => rejectRequest(tenant.paymentRequest!.id)}
           />
         )}
+
+        {/* --- Kirish ma'lumotlari --- */}
+        <OwnerCredentialsCard tenantId={tenantId} />
 
         {/* --- To'lovni tasdiqlash --- */}
         <ConfirmPaymentCard
