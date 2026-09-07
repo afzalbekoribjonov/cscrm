@@ -858,6 +858,10 @@ class OrderService {
       map['active'] = false;
       map['paymentMethod'] = paymentMethod;
       map['paymentAmount'] = settlement.paid;
+      // Yetkazish lahzasidagi summa. `paymentAmount` keyin qarz to'langan
+      // sari o'sadi, bu esa o'zgarmaydi - daromadni "qaysi kuni pul
+      // olindi" bo'yicha hisoblash uchun aynan shu kerak.
+      map['deliveryPaidAmount'] = settlement.paid;
       map['debtAmount'] = settlement.debt;
       map['discountAmount'] = settlement.discount;
 
@@ -910,6 +914,10 @@ class OrderService {
     required String byEmployeeId,
     required String byName,
   }) async {
+    // Haqiqatda olingan summa tranzaksiya ichida hisoblanadi (qarzdan
+    // ortiq to'lov qabul qilinmaydi). Uni tashqariga chiqaramiz -
+    // tarixga so'ralgan emas, AYNAN OLINGAN summa yozilishi kerak.
+    var appliedAmount = 0.0;
 
     // Tranzaksiya, chunki bu yerda ikkita PUL maydoni oshiriladi/kamaytiriladi.
     // Ilgari ular qurilmadagi eski nusxadan hisoblanardi - ikki joydan bir
@@ -933,6 +941,7 @@ class OrderService {
         amount: amount,
       );
       final applied = payment.applied;
+      appliedAmount = applied;
       final remaining = payment.remainingDebt;
 
       map['debtAmount'] = remaining;
@@ -959,8 +968,13 @@ class OrderService {
           'byEmployeeId': byEmployeeId,
           'byName': byName,
           'at': ServerValue.timestamp,
+          // Summa va usul ALOHIDA maydonlarda. Ilgari ular faqat izoh
+          // matni ichida edi va hisobot ularni o'qiy olmasdi - natijada
+          // qarz to'lovi daromadga umuman tushmasdi.
+          'amount': appliedAmount,
+          'method': method,
           'note':
-              '$method orqali ${amount.toStringAsFixed(0)} so\'m qabul qilindi',
+              '$method orqali ${appliedAmount.toStringAsFixed(0)} so\'m qabul qilindi',
         })));
   }
 

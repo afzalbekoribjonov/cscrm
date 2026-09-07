@@ -12,11 +12,13 @@ import '../../services/order_service.dart';
 import '../../theme/app_colors.dart';
 import '../../utils/date_utils.dart';
 import '../../utils/delivery_stats.dart';
+import '../../utils/income_stats.dart';
 import '../../utils/wash_stats.dart';
 import '../../widgets/item_measurement_form.dart' show fmtSom;
 import '../../widgets/period_calendar.dart';
 import '../../widgets/stream_error_view.dart';
 import '../activity/delivery_orders_screen.dart';
+import 'work_items_screen.dart';
 
 /// "Daromad va faollik" - tanlangan kalendar davri bo'yicha ikki blok:
 ///
@@ -51,17 +53,20 @@ class _IncomeActivityScreenState extends State<IncomeActivityScreen> {
   // almashtirilganda ro'yxatlar "waiting" holatiga qaytib flicker qilardi.
   // Oqim TANLANGAN DAVRGA bog'liq - davr almashtirilganda qayta
   // yaratiladi (_applyPeriod). Ilgari bu yerda butun tarix o'qilardi.
-  late var _reportStream = _orderService.streamReport(
-    startOfMonth(DateTime.now()),
-    endOfMonth(DateTime.now()),
-  );
-  final _employeesStream = EmployeeService().streamEmployees();
-  final _expensesStream = ExpenseService().streamExpenses();
-
   /// Tanlangan davr EKRAN holatida saqlanadi, tanlagich ichida emas -
   /// aks holda ro'yxat aylantirilganda tanlov o'z-o'zidan qaytardi.
   /// Standart: BUGUN.
   PeriodSelection _selection = PeriodSelection.today();
+
+  /// Oqim TANLANGAN DAVRDAN kelib chiqadi. Ilgari bu yerda "joriy oy"
+  /// qattiq yozilgan edi - tanlov esa bugun. Ikkalasi bir-biriga mos
+  /// bo'lmagani uchun ekran keraksiz ko'p ma'lumot yuklab olardi.
+  late var _reportStream = _orderService.streamReport(
+    _selection.range.$1,
+    _selection.range.$2,
+  );
+  final _employeesStream = EmployeeService().streamEmployees();
+  final _expensesStream = ExpenseService().streamExpenses();
 
   DateTime get _start => _selection.range.$1;
   DateTime get _end => _selection.range.$2;
@@ -80,6 +85,27 @@ class _IncomeActivityScreenState extends State<IncomeActivityScreen> {
       final (start, end) = selection.range;
       _reportStream = _orderService.streamReport(start, end);
     });
+  }
+
+  /// Ko'rsatkich ortidagi ishlar ro'yxatini ochadi.
+  void _openWorkItems(
+    BuildContext context, {
+    required String title,
+    required String subtitle,
+    required List<WorkItem> items,
+    required Color color,
+  }) {
+    if (items.isEmpty) return;
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => WorkItemsScreen(
+          title: title,
+          subtitle: subtitle,
+          items: items,
+          color: color,
+        ),
+      ),
+    );
   }
 
   void _openOrders(BuildContext context, String title, List<Order> orders) {
@@ -163,6 +189,77 @@ class _IncomeActivityScreenState extends State<IncomeActivityScreen> {
     );
   }
 
+  /// Hajm bo'limi: sarlavha, izoh va birlik bo'yicha qatorlar.
+  ///
+  /// Yuvish va qadoqlash bir xil ko'rinishda chiziladi — ikkalasi bir xil
+  /// ma'noli ko'rsatkich, faqat qaysi bosqich ekani boshqa.
+  List<Widget> _volumeSection(
+    BuildContext context,
+    ThemeData theme, {
+    required String title,
+    required String hint,
+    required String emptyText,
+    required WashStats stats,
+    required IconData icon,
+    required Color color,
+  }) {
+    return [
+      Row(
+        children: [
+          Expanded(
+            child: Text(
+              title,
+              style: theme.textTheme.titleSmall
+                  ?.copyWith(fontWeight: FontWeight.w700),
+            ),
+          ),
+          if (!stats.isEmpty)
+            TextButton.icon(
+              onPressed: () => _openWorkItems(
+                context,
+                title: title,
+                subtitle: '${stats.totalItems} ta xizmat · ${_selection.label}',
+                items: stats.allItems,
+                color: color,
+              ),
+              icon: const Icon(Icons.visibility_outlined, size: 17),
+              label: const Text('Hammasi'),
+              style: TextButton.styleFrom(
+                visualDensity: VisualDensity.compact,
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+              ),
+            ),
+        ],
+      ),
+      const SizedBox(height: 2),
+      Text(hint, style: theme.textTheme.bodySmall),
+      const SizedBox(height: 10),
+      if (stats.isEmpty)
+        _EmptyNote(text: emptyText)
+      else
+        ...stats.volumes.map(
+          (v) => Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: _StatRow(
+              icon: icon,
+              color: color,
+              label: '${v.unit.label}  ·  ${v.itemCount} ta',
+              value: formatVolume(v.quantity, v.unit),
+              onInspect: () => _openWorkItems(
+                context,
+                title: '$title — ${v.unit.label}',
+                subtitle:
+                    '${formatVolume(v.quantity, v.unit)} · ${v.itemCount} ta '
+                    'xizmat · ${_selection.label}',
+                items: v.items,
+                color: color,
+              ),
+            ),
+          ),
+        ),
+    ];
+  }
+
   List<Widget> _buildStats(
     BuildContext context,
     ThemeData theme,
@@ -177,13 +274,12 @@ class _IncomeActivityScreenState extends State<IncomeActivityScreen> {
             o.deliveredAt != null &&
             isWithinRange(o.deliveredAt!, _start, _end))
         .toList();
-    final cash = delivered
-        .where((o) => o.paymentMethod == cashPaymentLabel)
-        .fold<double>(0, (sum, o) => sum + (o.paymentAmount ?? 0));
-    final card = delivered
-        .where((o) => o.paymentMethod == cardPaymentLabel)
-        .fold<double>(0, (sum, o) => sum + (o.paymentAmount ?? 0));
-    final income = cash + card;
+    // Pul QAYSI KUNI OLINGAN bo'lsa, o'sha kunning daromadi. Qarz
+    // to'lovlari yetkazilgan kunga emas, to'langan kunga yoziladi.
+    final incomeStats = incomeForRange(orders, history, _start, _end);
+    final cash = incomeStats.cash;
+    final card = incomeStats.card;
+    final income = incomeStats.total;
     final expenseTotal = expenses
         .where((e) => isWithinRange(e.spentAt, _start, _end))
         .fold<double>(0, (sum, e) => sum + e.amount);
@@ -195,6 +291,10 @@ class _IncomeActivityScreenState extends State<IncomeActivityScreen> {
 
     // ---- Faollik ----
     final wash = washStatsForRange(orders, history, _start, _end);
+    // Yuvish va qadoqlash ALOHIDA hisoblanadi: bir kunda yuvilgan narsa
+    // ertasiga qadoqlanishi mumkin, ya'ni ikki raqam teng bo'lishi
+    // shart emas.
+    final packaged = packagedStatsForRange(orders, history, _start, _end);
     final created =
         orders.where((o) => isWithinRange(o.createdAt, _start, _end)).length;
     final statsByEmployee = deliveryStatsByEmployee(orders, _start, _end);
@@ -226,6 +326,13 @@ class _IncomeActivityScreenState extends State<IncomeActivityScreen> {
         color: AppColors.success,
         label: 'Naqd pul',
         value: fmtSom(cash),
+        onInspect: () => _openOrders(
+          context,
+          'Naqd to\'langan buyurtmalar',
+          delivered
+              .where((o) => o.paymentMethod == cashPaymentLabel)
+              .toList(),
+        ),
       ),
       const SizedBox(height: 8),
       _StatRow(
@@ -233,6 +340,13 @@ class _IncomeActivityScreenState extends State<IncomeActivityScreen> {
         color: AppColors.accent,
         label: 'Karta orqali',
         value: fmtSom(card),
+        onInspect: () => _openOrders(
+          context,
+          'Karta orqali to\'langan buyurtmalar',
+          delivered
+              .where((o) => o.paymentMethod == cardPaymentLabel)
+              .toList(),
+        ),
       ),
       const SizedBox(height: 8),
       _StatRow(
@@ -248,6 +362,11 @@ class _IncomeActivityScreenState extends State<IncomeActivityScreen> {
           color: AppColors.warning,
           label: 'Berilgan skidka',
           value: fmtSom(discount),
+          onInspect: () => _openOrders(
+            context,
+            'Skidka berilgan buyurtmalar',
+            delivered.where((o) => o.discountAmount > 0).toList(),
+          ),
         ),
       ],
       const SizedBox(height: 8),
@@ -257,6 +376,13 @@ class _IncomeActivityScreenState extends State<IncomeActivityScreen> {
         label: 'Qarzdorlik ($debtCount ta)',
         value: fmtSom(debt),
         emphasise: debt > 0,
+        onInspect: debtCount == 0
+            ? null
+            : () => _openOrders(
+                  context,
+                  'Qarzi qolgan buyurtmalar',
+                  delivered.where((o) => o.hasDebt).toList(),
+                ),
       ),
       const SizedBox(height: 12),
       Align(
@@ -302,31 +428,29 @@ class _IncomeActivityScreenState extends State<IncomeActivityScreen> {
         ),
       ),
       const SizedBox(height: 16),
-      Text(
-        'Yuvilgan hajm',
-        style:
-            theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+      ..._volumeSection(
+        context,
+        theme,
+        title: 'Yuvilgan hajm',
+        hint: 'Xizmat qadoqlashga o\'tkazilgan sana bo\'yicha hisoblanadi.',
+        emptyText: 'Bu davrda yuvilgan xizmat yo\'q',
+        stats: wash,
+        icon: Icons.local_laundry_service_rounded,
+        color: AppColors.statusWashing,
       ),
-      const SizedBox(height: 2),
-      Text(
-        'Xizmat qadoqlashga o\'tkazilgan sana bo\'yicha hisoblanadi.',
-        style: theme.textTheme.bodySmall,
+      const SizedBox(height: 20),
+      ..._volumeSection(
+        context,
+        theme,
+        title: 'Qadoqlangan hajm',
+        hint: 'Xizmat "Tayyor" holatiga o\'tkazilgan sana bo\'yicha. '
+            'Yuvilgan hajmga teng bo\'lishi shart emas — bugun yuvilgani '
+            'ertaga qadoqlanishi mumkin.',
+        emptyText: 'Bu davrda qadoqlangan xizmat yo\'q',
+        stats: packaged,
+        icon: Icons.inventory_2_rounded,
+        color: AppColors.statusReadyDelivery,
       ),
-      const SizedBox(height: 10),
-      if (wash.isEmpty)
-        _EmptyNote(text: 'Bu davrda yuvilgan xizmat yo\'q')
-      else
-        ...wash.volumes.map(
-          (v) => Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: _StatRow(
-              icon: Icons.local_laundry_service_rounded,
-              color: AppColors.statusWashing,
-              label: '${v.unit.label}  ·  ${v.itemCount} ta',
-              value: formatVolume(v.quantity, v.unit),
-            ),
-          ),
-        ),
       const SizedBox(height: 20),
       Text(
         'Dastavchilar',
@@ -498,6 +622,7 @@ class _StatRow extends StatelessWidget {
     required this.label,
     required this.value,
     this.emphasise = false,
+    this.onInspect,
   });
 
   final IconData icon;
@@ -505,6 +630,10 @@ class _StatRow extends StatelessWidget {
   final String label;
   final String value;
   final bool emphasise;
+
+  /// "Ko'z" tugmasi. Raqam qayerdan chiqqanini ko'rsatadi.
+  /// `null` bo'lsa tugma umuman chizilmaydi.
+  final VoidCallback? onInspect;
 
   @override
   Widget build(BuildContext context) {
@@ -533,6 +662,19 @@ class _StatRow extends StatelessWidget {
               color: emphasise ? color : null,
             ),
           ),
+          if (onInspect != null) ...[
+            const SizedBox(width: 4),
+            IconButton(
+              tooltip: 'Tafsilotlarni ko\'rish',
+              onPressed: onInspect,
+              icon: const Icon(Icons.visibility_outlined),
+              iconSize: 18,
+              visualDensity: VisualDensity.compact,
+              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+              padding: EdgeInsets.zero,
+              color: color,
+            ),
+          ],
         ],
       ),
     );

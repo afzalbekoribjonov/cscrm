@@ -64,6 +64,7 @@ class Order {
     this.washStartedAt,
     this.paymentMethod,
     this.paymentAmount,
+    this.deliveryPaidAmount,
     this.debtAmount = 0,
     this.discountAmount = 0,
     this.pickupLat,
@@ -111,6 +112,8 @@ class Order {
       washStartedAt: (map['washStartedAt'] as num?)?.toInt(),
       paymentMethod: map['paymentMethod'] as String?,
       paymentAmount: (map['paymentAmount'] as num?)?.toDouble(),
+      deliveryPaidAmount:
+          (map['deliveryPaidAmount'] as num?)?.toDouble(),
       debtAmount: (map['debtAmount'] as num?)?.toDouble() ?? 0,
       discountAmount: (map['discountAmount'] as num?)?.toDouble() ?? 0,
       pickupLat: (map['pickupLat'] as num?)?.toDouble(),
@@ -170,6 +173,19 @@ class Order {
   /// Yetgazib berilganda to'lov usuli ("naqd" | "karta") va olingan summa.
   final String? paymentMethod;
   final double? paymentAmount;
+
+  /// Yetkazish PAYTIDA olingan pul.
+  ///
+  /// [paymentAmount] dan farqi: u jamlanma va qarz to'langan sari o'sadi.
+  /// Daromadni "qaysi kuni pul olindi" bo'yicha hisoblash uchun esa
+  /// yetkazish lahzasidagi summa kerak - u keyin o'zgarmaydi.
+  ///
+  /// Eski yozuvlarda bu maydon yo'q; o'shalar uchun [paymentAmount] ga
+  /// qaytamiz (qarz to'lanmagan bo'lsa ikkalasi baribir teng).
+  final double? deliveryPaidAmount;
+
+  /// Yetkazishda olingan pul - eski yozuvlarga chidamli.
+  double get paidAtDelivery => deliveryPaidAmount ?? paymentAmount ?? 0;
 
   /// To'liq olinmagan summaning taqsimoti. Dastavchik topshirish paytida
   /// farqni aynan qaysi biri ekanini o'zi belgilaydi:

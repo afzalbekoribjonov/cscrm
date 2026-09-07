@@ -25,6 +25,8 @@ class OrderHistoryEntry {
     this.note,
     this.itemProductName,
     this.itemKey,
+    this.amount,
+    this.method,
   });
 
   factory OrderHistoryEntry.fromMap(String key, Map<dynamic, dynamic> map) {
@@ -40,6 +42,8 @@ class OrderHistoryEntry {
       note: map['note'] as String?,
       itemProductName: map['itemProductName'] as String?,
       itemKey: map['itemKey'] as String?,
+      amount: (map['amount'] as num?)?.toDouble(),
+      method: map['method'] as String?,
     );
   }
 
@@ -65,6 +69,15 @@ class OrderHistoryEntry {
   /// ko'rsatish uchun.
   final String? itemProductName;
   final String? itemKey;
+
+  /// Pul harakati bo'lgan yozuvlarda (masalan `debt_settled`) - summa.
+  ///
+  /// Ilgari summa faqat izoh MATNI ichida edi. Hisobot uni o'qiy
+  /// olmasdi, natijada qarz to'lovi daromadga umuman tushmasdi.
+  final double? amount;
+
+  /// Pul qanday qabul qilingani (`Naqd pul` / `Karta`).
+  final String? method;
 
   /// Yozuv shu xizmatga tegishlimi.
   ///
