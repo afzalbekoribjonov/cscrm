@@ -34,8 +34,11 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
   // almashtirilganda ro'yxat "waiting" holatiga qaytib flicker qilardi.
   late final _expensesStream = _service.streamExpenses();
 
-  DateTime _start = startOfMonth(DateTime.now());
-  DateTime _end = endOfMonth(DateTime.now());
+  /// Standart: BUGUN. Tanlov ekran holatida - aylantirganda qaytmaydi.
+  PeriodSelection _selection = PeriodSelection.today();
+
+  DateTime get _start => _selection.range.$1;
+  DateTime get _end => _selection.range.$2;
 
   Future<void> _openForm({Expense? expense}) async {
     await showModalBottomSheet<void>(
@@ -105,13 +108,9 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
             children: [
               _TotalBanner(count: filtered.length, total: total),
               const SizedBox(height: 16),
-              PeriodCalendar(
-                onRangeChanged: (start, end) {
-                  setState(() {
-                    _start = start;
-                    _end = end;
-                  });
-                },
+              PeriodBar(
+                value: _selection,
+                onChanged: (s) => setState(() => _selection = s),
               ),
               const SizedBox(height: 18),
               if (filtered.isEmpty)

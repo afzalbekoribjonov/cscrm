@@ -129,3 +129,87 @@ DeliveryStats deliveryStatsForEmployee(
           orders, startOfDay(day), endOfDay(day))[employeeId] ??
       const DeliveryStats();
 }
+
+/// Dastavchik ro'yxatidagi bitta qator.
+///
+/// Bu XODIM emas: yetgazmani boshqaruvchining o'zi ham qilishi mumkin,
+/// u esa xodimlar ro'yxatida yo'q. Ilgari bo'lim faqat xodimlar bo'ylab
+/// yurardi va boshqaruvchi yetkazgan buyurtmalar hech qayerda
+/// ko'rinmasdi - jami raqam bilan dastavchiklar yig'indisi bir-biriga
+/// to'g'ri kelmasdi.
+class DeliveryPerformer {
+  const DeliveryPerformer({
+    required this.id,
+    required this.name,
+    required this.stats,
+    required this.isEmployee,
+  });
+
+  final String id;
+  final String name;
+  final DeliveryStats stats;
+
+  /// `false` — bu xodim yozuvi emas (boshqaruvchi yoki o'chirilgan xodim).
+  final bool isEmployee;
+}
+
+/// Buyurtma belgilaridan "kim" -> "ismi" xaritasini yig'adi.
+///
+/// Ism buyurtmaning o'zida saqlanadi, shuning uchun xodim o'chirilgan
+/// bo'lsa ham uning nomi yo'qolmaydi.
+Map<String, String> actorNamesFrom(List<Order> orders) {
+  final names = <String, String>{};
+  void add(ActorStamp? stamp) {
+    if (stamp == null || stamp.employeeId.isEmpty) return;
+    if (stamp.name.isNotEmpty) names[stamp.employeeId] = stamp.name;
+  }
+
+  for (final order in orders) {
+    add(order.pickedUp);
+    add(order.delivered);
+  }
+  return names;
+}
+
+/// Yetgazma bo'limi uchun to'liq ro'yxat: vakolatli xodimlar + ro'yxatda
+/// bo'lmagan, lekin haqiqatda yetkazgan har kim (boshqaruvchi va h.k.).
+///
+/// Vakolatli xodim hech narsa yetkazmagan bo'lsa ham ro'yxatda qoladi -
+/// "bugun hech kim yetkazmadi" ham ma'lumot. Ro'yxatdan tashqaridagilar
+/// esa faqat haqiqatda ish qilgan bo'lsa qo'shiladi.
+List<DeliveryPerformer> deliveryPerformers({
+  required List<Order> orders,
+  required Map<String, DeliveryStats> statsById,
+  required Map<String, String> employeeNames,
+  String fallbackName = 'Boshqaruvchi',
+}) {
+  final names = actorNamesFrom(orders);
+  final result = <DeliveryPerformer>[];
+
+  for (final entry in employeeNames.entries) {
+    result.add(DeliveryPerformer(
+      id: entry.key,
+      name: entry.value,
+      stats: statsById[entry.key] ?? const DeliveryStats(),
+      isEmployee: true,
+    ));
+  }
+
+  for (final entry in statsById.entries) {
+    if (employeeNames.containsKey(entry.key)) continue;
+    result.add(DeliveryPerformer(
+      id: entry.key,
+      name: names[entry.key] ?? fallbackName,
+      stats: entry.value,
+      isEmployee: false,
+    ));
+  }
+
+  result.sort((a, b) {
+    final byDelivery =
+        b.stats.deliveredCount.compareTo(a.stats.deliveredCount);
+    if (byDelivery != 0) return byDelivery;
+    return a.name.compareTo(b.name);
+  });
+  return result;
+}

@@ -58,8 +58,13 @@ class _IncomeActivityScreenState extends State<IncomeActivityScreen> {
   final _employeesStream = EmployeeService().streamEmployees();
   final _expensesStream = ExpenseService().streamExpenses();
 
-  DateTime _start = startOfMonth(DateTime.now());
-  DateTime _end = endOfMonth(DateTime.now());
+  /// Tanlangan davr EKRAN holatida saqlanadi, tanlagich ichida emas -
+  /// aks holda ro'yxat aylantirilganda tanlov o'z-o'zidan qaytardi.
+  /// Standart: BUGUN.
+  PeriodSelection _selection = PeriodSelection.today();
+
+  DateTime get _start => _selection.range.$1;
+  DateTime get _end => _selection.range.$2;
 
   void _retry() => setState(() {
         _orderService = OrderService();
@@ -69,10 +74,10 @@ class _IncomeActivityScreenState extends State<IncomeActivityScreen> {
   /// Davr o'zgarganda so'rovni ham yangilaymiz - aks holda ekran eski
   /// davr ma'lumotini mahalliy filtrlab ko'rsatib, noto'g'ri (kam) raqam
   /// chiqarardi.
-  void _applyPeriod(DateTime start, DateTime end) {
+  void _applyPeriod(PeriodSelection selection) {
     setState(() {
-      _start = start;
-      _end = end;
+      _selection = selection;
+      final (start, end) = selection.range;
       _reportStream = _orderService.streamReport(start, end);
     });
   }
@@ -145,9 +150,7 @@ class _IncomeActivityScreenState extends State<IncomeActivityScreen> {
       padding: EdgeInsets.fromLTRB(
           16, 16, 16, 24 + MediaQuery.of(context).padding.bottom),
       children: [
-        PeriodCalendar(
-          onRangeChanged: _applyPeriod,
-        ),
+        PeriodBar(value: _selection, onChanged: _applyPeriod),
         const SizedBox(height: 20),
         if (loading)
           const Padding(
@@ -195,11 +198,19 @@ class _IncomeActivityScreenState extends State<IncomeActivityScreen> {
     final created =
         orders.where((o) => isWithinRange(o.createdAt, _start, _end)).length;
     final statsByEmployee = deliveryStatsByEmployee(orders, _start, _end);
-    final drivers = employees
-        .where((e) => e.active && e.sections.contains(WorkSection.yetgazma))
-        .toList()
-      ..sort((a, b) => (statsByEmployee[b.id]?.deliveredCount ?? 0)
-          .compareTo(statsByEmployee[a.id]?.deliveredCount ?? 0));
+    // Yetgazmani BOSHQARUVCHI ham qiladi, u esa xodimlar ro'yxatida
+    // yo'q. Shu sabab ro'yxat ikki manbadan yig'iladi - aks holda
+    // boshqaruvchi yetkazgan buyurtmalar hech qayerda ko'rinmasdi va
+    // jami raqam dastavchiklar yig'indisiga to'g'ri kelmasdi.
+    final drivers = deliveryPerformers(
+      orders: orders,
+      statsById: statsByEmployee,
+      employeeNames: {
+        for (final e in employees)
+          if (e.active && e.sections.contains(WorkSection.yetgazma))
+            e.id: e.fullName,
+      },
+    );
 
     return [
       _SectionHeader(
@@ -324,22 +335,20 @@ class _IncomeActivityScreenState extends State<IncomeActivityScreen> {
       ),
       const SizedBox(height: 10),
       if (drivers.isEmpty)
-        _EmptyNote(text: 'Yetgazma vakolati berilgan xodim yo\'q')
+        _EmptyNote(text: 'Bu davrda hech kim yetkazmagan')
       else
-        ...drivers.map((employee) {
-          final stats = statsByEmployee[employee.id] ?? const DeliveryStats();
+        ...drivers.map((driver) {
           return Padding(
             padding: const EdgeInsets.only(bottom: 10),
             child: _DriverCard(
-              employee: employee,
-              stats: stats,
-              onTap: stats.deliveredCount == 0
+              driver: driver,
+              onTap: driver.stats.deliveredCount == 0
                   ? null
                   : () => _openOrders(
                         context,
-                        '${employee.fullName} — yetkazmalar',
+                        '${driver.name} — yetkazmalar',
                         deliveredBetween(orders, _start, _end,
-                            employeeId: employee.id),
+                            employeeId: driver.id),
                       ),
             ),
           );
@@ -594,15 +603,12 @@ class _EmptyNote extends StatelessWidget {
 }
 
 class _DriverCard extends StatelessWidget {
-  const _DriverCard({
-    required this.employee,
-    required this.stats,
-    required this.onTap,
-  });
+  const _DriverCard({required this.driver, required this.onTap});
 
-  final Employee employee;
-  final DeliveryStats stats;
+  final DeliveryPerformer driver;
   final VoidCallback? onTap;
+
+  DeliveryStats get stats => driver.stats;
 
   @override
   Widget build(BuildContext context) {
@@ -623,9 +629,9 @@ class _DriverCard extends StatelessWidget {
                     radius: 18,
                     backgroundColor: AppColors.primary.withValues(alpha: 0.14),
                     child: Text(
-                      employee.firstName.isEmpty
+                      driver.name.isEmpty
                           ? '?'
-                          : employee.firstName[0].toUpperCase(),
+                          : driver.name[0].toUpperCase(),
                       style: const TextStyle(
                         color: AppColors.primary,
                         fontWeight: FontWeight.w800,
@@ -637,11 +643,39 @@ class _DriverCard extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          employee.fullName,
-                          style: theme.textTheme.titleSmall
-                              ?.copyWith(fontWeight: FontWeight.w700),
-                          overflow: TextOverflow.ellipsis,
+                        Row(
+                          children: [
+                            Flexible(
+                              child: Text(
+                                driver.name,
+                                style: theme.textTheme.titleSmall
+                                    ?.copyWith(fontWeight: FontWeight.w700),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            // Xodim emasligini ko'rsatamiz - aks holda
+                            // "bu kim?" degan savol tug'iladi.
+                            if (!driver.isEmployee) ...[
+                              const SizedBox(width: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 7, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: AppColors.primary
+                                      .withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(99),
+                                ),
+                                child: const Text(
+                                  'Boshqaruvchi',
+                                  style: TextStyle(
+                                    fontSize: 10.5,
+                                    fontWeight: FontWeight.w700,
+                                    color: AppColors.primary,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
                         Text(
                           '${stats.deliveredCount} ta yetkazgan · '

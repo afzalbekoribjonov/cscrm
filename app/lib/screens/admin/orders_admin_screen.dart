@@ -28,8 +28,11 @@ class OrdersAdminScreen extends StatefulWidget {
 }
 
 class _OrdersAdminScreenState extends State<OrdersAdminScreen> {
-  DateTime _rangeStart = startOfMonth(DateTime.now());
-  DateTime _rangeEnd = endOfMonth(DateTime.now());
+  /// Standart: BUGUN. Tanlov ekran holatida - aylantirganda qaytmaydi.
+  PeriodSelection _selection = PeriodSelection.today();
+
+  DateTime get _rangeStart => _selection.range.$1;
+  DateTime get _rangeEnd => _selection.range.$2;
   OrderService _service = OrderService();
   // Bir marta yaratilib saqlanadi - build() ichida chaqirilsa, kalendar
   // oralig'i almashtirilganda (setState) yangi Stream obyekti hosil bo'lib,
@@ -97,13 +100,9 @@ class _OrdersAdminScreenState extends State<OrdersAdminScreen> {
                     revenue: thisMonthRevenue,
                   ),
                   const SizedBox(height: 18),
-                  PeriodCalendar(
-                    onRangeChanged: (start, end) {
-                      setState(() {
-                        _rangeStart = start;
-                        _rangeEnd = end;
-                      });
-                    },
+                  PeriodBar(
+                    value: _selection,
+                    onChanged: (s) => setState(() => _selection = s),
                   ),
                   const SizedBox(height: 14),
                   Row(

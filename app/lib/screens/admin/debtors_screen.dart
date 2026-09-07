@@ -38,8 +38,11 @@ class _DebtorsScreenState extends State<DebtorsScreen> {
   // Faqat qarzi bor buyurtmalar - `debtAmount` indeksi bo'yicha.
   late final _ordersStream = _service.streamDebtors();
 
-  DateTime _start = startOfMonth(DateTime.now());
-  DateTime _end = endOfMonth(DateTime.now());
+  /// Standart: BUGUN. Tanlov ekran holatida - aylantirganda qaytmaydi.
+  PeriodSelection _selection = PeriodSelection.today();
+
+  DateTime get _start => _selection.range.$1;
+  DateTime get _end => _selection.range.$2;
 
   bool get _canSeePhone => widget.access.can(StaffPermission.viewPhone);
 
@@ -90,13 +93,9 @@ class _DebtorsScreenState extends State<DebtorsScreen> {
             children: [
               _DebtTotalBanner(count: debtors.length, total: total),
               const SizedBox(height: 16),
-              PeriodCalendar(
-                onRangeChanged: (start, end) {
-                  setState(() {
-                    _start = start;
-                    _end = end;
-                  });
-                },
+              PeriodBar(
+                value: _selection,
+                onChanged: (s) => setState(() => _selection = s),
               ),
               const SizedBox(height: 18),
               if (debtors.isEmpty)
