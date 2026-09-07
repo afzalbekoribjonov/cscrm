@@ -1,6 +1,9 @@
-const SECTIONS = [
+import { Icon, type IconName } from '@/components/Icon';
+
+const SECTIONS: { title: string; icon: IconName; items: string[] }[] = [
   {
     title: 'Buyurtma yo\'li',
+    icon: 'orders',
     items: [
       'Olib kelish yoki mijoz o\'zi keltirishi — ikkalasi ham qo\'llab-quvvatlanadi',
       'Yuvish → qadoqlash → yetgazish bosqichlari, har biri alohida bo\'lim',
@@ -11,6 +14,7 @@ const SECTIONS = [
   },
   {
     title: 'Xodimlar',
+    icon: 'people',
     items: [
       'PIN-kod bilan tez kirish',
       'Bo\'limlar bo\'yicha vakolat: xodim faqat o\'z bo\'limida ishlaydi',
@@ -20,6 +24,7 @@ const SECTIONS = [
   },
   {
     title: 'Moliya',
+    icon: 'money',
     items: [
       'To\'lov qabul qilish: naqd, karta, qisman to\'lov',
       'Qarzdorlar ro\'yxati va qarzni yopish',
@@ -31,29 +36,25 @@ const SECTIONS = [
 
 export function FeaturesPage() {
   return (
-    <section className="container" style={{ paddingBlock: 56 }}>
-      <header style={{ textAlign: 'center', marginBottom: 40 }}>
-        <h1>Imkoniyatlar</h1>
-        <p className="muted" style={{ fontSize: 18, maxWidth: 600, marginInline: 'auto' }}>
-          Xizmat biznesining kundalik ishi uchun kerak bo'ladigan hamma narsa.
+    <section className="section container">
+      <header className="section-head">
+        <span className="eyebrow">Imkoniyatlar</span>
+        <h1>Kundalik ish uchun hamma narsa</h1>
+        <p>
+          Xizmat biznesining har kungi jarayoni — buyurtmadan pulgacha.
         </p>
       </header>
 
-      <div
-        style={{
-          display: 'grid',
-          gap: 18,
-          gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
-        }}
-      >
+      <div className="grid grid--3">
         {SECTIONS.map((s) => (
           <article key={s.title} className="card">
+            <span className="icon-box">
+              <Icon name={s.icon} />
+            </span>
             <h3>{s.title}</h3>
-            <ul style={{ margin: 0, paddingInlineStart: 20 }}>
+            <ul className="check-list">
               {s.items.map((item) => (
-                <li key={item} className="muted" style={{ fontSize: 15, marginBottom: 6 }}>
-                  {item}
-                </li>
+                <li key={item}>{item}</li>
               ))}
             </ul>
           </article>

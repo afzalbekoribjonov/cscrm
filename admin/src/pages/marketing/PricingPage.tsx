@@ -7,11 +7,13 @@ export function PricingPage() {
   const anyPriceUnset = paid.some(isPriceUnset);
 
   return (
-    <section className="container" style={{ paddingBlock: 56 }}>
-      <header style={{ textAlign: 'center', marginBottom: 40 }}>
-        <h1>Narxlar</h1>
-        <p className="muted" style={{ fontSize: 18, maxWidth: 560, marginInline: 'auto' }}>
-          Yashirin to'lov yo'q. Xohlagan paytda rejani o'zgartirishingiz mumkin.
+    <section className="section container">
+      <header className="section-head">
+        <span className="eyebrow">Narxlar</span>
+        <h1>Har bir biznesga mos reja</h1>
+        <p>
+          Yashirin to'lov yo'q. Xohlagan paytda rejani o'zgartirishingiz
+          mumkin.
         </p>
       </header>
 
@@ -39,13 +41,7 @@ export function PricingPage() {
         </div>
       )}
 
-      <div
-        style={{
-          display: 'grid',
-          gap: 18,
-          gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
-        }}
-      >
+      <div className="grid grid--4">
         {paid.map((plan) => {
           const perMonth = monthlyPrice(plan);
           return (

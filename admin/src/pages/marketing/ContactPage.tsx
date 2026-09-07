@@ -1,31 +1,76 @@
+import { Icon, type IconName } from '@/components/Icon';
 import { branding } from '@/lib/branding';
+
+const CHANNELS: {
+  icon: IconName;
+  label: string;
+  value: string;
+  href: string;
+  hint: string;
+}[] = [
+  {
+    icon: 'phone',
+    label: 'Telefon',
+    value: branding.supportPhone,
+    href: `tel:${branding.supportPhone.replace(/\s/g, '')}`,
+    hint: 'Ish kunlari, 9:00 — 19:00',
+  },
+  {
+    icon: 'bell',
+    label: 'Telegram',
+    value: branding.supportTelegram.replace('https://', ''),
+    href: branding.supportTelegram,
+    hint: 'Eng tez javob shu yerda',
+  },
+  {
+    icon: 'orders',
+    label: 'E-pochta',
+    value: branding.supportEmail,
+    href: `mailto:${branding.supportEmail}`,
+    hint: 'Batafsil savollar uchun',
+  },
+];
 
 export function ContactPage() {
   return (
-    <section className="container" style={{ paddingBlock: 56, maxWidth: 640 }}>
-      <h1>Aloqa</h1>
-      <p className="muted" style={{ fontSize: 18 }}>
-        Savolingiz bormi yoki tizimni ko'rmoqchimisiz? Bog'laning — javob
-        beramiz.
-      </p>
+    <section className="section container">
+      <header className="section-head">
+        <span className="eyebrow">Aloqa</span>
+        <h1>Savolingiz bormi?</h1>
+        <p>
+          Tizimni ko'rmoqchimisiz yoki biror narsa noaniqmi — yozing,
+          javob beramiz.
+        </p>
+      </header>
 
-      <div className="card" style={{ marginTop: 24, lineHeight: 2.2 }}>
-        <div>
-          <strong>Telefon:</strong>{' '}
-          <a href={`tel:${branding.supportPhone.replace(/\s/g, '')}`}>
-            {branding.supportPhone}
+      <div className="grid grid--3" style={{ maxWidth: 900, marginInline: 'auto' }}>
+        {CHANNELS.map((c) => (
+          <a
+            key={c.label}
+            className="card card--hover"
+            href={c.href}
+            rel="noreferrer noopener"
+            style={{ textDecoration: 'none', color: 'inherit' }}
+          >
+            <span className="icon-box">
+              <Icon name={c.icon} />
+            </span>
+            <h3 style={{ marginBottom: 2 }}>{c.label}</h3>
+            <p
+              style={{
+                margin: '0 0 4px',
+                fontWeight: 700,
+                color: 'var(--brand)',
+                wordBreak: 'break-word',
+              }}
+            >
+              {c.value}
+            </p>
+            <p className="muted" style={{ margin: 0, fontSize: '0.9rem' }}>
+              {c.hint}
+            </p>
           </a>
-        </div>
-        <div>
-          <strong>Telegram:</strong>{' '}
-          <a href={branding.supportTelegram} rel="noreferrer noopener">
-            {branding.supportTelegram.replace('https://', '')}
-          </a>
-        </div>
-        <div>
-          <strong>E-pochta:</strong>{' '}
-          <a href={`mailto:${branding.supportEmail}`}>{branding.supportEmail}</a>
-        </div>
+        ))}
       </div>
     </section>
   );
