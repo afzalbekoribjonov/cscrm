@@ -16,12 +16,13 @@ LicenseStatus status({
   LicenseState state = LicenseState.expired,
   String message = 'Obuna muddati tugagan.',
   bool blocked = true,
+  String kind = 'subscription',
 }) {
   return LicenseStatus(
     tenantId: 't1',
     state: state,
     planId: 'm3',
-    kind: 'subscription',
+    kind: kind,
     expiresAt: 1766448000000,
     daysLeft: -2,
     checkedAt: 1766793600000,
@@ -168,6 +169,50 @@ void main() {
     await tester.pump();
 
     expect(find.text('Hisob to\'xtatilgan'), findsOneWidget);
+  });
+
+  group('ogohlantirish holati — hali hech narsa tugamagan', () {
+    // Bu ekran ogohlantirish chizig'i bosilganda ham ochiladi. Ilgari
+    // `expiring` holati `default` shoxga tushib, "Obuna muddati tugadi"
+    // deb YOLG'ON aytardi: muddat hali tugamagan, faqat yaqinlashgan.
+
+    testWidgets('bir umrlik: baza to\'lovi yaqinligini aytadi',
+        (tester) async {
+      useTallSurface(tester);
+      await tester.pumpWidget(wrap(SubscriptionBlockedScreen(
+        status: status(
+          state: LicenseState.expiring,
+          kind: 'lifetime',
+          blocked: false,
+          message: 'Yillik baza to\'lovigacha 5 kun qoldi.',
+        ),
+        isOwner: true,
+      )));
+      await tester.pump();
+
+      expect(find.text('Yillik baza to\'lovi yaqin'), findsOneWidget);
+      expect(
+        find.text('Obuna muddati tugadi'),
+        findsNothing,
+        reason: 'bir umrlik rejada obuna degan narsa yo\'q',
+      );
+    });
+
+    testWidgets('obuna: muddat tugagan deb aytmaydi', (tester) async {
+      useTallSurface(tester);
+      await tester.pumpWidget(wrap(SubscriptionBlockedScreen(
+        status: status(
+          state: LicenseState.expiring,
+          blocked: false,
+          message: 'Muddat tugashiga 3 kun qoldi.',
+        ),
+        isOwner: true,
+      )));
+      await tester.pump();
+
+      expect(find.text('Muddat tugayapti'), findsOneWidget);
+      expect(find.text('Obuna muddati tugadi'), findsNothing);
+    });
   });
 
   testWidgets('bir umrlik yillik to\'lov alohida ko\'rinadi', (tester) async {

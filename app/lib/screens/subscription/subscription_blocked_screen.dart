@@ -341,6 +341,22 @@ class _StatusCard extends StatelessWidget {
           AppColors.licenseLifetime,
           'Yillik baza to\'lovi',
         );
+      case LicenseState.expiring:
+        // Bu ekran ogohlantirish chizig'i bosilganda ham ochiladi —
+        // ya'ni hali HECH NARSA tugamagan. Ilgari bu holat pastdagi
+        // `default` ga tushib, "Obuna muddati tugadi" deb yolg'on
+        // aytardi va foydalanuvchini bekorga cho'chitardi.
+        return status.isLifetime
+            ? (
+                Icons.storage_rounded,
+                AppColors.licenseLifetime,
+                'Yillik baza to\'lovi yaqin',
+              )
+            : (
+                Icons.schedule_rounded,
+                AppColors.warning,
+                'Muddat tugayapti',
+              );
       default:
         return (
           Icons.lock_clock_rounded,

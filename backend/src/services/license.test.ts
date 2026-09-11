@@ -10,6 +10,7 @@ import {
   LIFETIME_FEE_GRACE_DAYS,
   sign,
   verify,
+  WARN_BEFORE_DAYS,
 } from './license.js';
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -107,6 +108,38 @@ describe('evaluate — bir umrlik', () => {
     const r = evaluate(lifetime({ nextAnnualFeeAt: NOW + 100 * DAY }), NOW);
     assert.equal(r.state, 'active');
     assert.equal(r.blocked, false);
+  });
+
+  it('to\'lov sanasi yaqinlashganda OLDINDAN ogohlantiradi', () => {
+    // Eng muhim sinov. Qo'shimcha kunlar olib tashlangach, bu yagona
+    // ogohlantirish bo'lib qoldi: busiz mijoz uchun hammasi joyida
+    // ko'rinar, keyin bir kuni ilova qulflanardi.
+    const r = evaluate(lifetime({ nextAnnualFeeAt: NOW + 5 * DAY }), NOW);
+    assert.equal(r.state, 'expiring');
+    assert.equal(r.blocked, false, 'ogohlantirish — bloklash emas');
+    assert.match(r.message, /baza to'lovigacha 5 kun/);
+  });
+
+  it('ogohlantirish jadvali obunanikiga mos', () => {
+    const first = Math.max(...WARN_BEFORE_DAYS);
+
+    // Jadvaldan bir kun oldin — hali jim.
+    const before = evaluate(
+      lifetime({ nextAnnualFeeAt: NOW + (first + 1) * DAY }),
+      NOW,
+    );
+    assert.equal(before.state, 'active');
+
+    // Jadvalning aynan boshi — ogohlantirish boshlanadi.
+    const at = evaluate(lifetime({ nextAnnualFeeAt: NOW + first * DAY }), NOW);
+    assert.equal(at.state, 'expiring');
+  });
+
+  it('to\'lov sanasining o\'zida "bugun" deb aytadi', () => {
+    // `${daysToFee} kun qoldi` bu yerda "0 kun qoldi" bo'lib chiqardi.
+    const r = evaluate(lifetime({ nextAnnualFeeAt: NOW }), NOW);
+    assert.equal(r.blocked, false);
+    assert.match(r.message, /bugun/);
   });
 
   it('yillik to\'lovga ham qo\'shimcha vaqt berilmaydi', () => {

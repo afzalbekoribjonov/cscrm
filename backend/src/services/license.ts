@@ -114,10 +114,39 @@ export function evaluate(license: License, now: number): LicenseStatusPayload {
           + `${LIFETIME_FEE_GRACE_DAYS} kun ichida to'lanmasa, ilova bloklanadi.`,
       };
     }
+    const daysToFee =
+      feeAt === null ? null : Math.ceil((feeAt - now) / DAY_MS);
+
+    // To'lov sanasi yaqinlashganda OLDINDAN ogohlantiriladi.
+    //
+    // Busiz bir umrlik mijoz hech qanday xabar olmasdi: holat sana
+    // kelguncha `active` bo'lib turar, sana o'tgan zahoti esa ilova
+    // qulflanardi. Ya'ni odam uchun hammasi joyida edi — keyin bir
+    // kuni ertalab ish to'xtaydi. Ilgari buni to'lovdan keyingi
+    // qo'shimcha kunlar qoplab turardi; ular olib tashlangach,
+    // ogohlantirish SANADAN OLDINGA ko'chirilishi kerak bo'ldi.
+    //
+    // Jadval obunanikiga aynan bir xil (`warnBeforeDays`): ikki
+    // xil qoida bo'lsa, qaysi biri qachon ishlashini eslab qolish
+    // qiyin bo'lardi.
+    if (daysToFee !== null && daysToFee <= Math.max(...WARN_BEFORE_DAYS)) {
+      return {
+        ...base,
+        state: 'expiring',
+        daysLeft: daysToFee,
+        blocked: false,
+        message:
+          daysToFee <= 0
+            ? 'Yillik baza to\'lovi bugun. To\'lanmasa ilova bloklanadi.'
+            : `Yillik baza to'lovigacha ${daysToFee} kun qoldi. `
+              + 'Sana o\'tishi bilan ilova bloklanadi.',
+      };
+    }
+
     return {
       ...base,
       state: 'active',
-      daysLeft: feeAt === null ? null : Math.ceil((feeAt - now) / DAY_MS),
+      daysLeft: daysToFee,
       blocked: false,
       message: 'Bir umrlik litsenziya faol.',
     };

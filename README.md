@@ -103,8 +103,9 @@ berilmaydi. Muddat tugashidan 7, 3 va 1 kun oldin ogohlantiriladi.
 
 Bir umrlik rejadagi yillik baza to'lovi ham shunday: to'lov sanasi
 o'tgan zahoti blok ekrani chiqadi (`grace.lifetimeAnnualFeeDays` = 0).
-Sozlama ataylab obunanikidan alohida — ikkovi bir xil qoidaga
-bo'ysunishi shart emas.
+Ogohlantirish jadvali ham bir xil — sanadan 7, 3 va 1 kun oldin.
+Sozlama ataylab obunanikidan alohida: ikkovi bir xil qoidaga
+bo'ysunishi shart emas va birini o'zgartirish ikkinchisiga tegmaydi.
 
 ## Joylash (Render)
 
