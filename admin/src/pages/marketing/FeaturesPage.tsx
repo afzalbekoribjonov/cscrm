@@ -1,4 +1,5 @@
 import { Icon, type IconName } from '@/components/Icon';
+import { useSeo } from '@/lib/seo';
 
 const SECTIONS: { title: string; icon: IconName; items: string[] }[] = [
   {
@@ -35,6 +36,11 @@ const SECTIONS: { title: string; icon: IconName; items: string[] }[] = [
 ];
 
 export function FeaturesPage() {
+  useSeo(
+    'Imkoniyatlar',
+    'CSCRM imkoniyatlari: buyurtma yo\'li, xodim vakolatlari, moliya va hisobot.',
+  );
+
   return (
     <section className="section container">
       <header className="section-head">

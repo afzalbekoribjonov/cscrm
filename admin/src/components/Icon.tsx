@@ -25,7 +25,16 @@ export type IconName =
   | 'check'
   | 'offline'
   | 'menu'
-  | 'close';
+  | 'close'
+  | 'sun'
+  | 'moon'
+  | 'download'
+  | 'box'
+  | 'truck'
+  | 'sparkle'
+  | 'help'
+  | 'doc'
+  | 'arrow-right';
 
 /** Har bir ikonka — 24x24 to'rda, faqat chiziqlar (stroke). */
 const PATHS: Record<IconName, React.ReactNode> = {
@@ -90,6 +99,50 @@ const PATHS: Record<IconName, React.ReactNode> = {
   ),
   menu: <path d="M4 7h16M4 12h16M4 17h16" />,
   close: <path d="M6 6l12 12M18 6 6 18" />,
+  sun: (
+    <>
+      <circle cx="12" cy="12" r="4" />
+      <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
+    </>
+  ),
+  moon: <path d="M20 14.2A8.2 8.2 0 0 1 9.8 4a8.2 8.2 0 1 0 10.2 10.2Z" />,
+  download: (
+    <>
+      <path d="M12 3v11" />
+      <path d="m7.5 10.5 4.5 4.5 4.5-4.5" />
+      <path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" />
+    </>
+  ),
+  box: (
+    <>
+      <path d="M3.5 7.5 12 3l8.5 4.5v9L12 21l-8.5-4.5v-9Z" />
+      <path d="M3.5 7.5 12 12l8.5-4.5M12 12v9" />
+    </>
+  ),
+  truck: (
+    <>
+      <path d="M3 6.5h10v9H3zM13 9.5h4l3 3v3h-7z" />
+      <circle cx="7" cy="17.5" r="1.8" />
+      <circle cx="17" cy="17.5" r="1.8" />
+    </>
+  ),
+  sparkle: (
+    <path d="M12 3.5 13.9 9l5.6 1.9-5.6 1.9L12 18.5 10.1 12.8 4.5 10.9 10.1 9z" />
+  ),
+  help: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M9.6 9.5a2.5 2.5 0 1 1 3.3 2.4c-.6.2-.9.8-.9 1.4v.4" />
+      <path d="M12 17h.01" />
+    </>
+  ),
+  doc: (
+    <>
+      <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />
+      <path d="M14 3v5h5M9 13h6M9 17h4" />
+    </>
+  ),
+  'arrow-right': <path d="M4 12h15m0 0-5.5-5.5M19 12l-5.5 5.5" />,
 };
 
 export function Icon({ name, size = 22, strokeWidth = 1.8 }: IconProps) {

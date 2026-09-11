@@ -1,5 +1,6 @@
 import { Icon, type IconName } from '@/components/Icon';
 import { branding } from '@/lib/branding';
+import { useSeo } from '@/lib/seo';
 
 const CHANNELS: {
   icon: IconName;
@@ -32,6 +33,11 @@ const CHANNELS: {
 ];
 
 export function ContactPage() {
+  useSeo(
+    'Aloqa',
+    'CSCRM bilan bog\'lanish: Telegram, telefon va e-pochta.',
+  );
+
   return (
     <section className="section container">
       <header className="section-head">

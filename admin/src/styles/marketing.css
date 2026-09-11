@@ -1,0 +1,885 @@
+/* Marketing sahifalarining uslublari.
+   `global.css` — butun sayt uchun umumiy poydevor (ranglar, tugmalar,
+   kartalar, panel). Bu fayl esa faqat ochiq sahifalarga tegishli
+   bo'laklar: telefon demosi, chartlar, kalkulyator, narx jadvali.
+   Ikkiga bo'lingani shuning uchun: poydevorga tegmasdan marketing
+   ko'rinishini o'zgartirish mumkin bo'lsin. */
+
+/* ---------------------------------------------------------------- */
+/* Kun/tun tugmasi                                                   */
+/* ---------------------------------------------------------------- */
+
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s, border-color 0.15s;
+}
+.theme-toggle:hover {
+  color: var(--text);
+  background: var(--surface-muted);
+}
+.theme-toggle:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+
+/* ---------------------------------------------------------------- */
+/* Skrollda paydo bo'lish                                            */
+/* ---------------------------------------------------------------- */
+
+/* Boshlang'ich (ko'rinmas) holat ATAYLAB `.reveal` da emas,
+   `.reveal.is-armed` da. Agar JavaScript ishlamasa yoki brauzerda
+   `IntersectionObserver` bo'lmasa, `is-armed` umuman qo'yilmaydi va
+   mazmun o'z joyida turaveradi — faqat animatsiyasiz. Aks holda butun
+   sahifa ko'rinmay qolardi. */
+.reveal.is-armed {
+  opacity: 0;
+  transform: translateY(16px);
+}
+.reveal.is-in {
+  opacity: 1;
+  transform: none;
+  transition: opacity 0.55s ease, transform 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* ---------------------------------------------------------------- */
+/* Fon yo'laklari                                                    */
+/* ---------------------------------------------------------------- */
+
+/* Uzun sahifa bir tekis "devor" bo'lib qolmasligi uchun bo'limlar
+   navbat bilan oq va sal ko'kish fonda turadi. */
+.band {
+  background: var(--surface-sunken);
+  border-block: 1px solid var(--border);
+}
+
+/* ---------------------------------------------------------------- */
+/* Ishonch qatori                                                    */
+/* ---------------------------------------------------------------- */
+
+.trust {
+  display: flex;
+  flex-wrap: wrap;
+  gap: clamp(16px, 4vw, 48px);
+  justify-content: center;
+  padding-block: 24px;
+  border-block: 1px solid var(--border);
+}
+.trust__item {
+  text-align: center;
+  min-width: 118px;
+}
+.trust__num {
+  font-size: clamp(1.35rem, 1.2rem + 0.9vw, 1.85rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+.trust__label {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+/* ---------------------------------------------------------------- */
+/* Ko'rsatkich plitkasi va chartlar                                  */
+/* ---------------------------------------------------------------- */
+
+.kpi-row {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(148px, 1fr));
+}
+
+.stat-tile {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+}
+.stat-tile__label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+/* Katta raqamda `tabular-nums` ATAYLAB YO'Q: teng kenglikdagi raqamlar
+   yirik o'lchamda siyrak va bo'shashgan ko'rinadi. U faqat ustunma-ustun
+   tizilgan joyda (jadval qatori, o'q belgilari) kerak. */
+.stat-tile__value {
+  font-size: clamp(1.25rem, 1.1rem + 0.8vw, 1.55rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+  margin-top: 2px;
+}
+.stat-tile__delta {
+  font-size: 0.82rem;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.stat-tile__delta--up { color: var(--success); }
+.stat-tile__delta--down { color: var(--danger); }
+
+.chart-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: clamp(16px, 2.2vw, 22px);
+  box-shadow: var(--shadow-sm);
+}
+.chart-card__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.chart-card__title {
+  font-size: 1rem;
+  font-weight: 800;
+  margin: 0;
+}
+.chart-card__sub {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+.chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  margin-top: 14px;
+  font-size: 0.84rem;
+  color: var(--text-muted);
+}
+.chart-legend__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+.chart-legend__swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  flex: 0 0 auto;
+}
+/* Raqamlar bu yerda ustunma-ustun turadi — shu sababli teng kenglik. */
+.chart-legend__value {
+  color: var(--text);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.chart-axis {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 8px;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.chart-plot {
+  position: relative;
+  touch-action: pan-y;
+}
+
+/* Sichqoncha chart ustida turganda chiqadigan izoh. */
+.chart-tip {
+  position: absolute;
+  z-index: 5;
+  pointer-events: none;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow);
+  padding: 7px 11px;
+  font-size: 0.82rem;
+  white-space: nowrap;
+  transform: translate(-50%, -118%);
+}
+.chart-tip__label {
+  color: var(--text-muted);
+  font-size: 0.74rem;
+}
+.chart-tip__value {
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Yig'ma gorizontal ustun — buyurtmalar qaysi bosqichda ekani. */
+.stack-bar {
+  display: flex;
+  width: 100%;
+  height: 36px;
+  /* Bo'laklar orasidagi 2px — bu CHEGARA emas, sirt rangidagi tirqish.
+     Chegara chizig'i har bo'lakni alohida "quticha" qilib ko'rsatardi. */
+  gap: 2px;
+}
+.stack-bar__seg {
+  position: relative;
+  min-width: 5px;
+  display: grid;
+  place-items: center;
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: #fff;
+  overflow: hidden;
+}
+.stack-bar__seg:first-child { border-radius: 6px 0 0 6px; }
+.stack-bar__seg:last-child { border-radius: 0 6px 6px 0; }
+
+/* ---------------------------------------------------------------- */
+/* Telefon demosi                                                    */
+/* ---------------------------------------------------------------- */
+
+.demo {
+  display: grid;
+  gap: clamp(24px, 4vw, 48px);
+  align-items: center;
+  grid-template-columns: 1fr;
+}
+@media (min-width: 940px) {
+  .demo { grid-template-columns: 0.9fr 1.1fr; }
+}
+
+/* Hero'ning bitta ustunli ko'rinishi.
+   Ilgari matn chapda, demo o'ngda turardi — natijada IKKI USTUNLI
+   demo yana ikkiga bo'linib, telefon ham, yonidagi tugmalar ham
+   siqilib qolardi. Endi hero markazda va faqat matndan iborat, demo
+   esa ostida butun kenglikni oladi. */
+.hero__inner--solo {
+  grid-template-columns: 1fr !important;
+  justify-items: center;
+}
+.hero__inner--solo .hero__text {
+  text-align: center;
+  max-width: 780px;
+}
+.hero__inner--solo .hero__lead {
+  margin-inline: auto;
+}
+.hero__inner--solo .hero__actions {
+  justify-content: center;
+}
+
+/* Telefon korpusi SVG emas, HTML: ichidagi ekran haqiqiy matn va
+   tugmalardan yasalgan — shrifti saytning o'zi bilan bir xil, mavzu
+   bilan birga o'zgaradi va uni bosib ko'rish mumkin. */
+.phone {
+  position: relative;
+  width: 100%;
+  max-width: 292px;
+  margin-inline: auto;
+  aspect-ratio: 292 / 600;
+  border-radius: 40px;
+  padding: 11px;
+  background: linear-gradient(160deg, var(--border-strong), var(--border));
+  box-shadow: var(--shadow-lg);
+}
+.phone__screen {
+  height: 100%;
+  border-radius: 30px;
+  overflow: hidden;
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+}
+/* Old kamera uchun kesik. */
+.phone__notch {
+  position: absolute;
+  top: 15px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 88px;
+  height: 19px;
+  border-radius: 999px;
+  background: var(--border-strong);
+  z-index: 3;
+}
+
+.phone__bar {
+  background: var(--brand);
+  color: #fff;
+  padding: 30px 15px 12px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex: 0 0 auto;
+}
+.phone__bar strong {
+  font-size: 0.92rem;
+  letter-spacing: -0.01em;
+}
+.phone__bell {
+  margin-inline-start: auto;
+  width: 25px;
+  height: 25px;
+  border-radius: 50%;
+  background: rgb(255 255 255 / 0.18);
+  display: grid;
+  place-items: center;
+}
+
+.phone__body {
+  flex: 1;
+  overflow: hidden;
+  padding: 11px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.phone__tabs {
+  flex: 0 0 auto;
+  display: flex;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+}
+.phone__tab {
+  flex: 1;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 0.64rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  padding: 8px 2px 10px;
+  cursor: pointer;
+  display: grid;
+  justify-items: center;
+  gap: 3px;
+  line-height: 1.2;
+}
+.phone__tab.is-active { color: var(--brand-ink); }
+
+/* Ekran ichidagi kichik kartalar. */
+.mini {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  padding: 9px 11px;
+  font-size: 0.72rem;
+  line-height: 1.45;
+}
+.mini__row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+.mini__title {
+  font-weight: 800;
+  font-size: 0.75rem;
+}
+.mini__muted {
+  color: var(--text-muted);
+  font-size: 0.67rem;
+}
+.mini__tag {
+  font-size: 0.61rem;
+  font-weight: 800;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--brand-soft);
+  color: var(--brand-ink);
+  white-space: nowrap;
+}
+.mini__bar {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--surface-muted);
+  overflow: hidden;
+  margin-top: 5px;
+}
+.mini__bar span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--brand);
+}
+
+/* Telefon yonidagi boshqaruv tugmalari. */
+.demo__steps {
+  display: grid;
+  gap: 10px;
+}
+.demo__step {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  text-align: start;
+  width: 100%;
+  padding: 14px 16px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  transition: border-color 0.18s, box-shadow 0.18s;
+}
+.demo__step:hover { border-color: var(--border-strong); }
+.demo__step.is-active {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 16%, transparent);
+}
+.demo__step h3 {
+  margin: 0 0 2px;
+  font-size: 1rem;
+}
+.demo__step p {
+  margin: 0;
+  font-size: 0.88rem;
+  color: var(--text-muted);
+}
+.demo__dot {
+  flex: 0 0 auto;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--surface-muted);
+  color: var(--text-muted);
+  font-weight: 800;
+  font-size: 0.85rem;
+}
+.demo__step.is-active .demo__dot {
+  background: var(--brand);
+  color: #fff;
+}
+
+/* ---------------------------------------------------------------- */
+/* Buyurtma yo'li diagrammasi                                        */
+/* ---------------------------------------------------------------- */
+
+/* `<ol>` ATAYLAB: bosqichlar tartibi ma'noga ega, shuning uchun
+   ekranni o'qib beradigan dasturga ham "bu ketma-ketlik" deb
+   aytiladi. Ammo ko'rinishdagi "1." "2." raqamlari kerak emas —
+   tartibni kartalarning o'zi va orasidagi strelka ko'rsatadi. */
+.flow {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(166px, 1fr));
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.flow__node {
+  position: relative;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+}
+.flow__node h3 {
+  font-size: 0.98rem;
+  margin: 11px 0 4px;
+}
+.flow__node p {
+  margin: 0;
+  font-size: 0.86rem;
+  color: var(--text-muted);
+}
+.flow__icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  background: var(--brand-soft);
+  color: var(--brand-ink);
+}
+
+/* Tugunlar orasidagi strelka faqat keng ekranda: tor ekranda kartalar
+   bir ustunga tizilib qoladi va yonlama strelka bo'shliqqa ishora
+   qilardi. */
+@media (min-width: 760px) {
+  .flow__node:not(:last-child)::after {
+    content: '';
+    position: absolute;
+    top: 33px;
+    inset-inline-end: -12px;
+    width: 14px;
+    height: 2px;
+    background: var(--border-strong);
+  }
+  .flow__node:not(:last-child)::before {
+    content: '';
+    position: absolute;
+    top: 29px;
+    inset-inline-end: -13px;
+    border: 5px solid transparent;
+    border-inline-start-color: var(--border-strong);
+  }
+}
+
+/* ---------------------------------------------------------------- */
+/* Tejash kalkulyatori                                               */
+/* ---------------------------------------------------------------- */
+
+.calc {
+  display: grid;
+  gap: clamp(20px, 3vw, 36px);
+  grid-template-columns: 1fr;
+  align-items: center;
+}
+@media (min-width: 860px) {
+  .calc { grid-template-columns: 1fr 1fr; }
+}
+
+.calc__field { margin-bottom: 22px; }
+.calc__field label {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+  font-weight: 700;
+  font-size: 0.92rem;
+  margin-bottom: 8px;
+}
+.calc__field output {
+  font-weight: 800;
+  color: var(--brand-ink);
+  font-variant-numeric: tabular-nums;
+}
+.calc input[type='range'] {
+  width: 100%;
+  accent-color: var(--brand);
+  height: 24px;
+}
+.calc input[type='range']:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 4px;
+}
+
+.calc__result {
+  border-radius: var(--radius-lg);
+  padding: clamp(20px, 3vw, 28px);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+}
+.calc__big {
+  font-size: clamp(1.7rem, 1.3rem + 2.2vw, 2.5rem);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+  color: var(--brand-ink);
+}
+.calc__note {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  margin: 16px 0 0;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+/* ---------------------------------------------------------------- */
+/* Mobil pastki chaqiruv paneli                                      */
+/* ---------------------------------------------------------------- */
+
+/* Telefonda sahifa uzun — yuqoridagi tugmagacha qaytib skroll qilish
+   noqulay. Bu panel har doim qo'l ostida turadi. */
+.mobile-cta {
+  position: fixed;
+  inset-inline: 0;
+  bottom: 0;
+  z-index: 40;
+  display: none;
+  gap: 8px;
+  padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  backdrop-filter: blur(12px);
+  border-top: 1px solid var(--border);
+}
+.mobile-cta .btn {
+  flex: 1;
+  padding-block: 12px;
+}
+@media (max-width: 720px) {
+  .mobile-cta { display: flex; }
+  /* Panel sahifa oxirini bekitib qo'ymasin. */
+  .site-footer { padding-bottom: 84px; }
+}
+
+/* ---------------------------------------------------------------- */
+/* Narxlar                                                           */
+/* ---------------------------------------------------------------- */
+
+/* Segment tugmasi: obuna / bir umrlik.
+   Ikki reja turi bir to'rda yonma-yon turganda taqqoslab bo'lmaydi —
+   biri muddatli, ikkinchisi bir martalik. Ular alohida ko'rsatiladi. */
+.seg {
+  display: inline-flex;
+  padding: 4px;
+  border-radius: 999px;
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  gap: 3px;
+}
+.seg button {
+  border: 0;
+  background: none;
+  font: inherit;
+  font-weight: 700;
+  font-size: 0.92rem;
+  color: var(--text-muted);
+  padding: 9px 20px;
+  border-radius: 999px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.16s, color 0.16s;
+}
+.seg button:hover { color: var(--text); }
+.seg button.is-active {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-sm);
+}
+.seg button:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+
+.plan-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  /* Nishon karta chetidan chiqib turadi — kesilib qolmasligi uchun
+     to'r ustida joy qoldiriladi. */
+  padding-top: 14px;
+}
+
+.plan {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 22px 20px;
+  box-shadow: var(--shadow-sm);
+  transition: border-color 0.18s, transform 0.18s, box-shadow 0.18s;
+}
+.plan:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow);
+}
+.plan--highlight {
+  border-color: var(--brand);
+  border-width: 2px;
+  /* Ommabop reja ko'zga darhol tashlanishi kerak — soya bilan u
+     boshqalardan bir qavat yuqorida turadi. */
+  box-shadow: 0 10px 30px color-mix(in srgb, var(--brand) 16%, transparent);
+}
+
+.plan__badge {
+  position: absolute;
+  top: -12px;
+  inset-inline-start: 20px;
+  background: var(--brand);
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  padding: 4px 12px;
+  border-radius: 999px;
+}
+
+.plan__name {
+  font-size: 1.05rem;
+  font-weight: 800;
+  margin: 0 0 2px;
+}
+.plan__term {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  margin: 0 0 16px;
+}
+
+/* Asosiy raqam — oyiga tushadigan narx. ATAYLAB u eng katta:
+   rejalarni taqqoslashda odam aynan shu raqamni solishtiradi, jami
+   summa esa muddatga bog'liq va o'zi-o'zicha hech narsa demaydi. */
+.plan__price {
+  font-size: clamp(1.5rem, 1.3rem + 1vw, 1.85rem);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+}
+.plan__price span {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  letter-spacing: 0;
+}
+.plan__total {
+  font-size: 0.88rem;
+  color: var(--text-muted);
+  margin: 6px 0 0;
+}
+
+.plan__save {
+  display: inline-block;
+  margin-top: 10px;
+  font-size: 0.78rem;
+  font-weight: 800;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--success) 14%, transparent);
+  color: var(--success);
+}
+
+.plan__desc {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  margin: 16px 0 0;
+  flex: 1;
+}
+.plan__cta { margin-top: 18px; }
+
+/* Bir umrlik reja — bitta keng karta. */
+.lifetime {
+  display: grid;
+  gap: clamp(20px, 3vw, 32px);
+  grid-template-columns: 1fr;
+  align-items: center;
+  border-radius: var(--radius-xl);
+  padding: clamp(24px, 4vw, 40px);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+}
+@media (min-width: 800px) {
+  .lifetime { grid-template-columns: 1.1fr 0.9fr; }
+}
+.lifetime__price {
+  font-size: clamp(2rem, 1.5rem + 2.4vw, 2.8rem);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+}
+
+/* Taqqoslash jadvali. Tor ekranda har bir qator kartaga aylanadi —
+   `data-label` atributlari shuning uchun kerak. */
+.compare {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.94rem;
+}
+.compare th {
+  text-align: start;
+  padding: 12px 14px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-muted);
+  white-space: nowrap;
+}
+.compare td {
+  padding: 13px 14px;
+  border-bottom: 1px solid var(--border);
+  font-variant-numeric: tabular-nums;
+}
+.compare tbody tr:last-child td { border-bottom: 0; }
+.compare tbody tr.is-highlight { background: var(--brand-soft); }
+.compare tbody tr:hover { background: var(--surface-muted); }
+.compare td:first-child { font-weight: 700; font-variant-numeric: normal; }
+
+@media (max-width: 660px) {
+  .compare thead { display: none; }
+  .compare tbody tr {
+    display: block;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--border);
+  }
+  .compare td {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 4px 0;
+    border: 0;
+  }
+  .compare td::before {
+    content: attr(data-label);
+    font-size: 0.72rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-muted);
+  }
+  .compare td:first-child { padding-bottom: 8px; font-size: 1rem; }
+  .compare td:first-child::before { display: none; }
+}
+
+/* Oylik narxlarni yonma-yon ko'rsatadigan ustunlar. */
+.price-bars { display: grid; gap: 11px; }
+.price-bar__head {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 0.86rem;
+  margin-bottom: 5px;
+}
+.price-bar__value {
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.price-bar__track {
+  height: 12px;
+  border-radius: 6px;
+  background: var(--surface-muted);
+  overflow: hidden;
+}
+.price-bar__fill {
+  height: 100%;
+  border-radius: 6px;
+  transition: width 0.3s ease;
+}
+
+/* ---------------------------------------------------------------- */
+/* Uzun matnli sahifalar (huquqiy hujjatlar)                         */
+/* ---------------------------------------------------------------- */
+
+/* Qator uzunligi ATAYLAB cheklanadi: 100 belgidan uzun qatorda ko'z
+   keyingi qator boshini yo'qotadi va o'qish charchatadi. */
+.prose {
+  max-width: 720px;
+}
+.prose h1 {
+  font-size: clamp(1.8rem, 1.4rem + 1.8vw, 2.5rem);
+}
+.prose h2 {
+  font-size: clamp(1.15rem, 1.05rem + 0.5vw, 1.35rem);
+  margin-top: 2em;
+}
+.prose p,
+.prose li {
+  color: var(--text-muted);
+  font-size: 0.98rem;
+}
+.prose strong {
+  color: var(--text);
+}
+.prose .check-list {
+  margin-bottom: 1em;
+}

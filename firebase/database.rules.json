@@ -81,6 +81,12 @@
       ".write": false
     },
 
+    "site_settings": {
+      "//": "Websaytning boshqariladigan sozlamalari — ilovani yuklab olish manzili, versiyasi. Mijozga BERK: sayt bu qiymatni bazadan emas, `/site/settings` orqali oladi. Yozish faqat backend (super-admin) orqali.",
+      ".read": false,
+      ".write": false
+    },
+
     "payments_log": {
       "//": "Barcha tasdiqlangan to'lovlar - daromad statistikasi uchun. `at` indeksi tufayli 'oxirgi 30 kun' so'rovi butun tarixni emas, faqat kerakli qismini o'qiydi.",
       ".read": false,

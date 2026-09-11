@@ -4,6 +4,7 @@ import { BrowserRouter } from 'react-router-dom';
 
 import { App } from './App';
 import './styles/global.css';
+import './styles/marketing.css';
 
 const root = document.getElementById('root');
 if (!root) throw new Error('#root topilmadi — index.html buzilgan.');

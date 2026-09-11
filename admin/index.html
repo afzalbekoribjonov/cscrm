@@ -4,12 +4,70 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/png" href="/favicon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#0B5FFF" />
+
+    <title>CSCRM — xizmat biznesi uchun boshqaruv tizimi</title>
     <meta
       name="description"
-      content="CSCRM — gilam yuvish, kimyoviy tozalash va boshqa xizmat bizneslari uchun buyurtma, xodim va moliya boshqaruv tizimi."
+      content="Gilam yuvish, kimyoviy tozalash va kir yuvish bizneslari uchun CRM: buyurtma, xodim, moliya va hisobot — hammasi telefonda."
     />
-    <title>CSCRM — xizmat biznesi uchun boshqaruv tizimi</title>
+
+    <!-- Telegram/Facebook'ga havola tashlanganda ko'rinadigan kartochka.
+         Busiz havola quruq matn bo'lib chiqadi va bosilmaydi. -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="CSCRM" />
+    <meta property="og:locale" content="uz_UZ" />
+    <meta property="og:title" content="CSCRM — xizmat biznesi uchun boshqaruv tizimi" />
+    <meta
+      property="og:description"
+      content="Buyurtma qabul qilishdan pul yig'ishgacha. Daftar o'rniga — aniq, tartibli va har doim qo'lingizda."
+    />
+    <!-- og:image ATAYLAB YO'Q.
+         Mavjud rasm (favicon) 64x64 — Telegram va Facebook bunday
+         kichik rasmni umuman ko'rsatmaydi. Mavjud bo'lmagan faylga
+         ishora qilish esa undan ham yomon: tizim rasmni yuklab
+         olmoqchi bo'lib kutadi va havola kechroq ochiladi.
+         1200x630 li rasm tayyorlanganda `/og.png` deb qo'shiladi. -->
+    <meta name="twitter:card" content="summary" />
+
+    <!--
+      REJIM SKRIPTI — React'dan OLDIN ishlashi SHART.
+
+      Agar rejim React yuklangandan keyin qo'yilsa, sahifa bir lahza
+      standart (oq) ko'rinishda chizilib, keyin qoraga sakraydi —
+      ko'zga urilib turadigan "chaqnash".
+
+      Standart — KUN rejimi. Operatsion tizim sozlamasiga ATAYLAB
+      qaralmaydi: sayt hamma uchun bir xil, yorug' ko'rinishda ochiladi,
+      tun rejimini foydalanuvchining o'zi tanlaydi.
+    -->
+    <script>
+      (function () {
+        var t = 'light';
+        try {
+          if (localStorage.getItem('cscrm-theme') === 'dark') t = 'dark';
+        } catch (e) {
+          /* maxfiy oyna — standart qoladi */
+        }
+        document.documentElement.dataset.theme = t;
+      })();
+    </script>
+
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "CSCRM",
+        "applicationCategory": "BusinessApplication",
+        "operatingSystem": "Android",
+        "inLanguage": "uz",
+        "description": "Gilam yuvish, kimyoviy tozalash va kir yuvish bizneslari uchun buyurtma, xodim va moliya boshqaruv tizimi.",
+        "offers": {
+          "@type": "Offer",
+          "priceCurrency": "UZS",
+          "price": "199000"
+        }
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>

@@ -4,12 +4,26 @@ import { NavLink, Outlet, Link, useLocation } from 'react-router-dom';
 import { branding } from '@/lib/branding';
 import { Icon } from './Icon';
 import { Wordmark } from './Logo';
+import { ThemeToggle } from './ThemeToggle';
 
 const NAV = [
   { to: '/', label: 'Bosh sahifa', end: true },
   { to: '/imkoniyatlar', label: 'Imkoniyatlar' },
   { to: '/narxlar', label: 'Narxlar' },
+  { to: '/yordam', label: 'Yordam' },
   { to: '/aloqa', label: 'Aloqa' },
+];
+
+/** Soha sahifalari — sayt ostida alohida ustun bo'lib turadi. */
+const SOLUTIONS = [
+  { to: '/gilam-yuvish', label: 'Gilam yuvish' },
+  { to: '/kimyoviy-tozalash', label: 'Kimyoviy tozalash' },
+  { to: '/kir-yuvish', label: 'Kir yuvish' },
+];
+
+const LEGAL = [
+  { to: '/maxfiylik', label: 'Maxfiylik siyosati' },
+  { to: '/oferta', label: 'Ommaviy oferta' },
 ];
 
 /** Marketing sahifalari uchun umumiy karkas (header + footer). */
@@ -22,6 +36,18 @@ export function SiteLayout() {
   // Sahifa almashganda menyu yopiladi — aks holda u ochiq qolib,
   // yangi sahifaning ustini bosib turardi.
   useEffect(() => setMenuOpen(false), [pathname]);
+
+  // Yangi sahifa doim yuqoridan boshlansin. React Router skroll
+  // holatini o'zi tiklamaydi: havolani bosgan odam yangi sahifaning
+  // o'rtasiga tushib qolardi.
+  //
+  // Qavslar SHART: qisqa yozuvda (`() => window.scrollTo(...)`) funksiya
+  // `scrollTo` qaytargan qiymatni qaytarib yuboradi, React esa uni
+  // "tozalash funksiyasi" deb qabul qiladi va keyin chaqirmoqchi
+  // bo'lganda butun sahifa qulaydi.
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [pathname]);
 
   // Esc bilan yopish: menyu ochiq qolib ketmasin.
   useEffect(() => {
@@ -39,7 +65,7 @@ export function SiteLayout() {
   return (
     <>
       <a className="skip-link" href="#main">
-        Asosiy mazmunga o'tish
+        Asosiy mazmunga o&apos;tish
       </a>
 
       <header className="site-header">
@@ -50,17 +76,6 @@ export function SiteLayout() {
           <Link to="/" style={{ textDecoration: 'none' }} aria-label="CSCRM">
             <Wordmark />
           </Link>
-
-          <button
-            ref={toggleRef}
-            className="nav-toggle"
-            aria-expanded={menuOpen}
-            aria-controls="site-nav"
-            aria-label={menuOpen ? 'Menyuni yopish' : 'Menyuni ochish'}
-            onClick={() => setMenuOpen((v) => !v)}
-          >
-            <Icon name={menuOpen ? 'close' : 'menu'} size={22} />
-          </button>
 
           <nav
             id="site-nav"
@@ -81,14 +96,33 @@ export function SiteLayout() {
                 {item.label}
               </NavLink>
             ))}
-            <Link className="btn btn--primary" to="/kirish">
-              Kirish
+            <Link className="btn btn--primary" to="/yuklab-olish">
+              <Icon name="download" size={18} />
+              Yuklab olish
             </Link>
           </nav>
 
-          <Link className="btn btn--primary site-header__cta" to="/kirish">
-            Kirish
-          </Link>
+          {/* Rejim tugmasi menyudan TASHQARIDA: u tor ekranda ham
+              ko'rinib turishi kerak, menyu esa yopiq bo'lishi mumkin. */}
+          <div className="site-header__end">
+            <ThemeToggle />
+
+            <button
+              ref={toggleRef}
+              className="nav-toggle"
+              aria-expanded={menuOpen}
+              aria-controls="site-nav"
+              aria-label={menuOpen ? 'Menyuni yopish' : 'Menyuni ochish'}
+              onClick={() => setMenuOpen((v) => !v)}
+            >
+              <Icon name={menuOpen ? 'close' : 'menu'} size={22} />
+            </button>
+
+            <Link className="btn btn--primary site-header__cta" to="/yuklab-olish">
+              <Icon name="download" size={18} />
+              Yuklab olish
+            </Link>
+          </div>
         </div>
       </header>
 
@@ -118,6 +152,17 @@ export function SiteLayout() {
             </div>
 
             <div>
+              <h4>Yechimlar</h4>
+              <ul>
+                {SOLUTIONS.map((item) => (
+                  <li key={item.to}>
+                    <Link to={item.to}>{item.label}</Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            <div>
               <h4>Aloqa</h4>
               <ul>
                 <li>
@@ -137,6 +182,20 @@ export function SiteLayout() {
                 </li>
               </ul>
             </div>
+
+            <div>
+              <h4>Huquqiy</h4>
+              <ul>
+                {LEGAL.map((item) => (
+                  <li key={item.to}>
+                    <Link to={item.to}>{item.label}</Link>
+                  </li>
+                ))}
+                <li>
+                  <Link to="/kirish">Boshqaruv paneli</Link>
+                </li>
+              </ul>
+            </div>
           </div>
 
           <div className="site-footer__bottom">
@@ -144,10 +203,25 @@ export function SiteLayout() {
               © {new Date().getFullYear()} {branding.name}. Barcha huquqlar
               himoyalangan.
             </span>
-            <Link to="/kirish">Boshqaruv paneli</Link>
+            <span>{branding.tagline}</span>
           </div>
         </div>
       </footer>
+
+      {/* Telefonda doim qo'l ostida turadigan chaqiruv paneli. */}
+      <div className="mobile-cta">
+        <Link className="btn btn--primary" to="/yuklab-olish">
+          <Icon name="download" size={18} />
+          Yuklab olish
+        </Link>
+        <a
+          className="btn btn--ghost"
+          href={branding.supportTelegram}
+          rel="noreferrer noopener"
+        >
+          Telegram
+        </a>
+      </div>
     </>
   );
 }

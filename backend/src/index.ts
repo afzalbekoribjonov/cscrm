@@ -11,6 +11,7 @@ import { authRouter } from './routes/auth.js';
 import { employeesRouter } from './routes/employees.js';
 import { healthRouter, pingRouter } from './routes/health.js';
 import { licenseRouter } from './routes/license.js';
+import { siteRouter } from './routes/site.js';
 import { FIREBASE_CONNECT_SRC, mountWeb, resolveWebDir } from './web.js';
 
 const app = express();
@@ -113,6 +114,7 @@ app.use('/api/v1/admin', adminRouter);
 app.use('/api/v1/auth', authRouter);
 app.use('/api/v1/employees', employeesRouter);
 app.use('/api/v1/license', licenseRouter);
+app.use('/api/v1/site', siteRouter);
 
 // Websayt (agar yig'ilgan bo'lsa) - API yo'llaridan KEYIN, xatolik
 // ishlovchisidan OLDIN.

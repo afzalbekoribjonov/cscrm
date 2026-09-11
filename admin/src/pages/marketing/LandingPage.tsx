@@ -1,9 +1,14 @@
 import { Link } from 'react-router-dom';
 
-import { AppMockup } from '@/components/AppMockup';
+import { AppDemo } from '@/components/AppDemo';
 import { Icon, type IconName } from '@/components/Icon';
+import { OrderFlow } from '@/components/OrderFlow';
+import { ReportsPreview } from '@/components/ReportsPreview';
+import { Reveal } from '@/components/Reveal';
+import { SavingsCalculator } from '@/components/SavingsCalculator';
 import { branding } from '@/lib/branding';
-import { formatPrice, isPriceUnset, trialDays } from '@/lib/plans';
+import { formatPrice, isPriceUnset, monthlyPrice, trialDays } from '@/lib/plans';
+import { useSeo } from '@/lib/seo';
 import { usePlans } from '@/lib/use-plans';
 
 const FEATURES: { icon: IconName; title: string; text: string }[] = [
@@ -39,19 +44,15 @@ const FEATURES: { icon: IconName; title: string; text: string }[] = [
   },
 ];
 
-const STEPS = [
-  {
-    title: 'Buyurtmani qabul qiling',
-    text: 'Mijoz, telefon raqami va xizmatlar. Olib kelish kerak bo\'lsa — dastavchikka topshiriladi.',
-  },
-  {
-    title: 'Sex ishni bajaradi',
-    text: 'Yuvish, qadoqlash, tayyor. Har bir xizmat alohida o\'lchanadi va narxlanadi.',
-  },
-  {
-    title: 'Pulni yig\'ing',
-    text: 'Yetkazishda naqd yoki karta. Qarz qolsa — qarzdorlar ro\'yxatida turadi va unutilmaydi.',
-  },
+/* Ishonch qatori ATAYLAB "500+ mijoz" kabi raqamlardan iborat emas:
+   bunday raqamni tekshirib bo'lmaydi va u to'g'ri bo'lmasa keyin
+   o'zimizga qarshi ishlaydi. Bu yerdagi hamma narsa — mahsulotning
+   o'zi haqidagi tekshirsa bo'ladigan fakt. */
+const TRUST: { num: string; label: string }[] = [
+  { num: `${trialDays} kun`, label: 'bepul sinov' },
+  { num: 'Cheksiz', label: 'xodim va buyurtma' },
+  { num: 'Internetsiz', label: 'ham ishlaydi' },
+  { num: '3 soha', label: 'uchun moslangan' },
 ];
 
 const FAQ = [
@@ -73,7 +74,7 @@ const FAQ = [
   },
   {
     q: 'To\'lov qanday amalga oshiriladi?',
-    a: 'Karta orqali o\'tkazma. Ilovada rekvizitlar ko\'rsatiladi, to\'lovni tasdiqlagach obuna darhol uzayadi.',
+    a: 'Karta orqali o\'tkazma. Rekvizitlarni Telegram yoki telefon orqali beramiz, to\'lov tasdiqlangach obuna darhol uzayadi.',
   },
   {
     q: 'Ma\'lumotlarim kimga ko\'rinadi?',
@@ -82,7 +83,12 @@ const FAQ = [
 ];
 
 export function LandingPage() {
-  // Narxlar sahifasiga ishora uchun eng ommabop reja - joriy narxi bilan.
+  useSeo(
+    'Xizmat biznesi uchun boshqaruv tizimi',
+    'Gilam yuvish, kimyoviy tozalash va kir yuvish bizneslari uchun CRM: buyurtma, xodim, moliya va hisobot — hammasi telefonda.',
+  );
+
+  // Narxlar sahifasiga ishora uchun eng ommabop reja — joriy narxi bilan.
   const { plans } = usePlans();
   const highlight = plans.find((p) => p.highlight);
 
@@ -90,9 +96,10 @@ export function LandingPage() {
     <>
       {/* ---------------- Hero ---------------- */}
       <section className="hero">
-        <div className="container hero__inner">
+        <div className="container hero__inner hero__inner--solo">
           <div className="hero__text">
             <span className="pill">
+              <Icon name="sparkle" size={15} />
               Gilam yuvish · Kimyoviy tozalash · Kir yuvish
             </span>
 
@@ -102,52 +109,88 @@ export function LandingPage() {
             </h1>
 
             <p className="hero__lead">
-              Buyurtma qabul qilishdan pul yig'ishgacha. Daftar va telefon
-              qo'ng'iroqlari o'rniga — aniq, tartibli va har doim
-              qo'lingizda.
+              Buyurtma qabul qilishdan pul yig&apos;ishgacha. Daftar va telefon
+              qo&apos;ng&apos;iroqlari o&apos;rniga — aniq, tartibli va har doim
+              qo&apos;lingizda.
             </p>
 
             <div className="hero__actions">
-              <Link className="btn btn--primary btn--lg" to="/narxlar">
-                {trialDays} kun bepul sinab ko'rish
+              <Link className="btn btn--primary btn--lg" to="/yuklab-olish">
+                <Icon name="download" size={19} />
+                Ilovani yuklab olish
               </Link>
-              <Link className="btn btn--ghost btn--lg" to="/imkoniyatlar">
-                Imkoniyatlar
+              <Link className="btn btn--ghost btn--lg" to="/narxlar">
+                Narxlar
               </Link>
             </div>
 
             <p className="muted" style={{ marginTop: 16, fontSize: '0.9rem' }}>
-              Karta kerak emas · Bir necha daqiqada ishga tushadi
+              {trialDays} kun bepul · Karta kerak emas · Bir necha daqiqada ishga
+              tushadi
             </p>
           </div>
-
-          <AppMockup />
         </div>
       </section>
 
-      {/* ---------------- Qanday ishlaydi ---------------- */}
+      {/* Demo hero'dan ALOHIDA bo'lim: u o'zi ikki ustunli (telefon va
+          tugmalar), hero ichiga qo'yilsa ikkalasi ham siqilib qolardi. */}
+      <section className="section--tight" style={{ paddingTop: 0 }}>
+        <div className="container">
+          <AppDemo />
+        </div>
+      </section>
+
+      <div className="container">
+        <div className="trust">
+          {TRUST.map((t) => (
+            <div key={t.label} className="trust__item">
+              <div className="trust__num">{t.num}</div>
+              <div className="trust__label">{t.label}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ---------------- Buyurtma yo'li ---------------- */}
       <section className="section--tight">
         <div className="container">
           <div className="section-head">
             <span className="eyebrow">Qanday ishlaydi</span>
-            <h2>Uchta qadam, tanish tartib</h2>
+            <h2>Buyurtmaning yo&apos;li</h2>
             <p>
-              Tizim sizning ishingizni o'zgartirmaydi — shunchaki uni
+              Tizim sizning ishingizni o&apos;zgartirmaydi — shunchaki uni
               tartibga soladi.
             </p>
           </div>
 
-          <div className="grid grid--3">
-            {STEPS.map((step, i) => (
-              <article key={step.title} className="card step">
-                <span className="step__num">{i + 1}</span>
-                <h3>{step.title}</h3>
-                <p className="muted" style={{ margin: 0, fontSize: '0.96rem' }}>
-                  {step.text}
-                </p>
-              </article>
-            ))}
+          <Reveal>
+            <OrderFlow />
+          </Reveal>
+        </div>
+      </section>
+
+      {/* ---------------- Hisobotlar ---------------- */}
+      <section className="section band">
+        <div className="container">
+          <div className="section-head">
+            <span className="eyebrow">Hisobotlar</span>
+            <h2>Biznesingiz raqamlarda</h2>
+            <p>
+              Kassani kechqurun sanab chiqish shart emas — daromad, qarzdorlik
+              va buyurtmalar holati har doim oldingizda.
+            </p>
           </div>
+
+          <Reveal>
+            <ReportsPreview />
+          </Reveal>
+
+          <p
+            className="muted center"
+            style={{ fontSize: '0.84rem', marginTop: 18 }}
+          >
+            Namuna ma&apos;lumot — haqiqiy mijoz va summalar ko&apos;rsatilmagan.
+          </p>
         </div>
       </section>
 
@@ -156,22 +199,49 @@ export function LandingPage() {
         <div className="container">
           <div className="section-head">
             <span className="eyebrow">Imkoniyatlar</span>
-            <h2>Kundalik ish uchun kerak bo'ladigan hamma narsa</h2>
+            <h2>Kundalik ish uchun kerak bo&apos;ladigan hamma narsa</h2>
           </div>
 
           <div className="grid grid--3">
-            {FEATURES.map((f) => (
-              <article key={f.title} className="card card--hover">
-                <span className="icon-box">
-                  <Icon name={f.icon} />
-                </span>
-                <h3>{f.title}</h3>
-                <p className="muted" style={{ margin: 0, fontSize: '0.96rem' }}>
-                  {f.text}
-                </p>
-              </article>
+            {FEATURES.map((f, i) => (
+              <Reveal key={f.title} delay={i * 60}>
+                <article className="card card--hover" style={{ height: '100%' }}>
+                  <span className="icon-box">
+                    <Icon name={f.icon} />
+                  </span>
+                  <h3>{f.title}</h3>
+                  <p className="muted" style={{ margin: 0, fontSize: '0.96rem' }}>
+                    {f.text}
+                  </p>
+                </article>
+              </Reveal>
             ))}
           </div>
+
+          <p className="center" style={{ marginTop: 28 }}>
+            <Link className="btn btn--ghost" to="/imkoniyatlar">
+              Batafsil ro&apos;yxat
+              <Icon name="arrow-right" size={18} />
+            </Link>
+          </p>
+        </div>
+      </section>
+
+      {/* ---------------- Kalkulyator ---------------- */}
+      <section className="section band">
+        <div className="container">
+          <div className="section-head">
+            <span className="eyebrow">Hisob-kitob</span>
+            <h2>Tartibsizlik qancha turadi?</h2>
+            <p>
+              Slayderlarni o&apos;z biznesingizga moslang — quyidagi raqam
+              o&apos;zi hisoblanadi.
+            </p>
+          </div>
+
+          <Reveal>
+            <SavingsCalculator />
+          </Reveal>
         </div>
       </section>
 
@@ -195,8 +265,9 @@ export function LandingPage() {
                   {highlight.name} — {formatPrice(highlight)}
                 </h3>
                 <p className="muted" style={{ margin: 0, fontSize: '0.96rem' }}>
-                  Eng ko'p tanlanadigan reja. Yashirin to'lov yo'q,
-                  xohlagan paytda o'zgartirasiz.
+                  Eng ko&apos;p tanlanadigan reja
+                  {monthlyPrice(highlight) && `, ${monthlyPrice(highlight)}`}.
+                  Yashirin to&apos;lov yo&apos;q.
                 </p>
               </div>
               <Link className="btn btn--primary btn--lg" to="/narxlar">
@@ -212,7 +283,7 @@ export function LandingPage() {
         <div className="container" style={{ maxWidth: 780 }}>
           <div className="section-head">
             <span className="eyebrow">Savol-javob</span>
-            <h2>Ko'p so'raladigan savollar</h2>
+            <h2>Ko&apos;p so&apos;raladigan savollar</h2>
           </div>
 
           {FAQ.map((item) => (
@@ -221,6 +292,13 @@ export function LandingPage() {
               <p>{item.a}</p>
             </details>
           ))}
+
+          <p className="center" style={{ marginTop: 24 }}>
+            <Link className="btn btn--ghost" to="/yordam">
+              Yordam bo&apos;limi
+              <Icon name="arrow-right" size={18} />
+            </Link>
+          </p>
         </div>
       </section>
 
@@ -230,8 +308,8 @@ export function LandingPage() {
           <div className="cta">
             <h2>Bugundan boshlang</h2>
             <p>
-              {trialDays} kun bepul. Yoqsa — obuna bo'lasiz, yoqmasa hech
-              narsa to'lamaysiz.
+              {trialDays} kun bepul. Yoqsa — obuna bo&apos;lasiz, yoqmasa hech
+              narsa to&apos;lamaysiz.
             </p>
             <div
               style={{
@@ -242,8 +320,9 @@ export function LandingPage() {
                 marginTop: 22,
               }}
             >
-              <Link className="btn btn--on-brand btn--lg" to="/narxlar">
-                Narxlarni ko'rish
+              <Link className="btn btn--on-brand btn--lg" to="/yuklab-olish">
+                <Icon name="download" size={19} />
+                Ilovani yuklab olish
               </Link>
               <a
                 className="btn btn--outline-light btn--lg"

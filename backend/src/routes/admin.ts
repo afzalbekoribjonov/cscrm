@@ -30,6 +30,7 @@ import {
   listPendingPayments,
   rejectPaymentRequest,
 } from '../services/payment-request.js';
+import { getSiteSettings, setSiteSettings } from '../services/site-settings.js';
 
 /**
  * Super-admin yo'llari — CSCRM egasining o'z mijozlarini boshqarish
@@ -369,5 +370,52 @@ adminRouter.delete(
   asyncRoute(async (req, res) => {
     await resetPlanPrice(req.params.planId!);
     res.json({ ok: true, plans: await plansWithPrices() });
+  }),
+);
+
+/* ------------------------------------------------------------------ */
+/* Sayt sozlamalari                                                    */
+/* ------------------------------------------------------------------ */
+
+adminRouter.get(
+  '/site-settings',
+  asyncRoute(async (_req, res) => {
+    res.json({ ok: true, settings: await getSiteSettings() });
+  }),
+);
+
+const siteBody = z.object({
+  downloadUrl: z.string().max(500),
+  version: z.string().max(20),
+  sizeMb: z.number().min(0).max(4096),
+  note: z.string().max(300),
+});
+
+/**
+ * Ilovani yuklab olish manzilini o'zgartiradi.
+ *
+ * Yangi APK chiqqanda faqat shu yerdagi havola almashtiriladi — sayt
+ * darhol yangisini beradi, qayta yig'ish va qayta joylash shart emas.
+ */
+adminRouter.put(
+  '/site-settings',
+  asyncRoute(async (req, res) => {
+    const parsed = siteBody.safeParse(req.body);
+    if (!parsed.success) {
+      throw ApiError.badRequest('Sozlamalarni to\'g\'ri kiriting.');
+    }
+
+    const settings = await setSiteSettings({
+      ...parsed.data,
+      byUid: req.user!.uid,
+      now: Date.now(),
+    });
+
+    req.log?.info(
+      { url: settings.downloadUrl, by: req.user!.uid },
+      'sayt sozlamalari o\'zgartirildi',
+    );
+
+    res.json({ ok: true, settings });
   }),
 );
