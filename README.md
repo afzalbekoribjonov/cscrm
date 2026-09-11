@@ -98,7 +98,11 @@ narx ikki joyda boshqacha ko'rinishi mumkin emas.
 | 1 oylik / 3 oylik / 5 oylik / 1 yillik | obuna |
 | Bir umrlik | cheksiz + yiliga $50 (baza uchun) |
 
-Muddat tugagach **3 kun** qo'shimcha vaqt (grace) beriladi.
+Obuna muddati tugagan zahoti ilova **bloklanadi** — qo'shimcha vaqt
+berilmaydi. Muddat tugashidan 7, 3 va 1 kun oldin ogohlantiriladi.
+
+Bir umrlik rejadagi yillik baza to'lovi bundan mustasno: unga
+to'lov sanasidan keyin 3 kun beriladi (`grace.lifetimeAnnualFeeDays`).
 
 ## Joylash (Render)
 

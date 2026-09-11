@@ -14,6 +14,12 @@ enum LicenseState {
   expiring('expiring'),
 
   /// Muddat tugagan, lekin qo'shimcha kunlar davom etmoqda.
+  ///
+  /// HOZIR SERVER BU HOLATNI YUBORMAYDI: obuna tugagan zahoti
+  /// bloklanadi, qo'shimcha vaqt berilmaydi. Holat protokolda
+  /// ATAYLAB qoldirilgan — qoida qaytarilsa ilovani yangilash
+  /// shart bo'lmasligi uchun. Eski o'rnatilgan ilovalar ham buni
+  /// tushunishi kerak.
   grace('grace'),
 
   /// Muddat tugagan - ilova bloklanadi.

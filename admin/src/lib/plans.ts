@@ -17,7 +17,16 @@ export interface Plan {
 }
 
 export const plans = plansData.plans as Plan[];
-export const graceDays: number = plansData.grace.days;
+
+/**
+ * Muddat tugashidan necha kun oldin eslatiladi.
+ *
+ * Saytda QO'LDA yozilmaydi: eslatma jadvali o'zgarsa, sahifadagi
+ * va'da o'z-o'zidan yangilanishi kerak. Ilgari shu yerda `graceDays`
+ * ham bor edi — obuna tugagach qo'shimcha vaqt berilmaydigan
+ * bo'lganidan keyin u olib tashlandi.
+ */
+export const warnBeforeDays: number[] = plansData.warnBeforeDays;
 
 /**
  * Sinov muddati kunlarda.

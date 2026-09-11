@@ -4,7 +4,7 @@ import { Icon } from '@/components/Icon';
 import { Reveal } from '@/components/Reveal';
 import { branding } from '@/lib/branding';
 import { formatNumber } from '@/lib/format';
-import { graceDays, isPriceUnset, trialDays, type Plan } from '@/lib/plans';
+import { isPriceUnset, trialDays, warnBeforeDays, type Plan } from '@/lib/plans';
 import { useSeo } from '@/lib/seo';
 import { usePlans } from '@/lib/use-plans';
 
@@ -158,9 +158,10 @@ export function PricingPage() {
             className="muted center"
             style={{ marginTop: 22, fontSize: '0.9rem' }}
           >
-            Obuna muddati tugagach {graceDays} kun qo&apos;shimcha vaqt
-            beriladi — ilova ishlashda davom etadi, shu vaqt ichida
-            to&apos;lovni amalga oshirasiz.
+            Muddat tugashidan {warnBeforeDays.join(', ')} kun oldin eslatib
+            turamiz. Muddat tugagach ilova bloklanadi, lekin
+            ma&apos;lumotlaringiz saqlanib qoladi — to&apos;lovdan keyin
+            hammasi joyida bo&apos;ladi.
           </p>
         </div>
       </section>

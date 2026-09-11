@@ -12,7 +12,27 @@ import type {
 } from '../types/license.js';
 
 export const PLANS: Plan[] = plansData.plans as Plan[];
+/**
+ * Obuna tugagach beriladigan qo'shimcha kunlar.
+ *
+ * HOZIR 0 — ya'ni qo'shimcha vaqt BERILMAYDI: muddat tugagan lahzadan
+ * ilova bloklanadi. Qiymat sozlamada qolgani bejiz emas: pastdagi kod
+ * noldan katta qiymat uchun ham to'g'ri ishlaydi, shuning uchun fikr
+ * o'zgarsa bitta raqamni almashtirish yetadi.
+ */
 export const GRACE_DAYS: number = plansData.grace.days;
+
+/**
+ * Bir umrlik rejadagi yillik baza to'lovi uchun alohida muddat.
+ *
+ * Obunanikidan ATAYLAB ajratilgan. Bu ikki holat bir xil emas: obuna
+ * — muddatli ijara, bir umrlik esa to'liq to'langan litsenziya.
+ * Ikkinchisini yillik to'lov sanasi o'tgan zahoti bloklash — mutlaqo
+ * boshqa qaror, va uni obuna qoidasi bilan birga jimgina o'zgartirib
+ * yuborish noto'g'ri bo'lardi.
+ */
+export const LIFETIME_FEE_GRACE_DAYS: number =
+  plansData.grace.lifetimeAnnualFeeDays;
 export const WARN_BEFORE_DAYS: number[] = plansData.warnBeforeDays;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -67,7 +87,7 @@ export function evaluate(license: License, now: number): LicenseStatusPayload {
   // --- Bir umrlik ---
   if (license.kind === 'lifetime') {
     const feeAt = license.nextAnnualFeeAt ?? null;
-    if (feeAt !== null && now > feeAt + GRACE_DAYS * DAY_MS) {
+    if (feeAt !== null && now > feeAt + LIFETIME_FEE_GRACE_DAYS * DAY_MS) {
       return {
         ...base,
         state: 'lifetime_fee_due',
@@ -86,7 +106,7 @@ export function evaluate(license: License, now: number): LicenseStatusPayload {
         blocked: false,
         message:
           'Yillik baza to\'lovi muddati keldi. '
-          + `${GRACE_DAYS} kun ichida to'lanmasa, ilova bloklanadi.`,
+          + `${LIFETIME_FEE_GRACE_DAYS} kun ichida to'lanmasa, ilova bloklanadi.`,
       };
     }
     return {
@@ -114,12 +134,14 @@ export function evaluate(license: License, now: number): LicenseStatusPayload {
 
   const daysLeft = Math.ceil((expiresAt - now) / DAY_MS);
 
-  // Qo'shimcha kunlar FAQAT to'lagan mijozga beriladi.
+  // HOZIRGI QOIDA: qo'shimcha vaqt yo'q (`GRACE_DAYS` = 0) — muddat
+  // tugagan lahzadan ilova bloklanadi.
   //
-  // Grace davri "pulini to'lab yurgan mijoz muddatni o'tkazib yuborsa,
-  // ishi to'xtab qolmasin" degan qoida. Sinov muddatida esa hech kim
-  // hech narsa to'lamagan — unga ham qo'shimcha kun berilsa, 1 kunlik
-  // sinov amalda 4 kunga aylanardi.
+  // Sinovga esa u qanday bo'lganda ham berilmaydi: qo'shimcha kunlar
+  // "pulini to'lab yurgan mijoz muddatni o'tkazib yuborsa ishi
+  // to'xtamasin" degan qoida edi, sinovda esa hech kim hech narsa
+  // to'lamagan. Bu shart `GRACE_DAYS` qaytadan yoqilsa kerak bo'ladi,
+  // shuning uchun joyida qoldirilgan.
   const graceDays = license.kind === 'trial' ? 0 : GRACE_DAYS;
   const graceEnd = expiresAt + graceDays * DAY_MS;
 
@@ -135,8 +157,10 @@ export function evaluate(license: License, now: number): LicenseStatusPayload {
   }
 
   if (now > expiresAt) {
-    // Sinovda graceDays = 0, ya'ni bu shoxga umuman tushmaydi:
+    // `graceDays` = 0 bo'lganda bu shoxga UMUMAN tushilmaydi:
     // yuqoridagi `now > graceEnd` allaqachon bloklagan bo'ladi.
+    // Hozirgi sozlamada aynan shunday. Shox saqlanib turibdi, chunki
+    // qo'shimcha kunlar qaytarilsa mantiq shu yerda.
     const graceLeft = Math.ceil((graceEnd - now) / DAY_MS);
     return {
       ...base,

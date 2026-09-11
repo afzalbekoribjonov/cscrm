@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 
 import { branding } from '@/lib/branding';
-import { graceDays, trialDays } from '@/lib/plans';
+import { trialDays, warnBeforeDays } from '@/lib/plans';
 import { useSeo } from '@/lib/seo';
 
 /**
@@ -10,7 +10,7 @@ import { useSeo } from '@/lib/seo';
  * To'lov qabul qilish uchun kerak: shartlar qayerdadir yozilgan
  * bo'lishi va foydalanuvchi ularni ko'ra olishi lozim.
  *
- * Muddatlar (sinov kunlari, imtiyozli kunlar) matnga QO'LDA
+ * Muddatlar (sinov kunlari, ogohlantirish kunlari) matnga QO'LDA
  * yozilmaydi — ular `shared/plans.json` dan olinadi. Aks holda fayl
  * o'zgarganda hujjatdagi va'da haqiqatdan ajralib qolardi.
  */
@@ -73,10 +73,15 @@ export function OfferPage() {
 
       <h2>4. Muddat tugagandan keyin</h2>
       <p>
-        Obuna tugagach {graceDays} kun qo&apos;shimcha vaqt beriladi — shu
-        davrda ilova odatdagidek ishlaydi. Undan keyin ilova vaqtincha
-        bloklanadi, lekin <strong>ma&apos;lumotlaringiz o&apos;chirilmaydi</strong>:
-        to&apos;lov qilganingizdan keyin hammasi joyida qoladi.
+        Obuna muddati tugagan zahoti ilova vaqtincha bloklanadi —{' '}
+        <strong>qo&apos;shimcha vaqt berilmaydi</strong>. Muddat
+        tugashidan {warnBeforeDays.join(', ')} kun oldin ogohlantirish
+        ko&apos;rsatiladi.
+      </p>
+      <p>
+        Bloklanish <strong>ma&apos;lumotlaringizga tegmaydi</strong>: ular
+        o&apos;chirilmaydi va to&apos;lov qilganingizdan keyin hammasi
+        joyida qoladi.
       </p>
 
       <h2>5. Narx o&apos;zgarishi</h2>

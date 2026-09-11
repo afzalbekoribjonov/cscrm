@@ -2,7 +2,15 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import type { License } from '../types/license.js';
-import { computeExpiry, evaluate, findPlan, sign, verify } from './license.js';
+import {
+  computeExpiry,
+  evaluate,
+  findPlan,
+  GRACE_DAYS,
+  LIFETIME_FEE_GRACE_DAYS,
+  sign,
+  verify,
+} from './license.js';
 
 const DAY = 24 * 60 * 60 * 1000;
 const NOW = Date.UTC(2026, 0, 15); // barqaror sana - test vaqtga bog'liq emas
@@ -51,42 +59,43 @@ describe('evaluate — muddatli obuna', () => {
     assert.equal(r.blocked, false);
   });
 
-  it('muddat tugagach grace davrida ishlashda davom etadi', () => {
-    const r = evaluate(sub({ expiresAt: NOW - 1 * DAY }), NOW);
-    assert.equal(r.state, 'grace');
-    assert.equal(r.blocked, false, 'grace davrida bloklanmasligi kerak');
+  it('sozlamada qo\'shimcha kunlar YO\'Q', () => {
+    // Bu sinov qiymatning o'zini qo'riqlaydi. Qoida "muddat tugadi —
+    // darhol bloklanadi" bo'lgani uchun, kimdir raqamni qaytadan
+    // ko'tarsa buni BILIB qilishi kerak: quyidagi sinovlar emas, aynan
+    // shu bittasi yiqiladi va sababini aytadi.
+    assert.equal(GRACE_DAYS, 0, 'obunaga qo\'shimcha vaqt berilmaydi');
   });
 
-  it('grace tugagach bloklaydi', () => {
-    const r = evaluate(sub({ expiresAt: NOW - 5 * DAY }), NOW);
+  it('muddat tugagan zahoti bloklanadi', () => {
+    // Bir soniya o'tgani ham yetarli — kun kutilmaydi.
+    const r = evaluate(sub({ expiresAt: NOW - 1000 }), NOW);
     assert.equal(r.state, 'expired');
     assert.equal(r.blocked, true);
   });
 
-  it('SINOVGA qo\'shimcha kun berilmaydi', () => {
-    // Grace - to'lagan mijoz uchun. Sinovda hech kim to'lamagan, aks
-    // holda 1 kunlik sinov amalda 4 kunga aylanardi.
-    const r = evaluate(
-      sub({ planId: 'trial', kind: 'trial', expiresAt: NOW - 1 * DAY }),
-      NOW,
-    );
-    assert.equal(r.state, 'expired');
-    assert.equal(r.blocked, true, 'sinov tugagach darhol bloklanadi');
+  it('bir kun o\'tgach ham, besh kun o\'tgach ham bir xil — bloklangan', () => {
+    for (const days of [1, 3, 5, 30]) {
+      const r = evaluate(sub({ expiresAt: NOW - days * DAY }), NOW);
+      assert.equal(r.state, 'expired', `${days} kun o'tgach`);
+      assert.equal(r.blocked, true, `${days} kun o'tgach`);
+    }
   });
 
-  it('to\'lagan mijozga qo\'shimcha kun beriladi', () => {
-    const r = evaluate(
-      sub({ kind: 'subscription', expiresAt: NOW - 1 * DAY }),
-      NOW,
-    );
-    assert.equal(r.state, 'grace');
+  it('muddatning AYNAN o\'zida hali bloklanmaydi', () => {
+    // Chegara sinovi: tugash lahzasi hali "o'tgan" emas. Aks holda
+    // to'lagan kuni kirgan odam bloklangan ekranni ko'rardi.
+    const r = evaluate(sub({ expiresAt: NOW }), NOW);
     assert.equal(r.blocked, false);
   });
 
-  it('grace chegarasining aynan o\'zida hali bloklanmaydi', () => {
-    // grace = 3 kun; 3 kun o'tgan payt hali "expired" emas.
-    const r = evaluate(sub({ expiresAt: NOW - 3 * DAY }), NOW);
-    assert.equal(r.state, 'grace');
+  it('SINOV ham tugagan zahoti bloklanadi', () => {
+    const r = evaluate(
+      sub({ planId: 'trial', kind: 'trial', expiresAt: NOW - 1000 }),
+      NOW,
+    );
+    assert.equal(r.state, 'expired');
+    assert.equal(r.blocked, true);
   });
 });
 
@@ -100,13 +109,23 @@ describe('evaluate — bir umrlik', () => {
     assert.equal(r.blocked, false);
   });
 
+  it('yillik to\'lov muddati OBUNANIKIDAN alohida hisoblanadi', () => {
+    // Obunaga qo'shimcha vaqt berilmaydi, bir umrlik rejaga esa
+    // beriladi. Ikkovi bitta sozlamaga bog'lanib qolsa, obuna qoidasi
+    // o'zgarganda bu ham jimgina o'zgarib ketardi.
+    assert.ok(
+      LIFETIME_FEE_GRACE_DAYS > 0,
+      'bir umrlik rejada to\'lov sanasidan keyin muddat qoladi',
+    );
+  });
+
   it('yillik to\'lov kechikkanda avval ogohlantiradi', () => {
     const r = evaluate(lifetime({ nextAnnualFeeAt: NOW - 1 * DAY }), NOW);
     assert.equal(r.state, 'lifetime_fee_due');
     assert.equal(r.blocked, false);
   });
 
-  it('yillik to\'lov grace\'dan ham o\'tsa bloklaydi', () => {
+  it('yillik to\'lov muddatidan ham o\'tsa bloklaydi', () => {
     const r = evaluate(lifetime({ nextAnnualFeeAt: NOW - 10 * DAY }), NOW);
     assert.equal(r.state, 'lifetime_fee_due');
     assert.equal(r.blocked, true);
