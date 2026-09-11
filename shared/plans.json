@@ -63,8 +63,8 @@
   "grace": {
     "_comment": "Obuna tugagach beriladigan qo'shimcha kunlar. 0 = QO'SHIMCHA VAQT YO'Q: muddat tugagan lahzadan ilova bloklanadi. Noldan katta qilinsa mexanizm o'zi qaytadi — kod ikkala qiymat uchun ham to'g'ri ishlaydi.",
     "days": 0,
-    "_lifetimeComment": "Bir umrlik rejadagi YILLIK BAZA TO'LOVI uchun alohida muddat. Ataylab obunanikidan ajratilgan: bu odam ilovani bir marta to'liq sotib olgan, uni to'lov sanasi o'tgan zahoti bloklash boshqa holat. 0 qilinsa u ham darhol bloklanadi.",
-    "lifetimeAnnualFeeDays": 3
+    "_lifetimeComment": "Bir umrlik rejadagi YILLIK BAZA TO'LOVI uchun alohida muddat. 0 = to'lov sanasi o'tgan zahoti bloklanadi, ogohlantirish oynasisiz. Obunanikidan ajratib qo'yilgani saqlanib qoldi: ikkovi bir xil qoidaga bo'ysunishi shart emas, kelajakda birini o'zgartirish ikkinchisiga tegmasin.",
+    "lifetimeAnnualFeeDays": 0
   },
   "warnBeforeDays": [
     7,

@@ -109,26 +109,33 @@ describe('evaluate — bir umrlik', () => {
     assert.equal(r.blocked, false);
   });
 
-  it('yillik to\'lov muddati OBUNANIKIDAN alohida hisoblanadi', () => {
-    // Obunaga qo'shimcha vaqt berilmaydi, bir umrlik rejaga esa
-    // beriladi. Ikkovi bitta sozlamaga bog'lanib qolsa, obuna qoidasi
-    // o'zgarganda bu ham jimgina o'zgarib ketardi.
-    assert.ok(
-      LIFETIME_FEE_GRACE_DAYS > 0,
-      'bir umrlik rejada to\'lov sanasidan keyin muddat qoladi',
-    );
+  it('yillik to\'lovga ham qo\'shimcha vaqt berilmaydi', () => {
+    // Qiymatning o'zini qo'riqlaydi — obunanikiga o'xshab. Sozlama
+    // alohida bo'lgani uchun uni alohida tekshirish kerak: obuna
+    // qoidasi o'zgarsa bu sinov bundan xabar bermaydi, va aksincha.
+    assert.equal(LIFETIME_FEE_GRACE_DAYS, 0);
   });
 
-  it('yillik to\'lov kechikkanda avval ogohlantiradi', () => {
-    const r = evaluate(lifetime({ nextAnnualFeeAt: NOW - 1 * DAY }), NOW);
-    assert.equal(r.state, 'lifetime_fee_due');
-    assert.equal(r.blocked, false);
-  });
-
-  it('yillik to\'lov muddatidan ham o\'tsa bloklaydi', () => {
-    const r = evaluate(lifetime({ nextAnnualFeeAt: NOW - 10 * DAY }), NOW);
+  it('to\'lov sanasi o\'tgan zahoti bloklaydi', () => {
+    // Ogohlantirish oynasi YO'Q: to'lov kuni kelgan zahoti blok
+    // ekrani chiqadi.
+    const r = evaluate(lifetime({ nextAnnualFeeAt: NOW - 1000 }), NOW);
     assert.equal(r.state, 'lifetime_fee_due');
     assert.equal(r.blocked, true);
+  });
+
+  it('bir kun o\'tgach ham, o\'n kun o\'tgach ham bloklangan', () => {
+    for (const days of [1, 3, 10]) {
+      const r = evaluate(lifetime({ nextAnnualFeeAt: NOW - days * DAY }), NOW);
+      assert.equal(r.blocked, true, `${days} kun o'tgach`);
+    }
+  });
+
+  it('to\'lov sanasining AYNAN o\'zida hali bloklanmaydi', () => {
+    // Obunadagi kabi chegara sinovi: sana kelgan lahza hali "o'tgan"
+    // emas. Aks holda to'lagan kuni kirgan odam blok ekranini ko'rardi.
+    const r = evaluate(lifetime({ nextAnnualFeeAt: NOW }), NOW);
+    assert.equal(r.blocked, false);
   });
 });
 

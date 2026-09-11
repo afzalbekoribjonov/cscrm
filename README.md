@@ -101,8 +101,10 @@ narx ikki joyda boshqacha ko'rinishi mumkin emas.
 Obuna muddati tugagan zahoti ilova **bloklanadi** — qo'shimcha vaqt
 berilmaydi. Muddat tugashidan 7, 3 va 1 kun oldin ogohlantiriladi.
 
-Bir umrlik rejadagi yillik baza to'lovi bundan mustasno: unga
-to'lov sanasidan keyin 3 kun beriladi (`grace.lifetimeAnnualFeeDays`).
+Bir umrlik rejadagi yillik baza to'lovi ham shunday: to'lov sanasi
+o'tgan zahoti blok ekrani chiqadi (`grace.lifetimeAnnualFeeDays` = 0).
+Sozlama ataylab obunanikidan alohida — ikkovi bir xil qoidaga
+bo'ysunishi shart emas.
 
 ## Joylash (Render)
 

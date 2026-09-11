@@ -25,11 +25,11 @@ export const GRACE_DAYS: number = plansData.grace.days;
 /**
  * Bir umrlik rejadagi yillik baza to'lovi uchun alohida muddat.
  *
- * Obunanikidan ATAYLAB ajratilgan. Bu ikki holat bir xil emas: obuna
- * — muddatli ijara, bir umrlik esa to'liq to'langan litsenziya.
- * Ikkinchisini yillik to'lov sanasi o'tgan zahoti bloklash — mutlaqo
- * boshqa qaror, va uni obuna qoidasi bilan birga jimgina o'zgartirib
- * yuborish noto'g'ri bo'lardi.
+ * HOZIR 0 — to'lov sanasi o'tgan zahoti bloklanadi, ogohlantirish
+ * oynasisiz. Obunaniki bilan bir xil qiymat, lekin ATAYLAB alohida
+ * sozlama: ikkovi bir xil qoidaga bo'ysunishi shart emas va
+ * kelajakda birini o'zgartirish ikkinchisiga jimgina tegib
+ * ketmasligi kerak.
  */
 export const LIFETIME_FEE_GRACE_DAYS: number =
   plansData.grace.lifetimeAnnualFeeDays;
@@ -98,6 +98,11 @@ export function evaluate(license: License, now: number): LicenseStatusPayload {
           + 'Ilovadan foydalanishni davom ettirish uchun to\'lovni amalga oshiring.',
       };
     }
+    // `LIFETIME_FEE_GRACE_DAYS` = 0 bo'lganda bu shoxga UMUMAN
+    // tushilmaydi: yuqoridagi shart allaqachon bloklagan bo'ladi.
+    // Hozirgi sozlamada aynan shunday — ogohlantirish oynasi yo'q.
+    // Shox saqlanib turibdi, chunki muddat qaytarilsa mantiq shu yerda
+    // va matndagi kun soni ham o'zi to'g'ri chiqadi.
     if (feeAt !== null && now > feeAt) {
       return {
         ...base,
