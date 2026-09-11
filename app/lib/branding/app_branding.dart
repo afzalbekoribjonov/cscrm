@@ -24,7 +24,7 @@ class AppBranding {
 
   /// Yordam xizmati.
   static const supportPhone = '+998 94 108 09 16';
-  static const supportTelegram = 'https://t.me/uzafo';
+  static const supportTelegram = 'https://t.me/cscrm_uz';
   static const supportEmail = 'oribjonovafzaliy@gmail.com';
 
   /// Firebase Auth uchun ichki email domeni. Boshqaruvchi hisobi shu
