@@ -114,10 +114,10 @@ export function OfferPage() {
 
       <h2>8. Javobgarlik chegarasi</h2>
       <p>
-        Xizmat internetga va uchinchi tomon infratuzilmasiga (Google
-        Firebase, mobil aloqa operatorlari) tayanadi. Bizga bog&apos;liq
-        bo&apos;lmagan uzilishlar uchun javobgar emasmiz, lekin ularni
-        imkon qadar tez bartaraf etishga harakat qilamiz.
+        Xizmat internetga, bulut infratuzilmasiga va mobil aloqa
+        operatorlariga tayanadi. Bizga bog&apos;liq bo&apos;lmagan
+        uzilishlar uchun javobgar emasmiz, lekin ularni imkon qadar tez
+        bartaraf etishga harakat qilamiz.
       </p>
       <p>
         Javobgarligimizning umumiy chegarasi — oxirgi 12 oy ichida

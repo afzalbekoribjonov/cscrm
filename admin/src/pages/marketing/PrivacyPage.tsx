@@ -88,15 +88,12 @@ export function PrivacyPage() {
         istisno — qonun talab qilgan hollarda vakolatli davlat organi
         so&apos;rovi.
       </p>
-
-      <h2>5. Qayerda saqlanadi</h2>
       <p>
-        Ma&apos;lumotlar Google Firebase (Google LLC) bulut infratuzilmasida
-        saqlanadi. Uzatish shifrlangan aloqa (HTTPS) orqali amalga
-        oshiriladi.
+        Telefon bilan server o&apos;rtasidagi aloqa shifrlangan (HTTPS)
+        kanal orqali amalga oshiriladi.
       </p>
 
-      <h2>6. Qancha vaqt saqlanadi</h2>
+      <h2>5. Qancha vaqt saqlanadi</h2>
       <p>
         Hisobingiz faol bo&apos;lgan davrda va obuna tugaganidan keyin ham
         ma&apos;lumot saqlanib turadi — to&apos;lovni tiklaganingizda hammasi
@@ -104,7 +101,7 @@ export function PrivacyPage() {
         murojaatdan keyin 30 kun ichida o&apos;chiramiz.
       </p>
 
-      <h2>7. Sizning huquqlaringiz</h2>
+      <h2>6. Sizning huquqlaringiz</h2>
       <ul className="check-list">
         <li>Qanday ma&apos;lumot saqlanayotganini so&apos;rash</li>
         <li>Noto&apos;g&apos;ri ma&apos;lumotni tuzatish</li>
@@ -116,7 +113,7 @@ export function PrivacyPage() {
         qiling.
       </p>
 
-      <h2>8. Mijozlaringiz ma&apos;lumoti haqida</h2>
+      <h2>7. Mijozlaringiz ma&apos;lumoti haqida</h2>
       <p>
         Ilovaga o&apos;z mijozlaringizning ismi va telefon raqamini siz
         kiritasiz. Shu ma&apos;lumotni to&apos;plash va ishlatish qonuniyligi
@@ -124,7 +121,7 @@ export function PrivacyPage() {
         ma&apos;lumotni faqat sizning topshirig&apos;ingiz asosida saqlaydi.
       </p>
 
-      <h2>9. O&apos;zgarishlar</h2>
+      <h2>8. O&apos;zgarishlar</h2>
       <p>
         Siyosat o&apos;zgarsa, yangi matn shu sahifada e&apos;lon qilinadi va
         yuqoridagi sana yangilanadi. Muhim o&apos;zgarishlar haqida ilova
