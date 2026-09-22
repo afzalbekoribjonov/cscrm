@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import { api } from '@/lib/api';
+import { MoneyInput } from '@/components/MoneyInput';
 import { formatSom } from '@/lib/admin-types';
 import type { Plan } from '@/lib/plans';
 
@@ -214,12 +215,9 @@ function PlanCard({
 
       <label style={{ display: 'block', marginBottom: 10 }}>
         <span className="muted" style={{ fontSize: 13 }}>Narx (so'm)</span>
-        <input
-          type="number"
-          min={0}
-          step={1000}
+        <MoneyInput
           value={price}
-          onChange={(e) => setPrice(e.target.value)}
+          onChange={setPrice}
           style={fieldStyle}
         />
       </label>

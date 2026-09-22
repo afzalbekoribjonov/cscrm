@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 
 import { api } from '@/lib/api';
+import { MoneyInput } from '@/components/MoneyInput';
 import {
   formatDate,
   formatDateTime,
@@ -10,6 +11,7 @@ import {
   type PaymentRequestRecord,
   type TenantDetail,
 } from '@/lib/admin-types';
+import { formatNumber } from '@/lib/format';
 import type { Plan } from '@/lib/plans';
 
 import { OwnerCredentialsCard } from './OwnerCredentialsCard';
@@ -390,12 +392,10 @@ function ConfirmPaymentCard({
         <span className="muted" style={{ fontSize: 13 }}>
           Olingan summa (so'm)
         </span>
-        <input
-          type="number"
-          min={0}
+        <MoneyInput
           value={amount}
-          onChange={(e) => setAmount(e.target.value)}
-          placeholder={plan && plan.price > 0 ? String(plan.price) : '0'}
+          onChange={setAmount}
+          placeholder={plan && plan.price > 0 ? formatNumber(plan.price) : '0'}
           style={fieldStyle}
         />
       </label>
