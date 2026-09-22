@@ -4,6 +4,18 @@ import 'package:google_fonts/google_fonts.dart';
 import 'app_colors.dart';
 
 abstract class AppTheme {
+  /// Asosiy matn shriftini beradigan funksiya.
+  ///
+  /// ALOHIDA AJRATILGANI BEJIZ EMAS: `google_fonts` shriftni
+  /// INTERNETDAN yuklaydi, ya'ni mavzuni qurishning o'zi tarmoqqa
+  /// bog'lanib qoladi. Tarmoq yo'q joyda (sinovlar, ekranlarni rasmga
+  /// chizadigan vosita) paket istisno tashlaydi va butun ish
+  /// to'xtaydi.
+  ///
+  /// O'sha joylarda bu funksiya tizim shriftini qaytaradigan variantga
+  /// almashtiriladi. Ilovaning o'zida esa hech narsa o'zgarmaydi.
+  static TextTheme Function() textThemeSource = GoogleFonts.manropeTextTheme;
+
   static ThemeData light() => _base(Brightness.light);
   static ThemeData dark() => _base(Brightness.dark);
 
@@ -29,7 +41,7 @@ abstract class AppTheme {
       onSurface: textPrimary,
     );
 
-    final baseTextTheme = GoogleFonts.manropeTextTheme();
+    final baseTextTheme = textThemeSource();
     final textTheme = baseTextTheme
         .apply(bodyColor: textPrimary, displayColor: textPrimary)
         .copyWith(
@@ -55,7 +67,10 @@ abstract class AppTheme {
       colorScheme: colorScheme,
       scaffoldBackgroundColor: bg,
       textTheme: textTheme,
-      fontFamily: GoogleFonts.manrope().fontFamily,
+      // Shrift oilasi yuqorida qurilgan matn mavzusidan olinadi —
+      // ikkinchi marta `GoogleFonts` ga murojaat qilinsa, u yana
+      // tarmoqqa chiqishga urinardi.
+      fontFamily: textTheme.bodyMedium?.fontFamily,
       appBarTheme: AppBarTheme(
         backgroundColor: bg,
         surfaceTintColor: Colors.transparent,

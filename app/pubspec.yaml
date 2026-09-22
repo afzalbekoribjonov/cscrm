@@ -40,10 +40,28 @@ flutter:
   uses-material-design: true
   assets:
     # Faqat ish vaqtida yuklanadigan fayllar. `assets/icon/` ATAYLAB yo'q -
-    # u faqat flutter_launcher_icons uchun manba, ilova ichida ishlatilmaydi
-    # (nishon vektor sifatida chiziladi: lib/branding/logo.dart), shuning
-    # uchun APK'ga qo'shilmaydi.
+    # u faqat flutter_launcher_icons uchun manba, ilova ichida ishlatilmaydi,
+    # shuning uchun APK'ga qo'shilmaydi.
     - assets/sounds/
+
+  fonts:
+    # LOGOTIP SHRIFTI - ilovaga qo'shib yuboriladi.
+    #
+    # Ilovaning qolgan matni `google_fonts` orqali Manrope bilan
+    # chiziladi, u esa birinchi ishga tushishda INTERNETDAN yuklanadi.
+    # Logotip uchun bu yaramaydi:
+    #   * aloqa yo'q bo'lsa logotip boshqa shriftda chiqadi;
+    #   * ilova ikonkasi build paytida chiziladi - u yerda Manrope
+    #     umuman yo'q, ya'ni ikonka va ilovadagi logotip bir-biriga
+    #     o'xshamay qolardi.
+    # Brend belgisi hech qachon yuklab olinadigan narsaga bog'liq
+    # bo'lmasligi kerak.
+    #
+    # Roboto Black (Apache-2.0) Flutter SDK'sidan olingan.
+    - family: CscrmLogo
+      fonts:
+        - asset: assets/fonts/cscrm-logo.ttf
+          weight: 900
 
 flutter_launcher_icons:
   android: true

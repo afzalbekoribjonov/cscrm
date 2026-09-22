@@ -28,7 +28,15 @@ abstract class LogoColors {
 /// Manfiy `letterSpacing` — harflarni bir-biriga yaqinlashtiradi va
 /// matnni yozuvdan LOGOTIPGA aylantiradi. Odatiy oraliqda u shunchaki
 /// qalin matnga o'xshab qolardi.
+/// Logotip shrifti — ilovaga qo'shib yuborilgan (`pubspec.yaml`).
+///
+/// Ilovaning qolgan matni internetdan yuklanadigan shrift bilan
+/// chiziladi; brend belgisi esa unga bog'liq bo'lmasligi kerak. Batafsil
+/// sabab `pubspec.yaml` dagi `fonts:` bo'limida yozilgan.
+const _logoFont = 'CscrmLogo';
+
 TextStyle _letters(double fontSize, Color color) => TextStyle(
+      fontFamily: _logoFont,
       fontSize: fontSize,
       // `height` birdan KICHIK. Shrift qatori harflarning o'zidan
       // balandroq: u pastga tushadigan (g, y) va yuqoriga chiqadigan
@@ -135,16 +143,23 @@ class CscrmWordmark extends StatelessWidget {
   Widget build(BuildContext context) {
     final fontSize = height * 0.46;
 
-    return Container(
-      height: height,
-      padding: EdgeInsets.symmetric(horizontal: height * 0.30),
-      decoration: BoxDecoration(
-        color: LogoColors.badge,
-        borderRadius: BorderRadius.circular(height * 0.26),
-      ),
-      alignment: Alignment.center,
-      child: FittedBox(
-        fit: BoxFit.scaleDown,
+    // `Align` + `widthFactor`, va `Container` da `alignment` YO'Q.
+    //
+    // Ikkalasi ham bitta narsa uchun: plashka matn qancha bo'lsa
+    // shuncha kenglikni olsin. `alignment` qo'yilgan `Container`
+    // ota-vidjet bergan joyni TO'LIQ egallaydi — shu sababli
+    // AppBar sarlavhasida logotip butun ekran bo'ylab cho'zilgan ko'k
+    // chiziqqa aylanib qolgandi.
+    return Align(
+      widthFactor: 1,
+      heightFactor: 1,
+      child: Container(
+        height: height,
+        padding: EdgeInsets.symmetric(horizontal: height * 0.30),
+        decoration: BoxDecoration(
+          color: LogoColors.badge,
+          borderRadius: BorderRadius.circular(height * 0.26),
+        ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [

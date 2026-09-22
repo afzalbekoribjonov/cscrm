@@ -53,6 +53,23 @@ class SignInResult {
   final String? employeeId;
 }
 
+/// Yangi biznesni ro'yxatdan o'tkazish — YAGONA amal.
+///
+/// Ro'yxatdan o'tish ekrani butun [AuthService] ga emas, shu tor
+/// shartnomaga bog'lanadi.
+///
+/// Nega kerak: [AuthService] konstruktorining o'zi `FirebaseAuth.instance`
+/// ni chaqiradi, ya'ni uni sinovda yaratib bo'lmaydi — Firebase ishga
+/// tushirilmagan. Ekran esa undan faqat bitta metodni ishlatadi.
+abstract interface class BusinessRegistrar {
+  Future<SignInResult> registerBusiness({
+    required String businessName,
+    required String login,
+    required String password,
+    String? phone,
+  });
+}
+
 /// Autentifikatsiya.
 ///
 /// MUHIM O'ZGARISH (eski versiyaga nisbatan): xodimning PIN-kodi endi
@@ -63,7 +80,7 @@ class SignInResult {
 ///
 /// Endi telefon + PIN serverga yuboriladi, server bcrypt bilan tekshiradi
 /// va Firebase custom token qaytaradi. Hash serverdan chiqmaydi.
-class AuthService {
+class AuthService implements BusinessRegistrar {
   AuthService({FirebaseAuth? auth, ApiClient? api})
       : _auth = auth ?? FirebaseAuth.instance,
         _api = api ?? ApiClient.instance;
@@ -85,6 +102,7 @@ class AuthService {
   ///
   /// Hisob Firebase Auth'da EMAS, serverda yaratiladi — chunki tenant
   /// tuguni, litsenziya va token da'volari birgalikda qo'yilishi kerak.
+  @override
   Future<SignInResult> registerBusiness({
     required String businessName,
     required String login,

@@ -63,6 +63,19 @@ interface RegisterResult {
  *  * tenant tuguni va litsenziya birgalikda yaratilishi kerak
  *  * login band emasligini ishonchli tekshirish kerak
  */
+/**
+ * "Login band" xatosi — ALOHIDA kod bilan.
+ *
+ * Kod kerak, chunki ilovada ro'yxatdan o'tish bir necha qadamdan
+ * iborat: bu xatolik kelganda foydalanuvchini aynan LOGIN qadamiga
+ * qaytarish kerak, boshqa xatolikda esa yo'q. Matnni o'qib ajratish
+ * ham mumkin edi, lekin u holda xabarni tahrirlash ilovadagi mantiqni
+ * jimgina buzib qo'yardi.
+ */
+function loginTaken(): ApiError {
+  return new ApiError(400, 'Bu login band. Boshqasini tanlang.', 'login_taken');
+}
+
 export async function registerTenant(
   input: RegisterInput,
 ): Promise<RegisterResult> {
@@ -80,7 +93,7 @@ export async function registerTenant(
 
   const loginRef = db().ref(`admin_logins/${login}`);
   if ((await loginRef.get()).exists()) {
-    throw ApiError.badRequest('Bu login band. Boshqasini tanlang.');
+    throw loginTaken();
   }
 
   const email = `${login}${AUTH_EMAIL_DOMAIN}`;
@@ -93,7 +106,7 @@ export async function registerTenant(
   } catch (err) {
     const code = (err as { code?: string }).code;
     if (code === 'auth/email-already-exists') {
-      throw ApiError.badRequest('Bu login band. Boshqasini tanlang.');
+      throw loginTaken();
     }
     throw err;
   }
