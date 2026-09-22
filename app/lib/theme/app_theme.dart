@@ -88,6 +88,30 @@ abstract class AppTheme {
         ),
       ),
       dividerTheme: DividerThemeData(color: border, thickness: 1, space: 1),
+      // Switch ranglari ATAYLAB qo'lda belgilanadi.
+      //
+      // `ColorScheme` bu yerda urug'dan (`fromSeed`) emas, qo'lda
+      // tuzilgan — ya'ni Material o'zi hisoblaydigan qo'shimcha
+      // rollar (`surfaceContainerHighest` va h.k.) bo'sh qoladi va
+      // standart, mavzuga aloqasi yo'q qiymatlarga tushadi. Natijada
+      // o'chiq switch yorug' mavzuda ham QORA bo'lib chiqardi —
+      // yoqilganга o'xshab.
+      switchTheme: SwitchThemeData(
+        thumbColor: WidgetStateProperty.resolveWith((states) =>
+            states.contains(WidgetState.selected)
+                ? Colors.white
+                : textSecondary),
+        trackColor: WidgetStateProperty.resolveWith((states) =>
+            states.contains(WidgetState.selected)
+                ? AppColors.primary
+                : (isDark
+                    ? AppColors.surfaceMutedDark
+                    : AppColors.surfaceMutedLight)),
+        trackOutlineColor: WidgetStateProperty.resolveWith((states) =>
+            states.contains(WidgetState.selected)
+                ? Colors.transparent
+                : border),
+      ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor:

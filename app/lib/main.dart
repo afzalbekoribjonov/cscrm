@@ -17,6 +17,7 @@ import 'services/session_service.dart';
 import 'services/tenant_scope.dart';
 import 'theme/app_theme.dart';
 import 'theme/theme_controller.dart';
+import 'widgets/app_lock_gate.dart';
 import 'widgets/license_gate.dart';
 
 void main() async {
@@ -93,7 +94,12 @@ class CscrmApp extends StatelessWidget {
           theme: AppTheme.light(),
           darkTheme: AppTheme.dark(),
           themeMode: mode,
-          home: _RootGate(firebaseError: firebaseError),
+          // Qulf ENG TASHQARIDA turadi: u ilovaning istalgan ekranini
+          // bekitishi kerak, ichkaridagi biror ekranga bog'lanib
+          // qolmasligi kerak.
+          home: AppLockGate(
+            child: _RootGate(firebaseError: firebaseError),
+          ),
         );
       },
     );

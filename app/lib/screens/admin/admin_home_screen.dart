@@ -7,7 +7,7 @@ import '../../models/staff_access.dart';
 import '../../services/order_service.dart';
 import '../../theme/app_colors.dart';
 import '../../utils/date_utils.dart';
-import '../../widgets/logout_action.dart';
+import '../../widgets/settings_action.dart';
 import '../../widgets/stream_error_view.dart';
 import 'admin_credentials_screen.dart';
 import 'debtors_screen.dart';
@@ -51,7 +51,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const CscrmWordmark(height: 30),
-        actions: const [LogoutAction()],
+        actions: const [SettingsAction()],
       ),
       body: StreamBuilder<List<Order>>(
         stream: _ordersStream,

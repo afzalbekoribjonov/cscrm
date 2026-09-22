@@ -11,11 +11,8 @@ import '../../models/work_section.dart';
 import '../../services/order_service.dart';
 import '../../theme/app_colors.dart';
 import '../../utils/phone.dart';
-import '../../widgets/employee_app_bar_title.dart';
-import '../../widgets/logout_action.dart';
 import '../../widgets/notification_action.dart';
 import '../../widgets/required_label.dart';
-import '../../widgets/theme_toggle_action.dart';
 import 'cart_line.dart';
 import 'product_picker_sheet.dart';
 
@@ -150,18 +147,13 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
     return Scaffold(
       resizeToAvoidBottomInset: true,
       appBar: AppBar(
-        title: EmployeeAppBarTitle(
-          title: 'Yangi buyurtma',
-          employeeName: widget.currentUserName,
-        ),
+        title: const Text('Yangi buyurtma'),
         actions: [
           NotificationAction(
             currentUserId: widget.currentUserId,
             currentUserName: widget.currentUserName,
             access: widget.access,
           ),
-          const ThemeToggleAction(),
-          const LogoutAction(),
         ],
       ),
       body: !_canCreate

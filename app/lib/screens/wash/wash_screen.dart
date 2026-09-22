@@ -6,14 +6,12 @@ import '../../theme/app_colors.dart';
 import '../../utils/order_sections.dart';
 import '../../utils/wash_section_stats.dart';
 import '../../widgets/section_stats_bar.dart';
-import '../../widgets/employee_app_bar_title.dart';
-import '../../widgets/logout_action.dart';
+import '../../widgets/settings_action.dart';
 import '../../widgets/notification_action.dart';
 import '../../widgets/my_activity_action.dart';
 import '../../widgets/order_card.dart';
 import '../../widgets/order_search_action.dart';
 import '../../widgets/finance_actions.dart';
-import '../../widgets/theme_toggle_action.dart';
 
 /// "Yuvish" bo'limi - sexga kirgan, hali xizmat qo'shilmagan yoki kamida
 /// bitta xizmati "Yuvilmoqda"/"Qayta yuvildi" holatida bo'lgan
@@ -40,15 +38,14 @@ class WashScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title:
-            EmployeeAppBarTitle(title: 'Yuvish', employeeName: currentUserName),
+        leading: const SettingsAction(),
+        title: const Text('Yuvish'),
         actions: [
           NotificationAction(
             currentUserId: currentUserId,
             currentUserName: currentUserName,
             access: access,
           ),
-          const ThemeToggleAction(),
           OrderSearchAction(
             orders: sections.all,
             currentUserId: currentUserId,
@@ -67,7 +64,6 @@ class WashScreen extends StatelessWidget {
               currentUserName: currentUserName,
               access: access,
             ),
-          const LogoutAction(),
         ],
       ),
       body: filtered.isEmpty

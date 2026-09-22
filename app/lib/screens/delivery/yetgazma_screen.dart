@@ -5,14 +5,11 @@ import '../../models/staff_access.dart';
 import '../../models/work_section.dart';
 import '../../utils/order_sections.dart';
 import '../../widgets/count_banner.dart';
-import '../../widgets/employee_app_bar_title.dart';
-import '../../widgets/logout_action.dart';
 import '../../widgets/notification_action.dart';
 import '../../widgets/my_activity_action.dart';
 import '../../widgets/order_card.dart';
 import '../../widgets/order_search_action.dart';
 import '../../widgets/finance_actions.dart';
-import '../../widgets/theme_toggle_action.dart';
 
 /// "Yetgazma" bo'limi - transport bilan bog'liq 3 bosqich: mijozdan olib
 /// kelinishi kerak bo'lgan, sexda tayyor bo'lib mijozga yetgazilishi kerak
@@ -55,15 +52,13 @@ class _YetgazmaScreenState extends State<YetgazmaScreen>
 
     return Scaffold(
       appBar: AppBar(
-        title: EmployeeAppBarTitle(
-            title: 'Yetgazma', employeeName: widget.currentUserName),
+        title: const Text('Yetgazma'),
         actions: [
           NotificationAction(
             currentUserId: widget.currentUserId,
             currentUserName: widget.currentUserName,
             access: widget.access,
           ),
-          const ThemeToggleAction(),
           OrderSearchAction(
             orders: widget.sections.all,
             currentUserId: widget.currentUserId,
@@ -82,7 +77,6 @@ class _YetgazmaScreenState extends State<YetgazmaScreen>
               currentUserName: widget.currentUserName,
               access: widget.access,
             ),
-          const LogoutAction(),
         ],
         bottom: TabBar(
           controller: _tabController,

@@ -4,14 +4,11 @@ import '../../models/staff_access.dart';
 import '../../models/work_section.dart';
 import '../../utils/order_sections.dart';
 import '../../widgets/count_banner.dart';
-import '../../widgets/employee_app_bar_title.dart';
-import '../../widgets/logout_action.dart';
 import '../../widgets/notification_action.dart';
 import '../../widgets/my_activity_action.dart';
 import '../../widgets/order_card.dart';
 import '../../widgets/order_search_action.dart';
 import '../../widgets/finance_actions.dart';
-import '../../widgets/theme_toggle_action.dart';
 
 /// "Qadoqlash" bo'limi - kamida bitta xizmati "Qadoqlashda" holatida
 /// bo'lgan buyurtmalarni ko'rsatadi.
@@ -36,15 +33,13 @@ class PackagingScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: EmployeeAppBarTitle(
-            title: 'Qadoqlash', employeeName: currentUserName),
+        title: const Text('Qadoqlash'),
         actions: [
           NotificationAction(
             currentUserId: currentUserId,
             currentUserName: currentUserName,
             access: access,
           ),
-          const ThemeToggleAction(),
           OrderSearchAction(
             orders: sections.all,
             currentUserId: currentUserId,
@@ -63,7 +58,6 @@ class PackagingScreen extends StatelessWidget {
               currentUserName: currentUserName,
               access: access,
             ),
-          const LogoutAction(),
         ],
       ),
       body: filtered.isEmpty

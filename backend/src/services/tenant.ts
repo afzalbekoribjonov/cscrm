@@ -12,7 +12,7 @@ import type {
 import type { License } from '../types/license.js';
 import { directoryEntry } from './admin.js';
 import { computeExpiry, findPlan } from './license.js';
-import { hashPin, isValidPin } from './pin.js';
+import { hashPin, isValidPin, verifyPin } from './pin.js';
 
 /**
  * Tenant ID - o'qishga qulay, adashtirmaydigan alifbo (0/O, 1/I/l yo'q).
@@ -56,14 +56,6 @@ interface RegisterResult {
 }
 
 /**
- * Yangi biznes va uning egasini yaratadi.
- *
- * Hammasi SHU YERDA bajariladi (ilovada emas), chunki:
- *  * custom claim'larni faqat Admin SDK qo'ya oladi
- *  * tenant tuguni va litsenziya birgalikda yaratilishi kerak
- *  * login band emasligini ishonchli tekshirish kerak
- */
-/**
  * "Login band" xatosi — ALOHIDA kod bilan.
  *
  * Kod kerak, chunki ilovada ro'yxatdan o'tish bir necha qadamdan
@@ -76,6 +68,14 @@ function loginTaken(): ApiError {
   return new ApiError(400, 'Bu login band. Boshqasini tanlang.', 'login_taken');
 }
 
+/**
+ * Yangi biznes va uning egasini yaratadi.
+ *
+ * Hammasi SHU YERDA bajariladi (ilovada emas), chunki:
+ *  * custom claim'larni faqat Admin SDK qo'ya oladi
+ *  * tenant tuguni va litsenziya birgalikda yaratilishi kerak
+ *  * login band emasligini ishonchli tekshirish kerak
+ */
 export async function registerTenant(
   input: RegisterInput,
 ): Promise<RegisterResult> {
@@ -255,6 +255,45 @@ export async function resetEmployeePin(
 
   await ref.update({
     pinHash: await hashPin(newPin),
+    failedAttempts: 0,
+    lockedUntil: null,
+  });
+}
+
+/**
+ * Xodim O'Z PIN-kodini almashtiradi.
+ *
+ * [resetEmployeePin] dan farqi — JORIY PIN so'raladi. Busiz qo'lga
+ * tushgan ochiq telefon yetarli bo'lardi: begona odam PIN'ni
+ * almashtirib, haqiqiy xodimni o'z hisobidan chiqarib yuborardi.
+ *
+ * Telefon raqami bu yerda O'ZGARTIRILMAYDI: u xodimning kim ekanini
+ * aniqlaydigan kalit va tenant bo'ylab indekslanadi. Uni almashtirish
+ * biznes egasining ishi.
+ */
+export async function changeOwnPin(params: {
+  tenantId: string;
+  employeeId: string;
+  currentPin: string;
+  newPin: string;
+}): Promise<void> {
+  if (!isValidPin(params.newPin)) {
+    throw ApiError.badRequest('Yangi PIN 4-8 xonali raqam bo\'lishi kerak.');
+  }
+
+  const ref = db().ref(
+    `tenants/${params.tenantId}/employees/${params.employeeId}`,
+  );
+  const snap = await ref.get();
+  if (!snap.exists()) throw ApiError.notFound('Xodim topilmadi.');
+
+  const record = snap.val() as { pinHash?: string };
+  if (!(await verifyPin(params.currentPin, record.pinHash))) {
+    throw new ApiError(400, 'Joriy PIN noto\'g\'ri.', 'wrong_pin');
+  }
+
+  await ref.update({
+    pinHash: await hashPin(params.newPin),
     failedAttempts: 0,
     lockedUntil: null,
   });

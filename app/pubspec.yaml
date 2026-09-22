@@ -29,6 +29,8 @@ dependencies:
   http: ^1.2.2
   package_info_plus: ^8.1.1
   device_info_plus: ^11.1.1
+  # Barmoq izi / yuz bilan ochish — ilova qulfi uchun.
+  local_auth: ^2.3.0
 
 dev_dependencies:
   flutter_test:

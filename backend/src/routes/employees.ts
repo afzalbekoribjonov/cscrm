@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { requireAuth, requireTenant } from '../middleware/auth.js';
 import { ApiError, asyncRoute } from '../middleware/error.js';
 import {
+  changeOwnPin,
   createEmployee,
   deleteEmployee,
   resetEmployeePin,
@@ -87,6 +88,45 @@ employeesRouter.delete(
   asyncRoute(async (req, res) => {
     const { tenantId } = requireTenant(req, 'owner');
     await deleteEmployee(tenantId, req.params.employeeId!);
+    res.json({ ok: true });
+  }),
+);
+
+const ownPinBody = z.object({
+  currentPin: z.string().min(4).max(8),
+  newPin: z.string().min(4).max(8),
+});
+
+/**
+ * Xodim O'Z PIN-kodini almashtiradi.
+ *
+ * `/:employeeId/pin` dan farqi:
+ *   * boshqaruvchi emas, XODIMNING O'ZI chaqiradi;
+ *   * qaysi xodim ekani tanaga emas, TOKENGA qarab aniqlanadi —
+ *     aks holda bir xodim boshqasining PIN'ini almashtira olardi;
+ *   * joriy PIN so'raladi.
+ */
+employeesRouter.post(
+  '/me/pin',
+  requireAuth,
+  asyncRoute(async (req, res) => {
+    const { tenantId, claims } = requireTenant(req);
+    const employeeId = claims.employeeId;
+    if (!employeeId) {
+      throw ApiError.forbidden('Bu amal faqat xodimlar uchun.');
+    }
+
+    const parsed = ownPinBody.safeParse(req.body);
+    if (!parsed.success) {
+      throw ApiError.badRequest('PIN 4-8 xonali raqam bo\'lishi kerak.');
+    }
+
+    await changeOwnPin({
+      tenantId,
+      employeeId,
+      currentPin: parsed.data.currentPin,
+      newPin: parsed.data.newPin,
+    });
     res.json({ ok: true });
   }),
 );

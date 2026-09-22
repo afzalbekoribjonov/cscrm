@@ -12,9 +12,11 @@
 // Fayl `test/` papkasidan tashqarida: bu tekshiruv emas, vosita.
 
 import 'package:cscrm/screens/auth/register_business_screen.dart';
+import 'package:cscrm/screens/settings/settings_screen.dart';
 import 'package:cscrm/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'render.dart';
 
@@ -44,6 +46,9 @@ void main() {
           fontFamily: renderFont,
         );
 
+    // Sozlamalar ekrani qurilma xotirasini o'qiydi — sinovda u yo'q.
+    // ignore: invalid_use_of_visible_for_testing_member
+    SharedPreferences.setMockInitialValues({});
     await loadRenderFont();
 
     await renderToPng(
@@ -65,6 +70,20 @@ void main() {
       child: _app(const RegisterBusinessScreen()),
       path: 'build/screens/register-1-tor.png',
       size: _narrow,
+    );
+
+    await renderToPng(
+      tester,
+      child: _app(const SettingsScreen()),
+      path: 'build/screens/sozlamalar.png',
+      size: _phone,
+    );
+
+    await renderToPng(
+      tester,
+      child: _app(const SettingsScreen(), dark: true),
+      path: 'build/screens/sozlamalar-tun.png',
+      size: _phone,
     );
   });
 }

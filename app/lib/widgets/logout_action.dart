@@ -6,64 +6,70 @@ import '../services/license_controller.dart';
 import '../services/notification_center.dart';
 import '../services/session_service.dart';
 
-/// AppBar'larga qo'yiladigan umumiy "Chiqish" tugmasi - xodim va
-/// boshqaruvchi sessiyasini tozalab, login ekraniga qaytaradi. Tasodifan
-/// bosilib qolmasligi uchun avval tasdiqlash so'raladi.
+/// Tizimdan chiqaradi — avval tasdiqlash so'raydi.
+///
+/// Funksiya sifatida ochiq, chunki uni ikki joy chaqiradi: sozlamalar
+/// ro'yxatidagi qator va bloklash ekranidagi tugma.
+Future<void> confirmAndLogout(BuildContext context) async {
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: const Text('Chiqish'),
+      content: const Text('Tizimdan chiqishni tasdiqlaysizmi?'),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(ctx).pop(false),
+          child: const Text('Bekor qilish'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.of(ctx).pop(true),
+          child: const Text('Chiqish'),
+        ),
+      ],
+    ),
+  );
+  if (confirmed != true) return;
+  if (!context.mounted) return;
+
+  // Navigator OLDINDAN olinadi.
+  //
+  // Sabab: quyidagi tozalash bu tugmani ekrandan olib tashlashi
+  // mumkin. Masalan bloklash ekranidan chiqilganda
+  // `LicenseController.stop()` holatni tozalaydi, `LicenseGate` esa
+  // darhol boshqa ekranga o'tadi — tugma bilan birga uning
+  // `context`i ham o'ladi. Ilgari kod shundan keyin
+  // `context.mounted` ni tekshirib, JIMGINA chiqib ketardi:
+  // sessiya tozalangan, lekin login ekrani ochilmagan — foydalanuvchi
+  // bo'sh ekranda qolardi.
+  final navigator = Navigator.of(context, rootNavigator: true);
+
+  await AuthService().signOut();
+  await SessionService().clearSession();
+  // Keyingi foydalanuvchi oldingi biznesning obuna holatini ko'rib
+  // qolmasligi uchun kesh ham tozalanadi.
+  await LicenseController.instance.stop();
+  await NotificationCenter.instance.stop();
+
+  navigator.pushAndRemoveUntil(
+    MaterialPageRoute(builder: (_) => const LoginScreen()),
+    (route) => false,
+  );
+}
+
+/// AppBar'larga qo'yiladigan "Chiqish" tugmasi.
+///
+/// Endi faqat BLOKLASH ekranida ishlatiladi: u yerda sozlamalarga
+/// kirib bo'lmaydi, shuning uchun chiqish yo'li ko'rinib turishi kerak.
+/// Ish ekranlarida chiqish sozlamalarga ko'chirilgan.
 class LogoutAction extends StatelessWidget {
   const LogoutAction({super.key});
-
-  Future<void> _confirmAndLogout(BuildContext context) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Chiqish'),
-        content: const Text('Tizimdan chiqishni tasdiqlaysizmi?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Bekor qilish'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Chiqish'),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true) return;
-    if (!context.mounted) return;
-
-    // Navigator OLDINDAN olinadi.
-    //
-    // Sabab: quyidagi tozalash bu tugmani ekrandan olib tashlashi
-    // mumkin. Masalan bloklash ekranidan chiqilganda
-    // `LicenseController.stop()` holatni tozalaydi, `LicenseGate` esa
-    // darhol boshqa ekranga o'tadi — tugma bilan birga uning
-    // `context`i ham o'ladi. Ilgari kod shundan keyin
-    // `context.mounted` ni tekshirib, JIMGINA chiqib ketardi:
-    // sessiya tozalangan, lekin login ekrani ochilmagan — foydalanuvchi
-    // bo'sh ekranda qolardi.
-    final navigator = Navigator.of(context);
-
-    await AuthService().signOut();
-    await SessionService().clearSession();
-    // Keyingi foydalanuvchi oldingi biznesning obuna holatini ko'rib
-    // qolmasligi uchun kesh ham tozalanadi.
-    await LicenseController.instance.stop();
-    await NotificationCenter.instance.stop();
-
-    navigator.pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const LoginScreen()),
-      (route) => false,
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
     return IconButton(
       tooltip: 'Chiqish',
       icon: const Icon(Icons.logout_rounded),
-      onPressed: () => _confirmAndLogout(context),
+      onPressed: () => confirmAndLogout(context),
     );
   }
 }
