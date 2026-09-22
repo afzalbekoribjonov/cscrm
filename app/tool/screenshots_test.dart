@@ -13,6 +13,11 @@
 
 import 'package:cscrm/screens/auth/register_business_screen.dart';
 import 'package:cscrm/models/employee.dart';
+import 'package:cscrm/models/order.dart';
+import 'package:cscrm/models/order_status.dart';
+import 'package:cscrm/models/staff_access.dart';
+import 'package:cscrm/screens/delivery/yetgazma_screen.dart';
+import 'package:cscrm/utils/order_sections.dart';
 import 'package:cscrm/screens/admin/profile_screen.dart';
 import 'package:cscrm/screens/settings/settings_screen.dart';
 import 'package:cscrm/theme/app_theme.dart';
@@ -107,5 +112,41 @@ void main() {
       path: 'build/screens/profil-tor.png',
       size: _narrow,
     );
+
+    await renderToPng(
+      tester,
+      child: _app(YetgazmaScreen(
+        sections: OrderSections.from(_deliveryOrders),
+        currentUserId: 'e1',
+        currentUserName: 'Sardor',
+        access: const StaffAccess.admin(),
+      )),
+      path: 'build/screens/yetgazma.png',
+      size: _phone,
+    );
   });
 }
+
+/// Yetgazma ekrani uchun namuna buyurtmalar.
+final _deliveryOrders = [
+  for (var i = 0; i < 3; i++)
+    Order(
+      id: 1280 + i,
+      customerName: ['Nodira opa', 'Sardor aka', 'Malika'][i],
+      customerPhone: '99890123456$i',
+      address: [
+        'Beshariq ishonch oldi',
+        'Chilonzor 9-kvartal, 14-uy',
+        'Yunusobod 4-mavze',
+      ][i],
+      deadline: null,
+      deliveryType: DeliveryType.olibKelish,
+      status: OrderStatus.yetgazishgaTayyor,
+      createdBy: 'e1',
+      createdByName: 'Sardor',
+      createdAt: 1700000000000 + i * 1000,
+      items: const [],
+      totalPrice: [356000.0, 180000.0, 540000.0][i],
+      comments: const [],
+    ),
+];

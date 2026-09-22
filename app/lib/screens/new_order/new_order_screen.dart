@@ -15,6 +15,7 @@ import '../../services/pending_order_store.dart';
 import '../../theme/app_colors.dart';
 import '../../utils/phone.dart';
 import '../../widgets/notification_action.dart';
+import '../../widgets/admin_action.dart';
 import '../../widgets/required_label.dart';
 import '../../widgets/settings_action.dart';
 import '../../widgets/sync_status_action.dart';
@@ -170,6 +171,11 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
             access: widget.access,
           ),
           SyncStatusAction(todaysOrders: widget.todaysOrders),
+          AdminAction(
+            isAdmin: widget.access.isAdmin,
+            currentUserId: widget.currentUserId,
+            currentUserName: widget.currentUserName,
+          ),
         ],
       ),
       body: !_canCreate

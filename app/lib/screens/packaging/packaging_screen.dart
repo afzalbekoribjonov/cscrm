@@ -4,6 +4,8 @@ import '../../models/staff_access.dart';
 import '../../models/work_section.dart';
 import '../../utils/order_sections.dart';
 import '../../widgets/count_banner.dart';
+import '../../widgets/admin_action.dart';
+import '../../widgets/settings_action.dart';
 import '../../widgets/notification_action.dart';
 import '../../widgets/my_activity_action.dart';
 import '../../widgets/order_card.dart';
@@ -33,6 +35,7 @@ class PackagingScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
+        leading: const SettingsAction(),
         title: const Text('Qadoqlash'),
         actions: [
           NotificationAction(
@@ -58,6 +61,11 @@ class PackagingScreen extends StatelessWidget {
               currentUserName: currentUserName,
               access: access,
             ),
+          AdminAction(
+            isAdmin: access.isAdmin,
+            currentUserId: currentUserId,
+            currentUserName: currentUserName,
+          ),
         ],
       ),
       body: filtered.isEmpty

@@ -3,8 +3,45 @@ import 'dart:math';
 
 import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+/// Barmoq izi so'rovining natijasi.
+enum BiometricResult {
+  ok,
+
+  /// Foydalanuvchi o'zi bekor qildi — bu xatolik emas, xabar ham
+  /// ko'rsatilmaydi.
+  cancelled,
+
+  /// Qurilmada barmoq izi umuman sozlanmagan.
+  notEnrolled,
+
+  /// Qurilma qo'llab-quvvatlamaydi yoki imkoniyat o'chirilgan.
+  unavailable,
+
+  /// Ketma-ket ko'p xato — Android vaqtincha bloklagan.
+  lockedOut,
+
+  /// Boshqa xatolik.
+  failed;
+
+  /// Foydalanuvchiga ko'rsatiladigan sabab. Muvaffaqiyat va bekor
+  /// qilishda `null` — aytadigan gap yo'q.
+  String? get message => switch (this) {
+        BiometricResult.ok || BiometricResult.cancelled => null,
+        BiometricResult.notEnrolled =>
+          'Telefoningizda barmoq izi sozlanmagan. Avval uni telefon '
+              'sozlamalaridan qo\'shing.',
+        BiometricResult.unavailable =>
+          'Bu telefon barmoq izi bilan ochishni qo\'llab-quvvatlamaydi.',
+        BiometricResult.lockedOut =>
+          'Ko\'p marta xato bo\'ldi. Biroz kutib, qayta urining.',
+        BiometricResult.failed =>
+          'Barmoq izini tekshirib bo\'lmadi. Qayta urining.',
+      };
+}
 
 /// Ilovaning MAHALLIY qulfi: PIN-kod va barmoq izi.
 ///
@@ -107,22 +144,34 @@ class AppLockService {
     return _constantTimeEquals(base64Decode(storedHash), actual);
   }
 
-  /// Barmoq izi so'raydi. `true` — ochildi.
-  Future<bool> authenticateBiometric() async {
+  /// Barmoq izi so'raydi.
+  ///
+  /// Natija ATAYLAB `bool` emas. Ilgari shunday edi va har qanday
+  /// muvaffaqiyatsizlik — bekor qilishmi, qurilmada barmoq izi
+  /// sozlanmaganmi, ilovaning o'zi noto'g'ri yig'ilganmi — bir xil
+  /// `false` bo'lib qaytardi. Sozlamalardagi kalit esa jimgina
+  /// qaytib tushardi va foydalanuvchi sababini bilolmasdi.
+  Future<BiometricResult> authenticateBiometric() async {
     try {
-      return await _auth.authenticate(
+      final ok = await _auth.authenticate(
         localizedReason: 'Ilovani ochish uchun tasdiqlang',
         options: const AuthenticationOptions(
           biometricOnly: true,
           stickyAuth: true,
         ),
       );
+      return ok ? BiometricResult.ok : BiometricResult.cancelled;
+    } on PlatformException catch (e) {
+      debugPrint('Barmoq izi bilan ochilmadi: ${e.code} ${e.message}');
+      return switch (e.code) {
+        'NotEnrolled' => BiometricResult.notEnrolled,
+        'NotAvailable' => BiometricResult.unavailable,
+        'LockedOut' || 'PermanentlyLockedOut' => BiometricResult.lockedOut,
+        _ => BiometricResult.failed,
+      };
     } catch (e) {
-      // Bekor qilingan, qurilmada sozlanmagan, juda ko'p urinish —
-      // barchasi bir xil natija: ochilmadi. Foydalanuvchi PIN bilan
-      // kirаveradi.
       debugPrint('Barmoq izi bilan ochilmadi: $e');
-      return false;
+      return BiometricResult.failed;
     }
   }
 

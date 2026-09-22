@@ -6,6 +6,7 @@ import '../../theme/app_colors.dart';
 import '../../utils/order_sections.dart';
 import '../../utils/wash_section_stats.dart';
 import '../../widgets/section_stats_bar.dart';
+import '../../widgets/admin_action.dart';
 import '../../widgets/settings_action.dart';
 import '../../widgets/notification_action.dart';
 import '../../widgets/my_activity_action.dart';
@@ -64,6 +65,11 @@ class WashScreen extends StatelessWidget {
               currentUserName: currentUserName,
               access: access,
             ),
+          AdminAction(
+            isAdmin: access.isAdmin,
+            currentUserId: currentUserId,
+            currentUserName: currentUserName,
+          ),
         ],
       ),
       body: filtered.isEmpty

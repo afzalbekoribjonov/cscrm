@@ -44,7 +44,7 @@ class _AppLockScreenState extends State<AppLockScreen> {
     if (!mounted) return;
     setState(() => _biometricsReady = true);
 
-    if (await _lock.authenticateBiometric()) {
+    if (await _lock.authenticateBiometric() == BiometricResult.ok) {
       widget.onUnlocked();
     }
   }

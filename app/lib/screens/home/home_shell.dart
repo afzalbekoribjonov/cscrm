@@ -21,7 +21,6 @@ import '../../utils/order_sections.dart';
 import '../../widgets/offline_banner.dart';
 import '../../widgets/stream_error_view.dart';
 import '../../widgets/subscription_banner.dart';
-import '../admin/admin_home_screen.dart';
 import '../auth/login_screen.dart';
 import '../delivery/yetgazma_screen.dart';
 import '../new_order/new_order_screen.dart';
@@ -29,8 +28,11 @@ import '../packaging/packaging_screen.dart';
 import '../wash/wash_screen.dart';
 
 /// Asosiy ilova qobig'i: pastki navigatsiya + 4 operatsion bo'lim
-/// (Yangi / Yuvish / Qadoqlash / Yetgazma). Boshqaruvchi (admin) uchun
-/// pastki menyuning o'rtasiga "Boshqaruv" tugmasi qo'shiladi.
+/// (Yangi / Yuvish / Qadoqlash / Yetgazma).
+///
+/// Pastki menyu HAMMADA bir xil. Boshqaruv bo'limi — alohida sahifa
+/// va u har bir ekranning yuqori o'ng burchagidagi ikonka orqali
+/// ochiladi (qarang: [AdminAction]).
 class HomeShell extends StatefulWidget {
   const HomeShell({super.key, required this.session});
 
@@ -245,38 +247,9 @@ class _HomeShellState extends State<HomeShell> {
   // Navigatsiya
   // -------------------------------------------------------------------
 
-  bool get _isAdmin => _access.isAdmin;
-
   /// Buyurtma tarixida "kim qildi" deb yoziladigan ID.
   String get _actorId => widget.session.actorId;
   String get _actorName => widget.session.displayName ?? '';
-
-  /// "Boshqaruv" tugmasi pastki menyuning o'rtasiga (2-o'ringa) qo'yiladi -
-  /// bu haqiqiy ekran emas, shu sabab IndexedStack indeksi bilan bevosita
-  /// mos kelmaydi.
-  static const _adminNavIndex = 2;
-
-  int _navIndexForScreenIndex(int screenIndex) {
-    if (!_isAdmin) return screenIndex;
-    return screenIndex < _adminNavIndex ? screenIndex : screenIndex + 1;
-  }
-
-  int? _screenIndexForNavIndex(int navIndex) {
-    if (!_isAdmin) return navIndex;
-    if (navIndex == _adminNavIndex) return null;
-    return navIndex < _adminNavIndex ? navIndex : navIndex - 1;
-  }
-
-  void _openAdminPanel() {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => AdminHomeScreen(
-          currentUserId: _actorId,
-          currentUserName: _actorName,
-        ),
-      ),
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -340,15 +313,8 @@ class _HomeShellState extends State<HomeShell> {
       bottomNavigationBar: SafeArea(
         top: false,
         child: BottomNavigationBar(
-          currentIndex: _navIndexForScreenIndex(_index),
-          onTap: (navIndex) {
-            final screenIndex = _screenIndexForNavIndex(navIndex);
-            if (screenIndex == null) {
-              _openAdminPanel();
-            } else {
-              setState(() => _index = screenIndex);
-            }
-          },
+          currentIndex: _index,
+          onTap: (index) => setState(() => _index = index),
           type: BottomNavigationBarType.fixed,
           items: [
             const BottomNavigationBarItem(
@@ -362,11 +328,6 @@ class _HomeShellState extends State<HomeShell> {
               ),
               label: 'Yuvish',
             ),
-            if (_isAdmin)
-              const BottomNavigationBarItem(
-                icon: Icon(Icons.admin_panel_settings_rounded),
-                label: 'Boshqaruv',
-              ),
             BottomNavigationBarItem(
               icon: _NavBadge(
                 count: _sections.packaging.length,

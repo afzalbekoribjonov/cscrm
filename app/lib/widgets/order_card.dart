@@ -8,6 +8,7 @@ import '../models/work_section.dart';
 import '../screens/orders/order_detail_screen.dart';
 import '../theme/app_colors.dart';
 import '../utils/date_utils.dart';
+import '../utils/delivery_sort.dart';
 import 'phone_link.dart';
 import 'status_chip.dart';
 
@@ -49,6 +50,7 @@ class OrderCard extends StatelessWidget {
     required this.currentUserName,
     required this.access,
     this.section,
+    this.distanceMeters,
   });
 
   final Order order;
@@ -59,6 +61,13 @@ class OrderCard extends StatelessWidget {
   /// Karta qaysi bo'limda ko'rsatilyapti - buyurtma ochilganda faqat shu
   /// bo'limga tegishli amallar ko'rsatilishi uchun uzatiladi.
   final WorkSection? section;
+
+  /// Dastavchikdan buyurtmagacha bo'lgan masofa (metr).
+  ///
+  /// Faqat "Manzil" bo'yicha saralanganda beriladi. `null` bo'lsa
+  /// hech narsa ko'rsatilmaydi — masofa har doim ma'lum emas:
+  /// mijozning o'zi kelgan buyurtmada koordinata saqlanmaydi.
+  final double? distanceMeters;
 
   @override
   Widget build(BuildContext context) {
@@ -132,7 +141,14 @@ class OrderCard extends StatelessWidget {
                     const SizedBox(width: 5),
                     Expanded(
                       child: Text(
-                        order.address,
+                        // Masofa manzilning DAVOMI sifatida yoziladi:
+                        // "Chilonzor 9-kvartal, 2.7 km". Alohida
+                        // qatorga chiqarilsa karta balandlashib,
+                        // ro'yxatda kamroq buyurtma sig'ardi.
+                        distanceMeters == null
+                            ? order.address
+                            : '${order.address}, '
+                                '${formatDistance(distanceMeters!)}',
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         style: theme.textTheme.bodySmall,

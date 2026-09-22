@@ -102,9 +102,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _toggleBiometrics(bool on) async {
-    // Yoqishdan oldin bir marta tekshiramiz: qurilmada barmoq izi
-    // sozlanmagan bo'lsa, kalit yoniq turib ishlamasdi.
-    if (on && !await _lock.authenticateBiometric()) return;
+    if (on) {
+      // Yoqishdan oldin bir marta tekshiramiz: qurilmada barmoq izi
+      // sozlanmagan bo'lsa, kalit yoniq turib ishlamasdi.
+      final result = await _lock.authenticateBiometric();
+      if (result != BiometricResult.ok) {
+        // Sababi bor bo'lsa aytiladi. Ilgari kalit JIMGINA qaytib
+        // tushardi va foydalanuvchi nima bo'lganini bilolmasdi.
+        final message = result.message;
+        if (message != null && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(message),
+              backgroundColor: AppColors.danger,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+        return;
+      }
+    }
 
     await _lock.setBiometrics(on);
     await _load();
