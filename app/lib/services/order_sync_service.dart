@@ -67,7 +67,16 @@ class OrderSyncService {
   }) async {
     _orders = orders ?? OrderService();
     await _store.load();
-    _store.orders.addListener(_onQueueChanged);
+
+    // Eski tinglovchi avval olib tashlanadi.
+    //
+    // `start()` bir necha marta chaqirilishi mumkin: ilova qayta
+    // ochilganda, foydalanuvchi almashganda yoki ishlab chiqishda hot
+    // restart bo'lganda. Har safar yangi tinglovchi qo'shilsa, bitta
+    // o'zgarish bir necha marta qayta ishlanardi.
+    _store.orders
+      ..removeListener(_onQueueChanged)
+      ..addListener(_onQueueChanged);
     _onQueueChanged();
 
     await _connectionSub?.cancel();

@@ -55,7 +55,14 @@ void main() {
 
     // Sozlamalar ekrani qurilma xotirasini o'qiydi — sinovda u yo'q.
     // ignore: invalid_use_of_visible_for_testing_member
-    SharedPreferences.setMockInitialValues({});
+    SharedPreferences.setMockInitialValues({
+      // Namuna sessiya — sozlamalar ekranining hisob kartasi uchun.
+      'session_role': 'owner',
+      'session_tenant_id': 't1',
+      'session_tenant_name': 'Nihol gilam yuvish',
+      'session_user_id': 'u1',
+      'session_display_name': 'Afzalbek Oribjonov',
+    });
     await loadRenderFont();
 
     await renderToPng(

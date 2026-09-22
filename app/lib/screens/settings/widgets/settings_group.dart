@@ -20,7 +20,7 @@ class SettingsGroup extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(4, 0, 4, 8),
+          padding: const EdgeInsets.fromLTRB(6, 0, 6, 8),
           child: Text(
             title.toUpperCase(),
             style: theme.textTheme.bodySmall?.copyWith(
@@ -34,7 +34,7 @@ class SettingsGroup extends StatelessWidget {
           child: Column(
             children: [
               for (var i = 0; i < children.length; i++) ...[
-                if (i > 0) const Divider(height: 1, indent: 56),
+                if (i > 0) const Divider(height: 1, indent: 62),
                 children[i],
               ],
             ],
@@ -47,7 +47,7 @@ class SettingsGroup extends StatelessWidget {
 
 /// Bitta sozlama qatori.
 ///
-/// Uchta ko'rinishda ishlatiladi: bosiladigan (o'q bilan), kalitli
+/// Uch ko'rinishda ishlatiladi: bosiladigan (o'q bilan), kalitli
 /// (switch) va faqat ma'lumot beruvchi. Farqni [onTap] va [trailing]
 /// belgilaydi.
 class SettingsTile extends StatelessWidget {
@@ -56,6 +56,7 @@ class SettingsTile extends StatelessWidget {
     required this.icon,
     required this.label,
     this.value,
+    this.color,
     this.trailing,
     this.onTap,
     this.danger = false,
@@ -64,8 +65,11 @@ class SettingsTile extends StatelessWidget {
   final IconData icon;
   final String label;
 
-  /// O'ng tomonda yoki nom ostida ko'rinadigan joriy qiymat.
+  /// Nom ostidagi qator: joriy holat yoki qisqa izoh.
   final String? value;
+
+  /// Ikonka kvadratining rangi. Berilmasa — brend rangi.
+  final Color? color;
 
   final Widget? trailing;
   final VoidCallback? onTap;
@@ -76,22 +80,37 @@ class SettingsTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final color = danger ? AppColors.danger : theme.colorScheme.onSurface;
+    final tint = danger ? AppColors.danger : (color ?? AppColors.primary);
 
     return ListTile(
       onTap: onTap,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
-      leading: Icon(icon, size: 22, color: danger ? AppColors.danger : null),
+      contentPadding: const EdgeInsets.fromLTRB(14, 6, 14, 6),
+      // Rangli kvadrat ikonka — qatorlarni bir qarashda ajratadi.
+      // Oddiy kulrang ikonkalar ro'yxatni bir xil massaga aylantiradi.
+      leading: Container(
+        width: 34,
+        height: 34,
+        decoration: BoxDecoration(
+          color: tint.withValues(alpha: 0.13),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Icon(icon, size: 18, color: tint),
+      ),
       title: Text(
         label,
         style: theme.textTheme.bodyLarge?.copyWith(
           fontWeight: FontWeight.w600,
-          color: color,
+          color: danger ? AppColors.danger : null,
         ),
       ),
       subtitle: value == null
           ? null
-          : Text(value!, style: theme.textTheme.bodySmall),
+          : Text(
+              value!,
+              style: theme.textTheme.bodySmall,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
       trailing: trailing ??
           (onTap == null
               ? null

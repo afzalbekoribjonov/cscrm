@@ -110,8 +110,13 @@ class _AdminCredentialsScreenState extends State<AdminCredentialsScreen> {
       );
       await _finish();
     } on AuthFailure catch (e) {
+      // `mounted` tekshiruvi SHART: so'rov ketayotganda foydalanuvchi
+      // ekrandan chiqib ketishi mumkin. Ilgari bu yerda tekshiruv
+      // yo'q edi va o'sha holatda ilova istisno bilan yiqilardi.
+      if (!mounted) return;
       setState(() => _error = e.message);
     } catch (_) {
+      if (!mounted) return;
       setState(() => _error = 'Kutilmagan xatolik. Qayta urining.');
     } finally {
       if (mounted) setState(() => _saving = false);

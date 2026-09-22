@@ -130,6 +130,17 @@ Future<void> renderToPng(
   );
   await tester.pumpAndSettle();
 
+  // Platforma kanallari (SharedPreferences va h.k.) javobini kutamiz.
+  //
+  // `pumpAndSettle` soxta vaqtni oldinga suradi, lekin kanal javoblari
+  // HAQIQIY hodisalar navbatidan keladi. Usiz ekran o'z ma'lumotini
+  // yuklashga ulgurmay chizilardi — masalan sozlamalardagi hisob
+  // kartasi umuman ko'rinmasdi.
+  await tester.runAsync(
+    () => Future<void>.delayed(const Duration(milliseconds: 60)),
+  );
+  await tester.pumpAndSettle();
+
   final boundary =
       key.currentContext!.findRenderObject()! as RenderRepaintBoundary;
 
