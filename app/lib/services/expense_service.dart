@@ -12,11 +12,24 @@ class ExpenseService {
 
   final DatabaseReference _ref;
 
-  /// Barcha chiqimlar - eng yangisi birinchi. Filtrlash ekran tomonida
-  /// (kalendar oralig'i bo'yicha) bajariladi, chunki chiqimlar soni kam
-  /// va shu bilan davr almashtirilganda qayta so'rov ketmaydi.
-  Stream<List<Expense>> streamExpenses() {
-    return _ref.onValue.map((event) {
+  /// Berilgan davrdagi chiqimlar — eng yangisi birinchi.
+  ///
+  /// DAVR SHART. Ilgari bu yerda BARCHA chiqimlar o'qilardi: "chiqimlar
+  /// soni kam" degan hisob bilan. Lekin ular yillar davomida
+  /// to'planadi va hech qachon o'chirilmaydi — ya'ni ekran har
+  /// ochilganda yuklanadigan hajm biznes yoshi bilan birga o'sib
+  /// boraveradi. Uch yildan keyin foydalanuvchi bir kunlik hisobotni
+  /// ko'rish uchun uch yillik yozuvni yuklab olardi.
+  ///
+  /// `spentAt` indeksi qoidalarda bor, shuning uchun server faqat
+  /// kerakli qismini yuboradi.
+  Stream<List<Expense>> streamExpensesBetween(DateTime from, DateTime to) {
+    return _ref
+        .orderByChild('spentAt')
+        .startAt(from.millisecondsSinceEpoch)
+        .endAt(to.millisecondsSinceEpoch)
+        .onValue
+        .map((event) {
       final raw = asFirebaseMap(event.snapshot.value);
       final expenses = <Expense>[];
       for (final entry in raw.entries) {

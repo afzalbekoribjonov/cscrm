@@ -66,7 +66,14 @@ class _IncomeActivityScreenState extends State<IncomeActivityScreen> {
     _selection.range.$2,
   );
   final _employeesStream = EmployeeService().streamEmployees();
-  final _expensesStream = ExpenseService().streamExpenses();
+  final _expenseService = ExpenseService();
+
+  /// Chiqimlar ham DAVRGA bog'liq — hisobot bir davr uchun
+  /// chiqarilyapti, butun tarix kerak emas.
+  late var _expensesStream = _expenseService.streamExpensesBetween(
+    _selection.range.$1,
+    _selection.range.$2,
+  );
 
   DateTime get _start => _selection.range.$1;
   DateTime get _end => _selection.range.$2;
@@ -84,6 +91,7 @@ class _IncomeActivityScreenState extends State<IncomeActivityScreen> {
       _selection = selection;
       final (start, end) = selection.range;
       _reportStream = _orderService.streamReport(start, end);
+      _expensesStream = _expenseService.streamExpensesBetween(start, end);
     });
   }
 

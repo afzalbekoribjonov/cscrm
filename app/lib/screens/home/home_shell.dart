@@ -11,6 +11,7 @@ import '../../services/message_center.dart';
 import '../../services/push_service.dart';
 import '../../services/notification_center.dart';
 import '../../services/order_service.dart';
+import '../../services/order_sync_service.dart';
 import '../../services/session_service.dart';
 import '../../services/sound_service.dart';
 import '../../theme/app_colors.dart';
@@ -56,6 +57,13 @@ class _HomeShellState extends State<HomeShell> {
   StreamSubscription<LateWriteFailure>? _writeFailureSub;
 
   OrderSections _sections = const OrderSections.empty();
+
+  /// Bugun yaratilgan buyurtmalar.
+  ///
+  /// SHU YERDA hisoblanadi, ekranda emas: `build()` har bir kadrda
+  /// chaqiriladi va ro'yxatni har safar qaytadan filtrlash bekorchi
+  /// ish bo'lardi.
+  List<Order> _todaysOrders = const [];
   Object? _ordersError;
   var _loaded = false;
 
@@ -75,6 +83,9 @@ class _HomeShellState extends State<HomeShell> {
     MessageCenter.instance.refresh();
     // Push - faqat CSCRM xabarlari uchun (qarang: PushService).
     PushService.instance.start();
+    // Yuborilmagan buyurtmalar navbati: aloqa tiklanishi bilan o'zi
+    // bo'shaydi.
+    OrderSyncService.instance.start();
     _listenToOrders();
     _listenToEmployee();
     _listenToWriteFailures();
@@ -107,8 +118,14 @@ class _HomeShellState extends State<HomeShell> {
         NotificationCenter.instance.update(orders);
 
         if (!mounted) return;
+        final since = DateTime.now();
+        final dayStart =
+            DateTime(since.year, since.month, since.day).millisecondsSinceEpoch;
+
         setState(() {
           _sections = OrderSections.from(orders);
+          _todaysOrders =
+              orders.where((o) => o.createdAt >= dayStart).toList();
           _ordersError = null;
           _loaded = true;
         });
@@ -286,6 +303,7 @@ class _HomeShellState extends State<HomeShell> {
         currentUserId: _actorId,
         currentUserName: _actorName,
         access: _access,
+        todaysOrders: _todaysOrders,
       ),
       WashScreen(
         sections: _sections,

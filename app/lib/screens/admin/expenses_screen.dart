@@ -30,15 +30,27 @@ class ExpensesScreen extends StatefulWidget {
 
 class _ExpensesScreenState extends State<ExpensesScreen> {
   final _service = ExpenseService();
-  // Bir marta yaratilib saqlanadi - build() ichida chaqirilsa, davr
-  // almashtirilganda ro'yxat "waiting" holatiga qaytib flicker qilardi.
-  late final _expensesStream = _service.streamExpenses();
 
   /// Standart: BUGUN. Tanlov ekran holatida - aylantirganda qaytmaydi.
   PeriodSelection _selection = PeriodSelection.today();
 
+  /// Oqim DAVRGA bog'liq: server faqat shu oraliqdagi yozuvlarni
+  /// yuboradi. Davr almashsa oqim ham qayta quriladi — shuning uchun u
+  /// `late final` emas, tanlov bilan birga yangilanadi.
+  late Stream<List<Expense>> _expensesStream = _buildStream();
+
+  Stream<List<Expense>> _buildStream() =>
+      _service.streamExpensesBetween(_start, _end);
+
   DateTime get _start => _selection.range.$1;
   DateTime get _end => _selection.range.$2;
+
+  void _selectPeriod(PeriodSelection selection) {
+    setState(() {
+      _selection = selection;
+      _expensesStream = _buildStream();
+    });
+  }
 
   Future<void> _openForm({Expense? expense}) async {
     await showModalBottomSheet<void>(
@@ -110,7 +122,7 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
               const SizedBox(height: 16),
               PeriodBar(
                 value: _selection,
-                onChanged: (s) => setState(() => _selection = s),
+                onChanged: _selectPeriod,
               ),
               const SizedBox(height: 18),
               if (filtered.isEmpty)

@@ -53,7 +53,32 @@ class NewOrderItemDraft {
       };
 }
 
-class OrderService {
+/// Navbatni bo'shatish uchun kerak bo'ladigan amallar.
+///
+/// Tor shartnoma — [OrderSyncService] butun [OrderService] ga emas,
+/// shunga bog'lanadi. Sababi amaliy: [OrderService] Firebase
+/// ulanishini talab qiladi va uni sinovda yaratib bo'lmaydi, navbat
+/// mantig'i esa aynan sinovdan o'tishi kerak — u yerda buyurtma ikki
+/// marta yozilib qolishi mumkin.
+abstract interface class OrderWriter {
+  Future<int> allocateOrderId();
+  Future<bool> exists(int orderId);
+  Future<void> writeOrder({
+    required int orderId,
+    required String customerName,
+    required String customerPhone,
+    String address,
+    DateTime? deadline,
+    required DeliveryType deliveryType,
+    required List<NewOrderItemDraft> items,
+    required String createdBy,
+    required String createdByName,
+    String? comment,
+    int? createdAt,
+  });
+}
+
+class OrderService implements OrderWriter {
   OrderService({TenantScope? scope}) : _scope = scope ?? TenantScope.current;
 
   /// Barcha yo'llar shu doiradan o'tadi - `/tenants/{tenantId}/...`.
@@ -340,26 +365,20 @@ class OrderService {
     return cmp != 0 ? cmp : b.id.compareTo(a.id);
   }
 
-  Future<int> createOrder({
-    required String customerName,
-    required String customerPhone,
-    String address = '',
-    DateTime? deadline,
-    required DeliveryType deliveryType,
-    required List<NewOrderItemDraft> items,
-    required String createdBy,
-    required String createdByName,
-    String? comment,
-  }) async {
-    // Buyurtma raqami serverdagi umumiy hisoblagichdan olinadi - shu sabab
-    // yangi buyurtma yaratish uchun internet SHART (raqamni oldindan
-    // taxmin qilib bo'lmaydi, aks holda ikki xodimda bir xil raqam
-    // chiqib qolardi). Aloqa bo'lmasa uzoq kutib turmay, tushunarli
-    // xatolik bilan qaytamiz.
+  /// Serverdagi umumiy hisoblagichdan keyingi buyurtma raqamini oladi.
+  ///
+  /// Raqamni qurilmada o'ylab topib bo'lmaydi: ikki xodim bir vaqtda
+  /// buyurtma ochsa, ikkalasida ham bir xil raqam chiqib qolardi.
+  /// Tranzaksiya buni istisno qiladi.
+  ///
+  /// Internet yo'q bo'lsa [TimeoutException] chiqadi — chaqiruvchi
+  /// buyurtmani navbatga qo'yadi va keyinroq qayta uradi.
+  @override
+  Future<int> allocateOrderId() async {
     final counterRef = _scope.ref('counters/orderId');
     final result = await awaitOrFail(counterRef.runTransaction((current) {
       // `as int` ATAYLAB ishlatilmaydi: hisoblagichga biror sababdan
-      // matn yoki kasr son yozilib qolsa, tип xatosi butun "yangi
+      // matn yoki kasr son yozilib qolsa, tip xatosi butun "yangi
       // buyurtma" oqimini to'xtatib qo'yardi va bunda sababi ham
       // ko'rinmasdi. Endi kutilmagan qiymat 0 deb qabul qilinadi.
       final next = switch (current) {
@@ -376,7 +395,40 @@ class OrderService {
         'Buyurtma raqamini olishning iloji bo\'lmadi. Qayta urinib ko\'ring.',
       );
     }
-    final orderId = (result.snapshot.value as num).toInt();
+    return (result.snapshot.value as num).toInt();
+  }
+
+  /// Shu raqamli buyurtma allaqachon yozilganmi.
+  ///
+  /// Navbatni bo'shatishda ishlatiladi: raqam olingandan keyin ilova
+  /// yopilib qolgan bo'lsa, buyurtma yozilib ulgurganmi yoki yo'qmi —
+  /// shu tekshiruv aytadi va ikkinchi nusxa yaratilmaydi.
+  @override
+  Future<bool> exists(int orderId) async {
+    final snap = await _scope.ref('orders/$orderId/id').get();
+    return snap.exists;
+  }
+
+  /// Buyurtmani RAQAMI MA'LUM holda yozadi.
+  ///
+  /// Raqam olish ([allocateOrderId]) dan ajratilgani bejiz emas:
+  /// internetsiz yaratilgan buyurtma avval qurilmada saqlanadi, raqam
+  /// esa aloqa tiklangach olinadi. O'sha paytda faqat SHU metod
+  /// chaqiriladi.
+  @override
+  Future<void> writeOrder({
+    required int orderId,
+    required String customerName,
+    required String customerPhone,
+    String address = '',
+    DateTime? deadline,
+    required DeliveryType deliveryType,
+    required List<NewOrderItemDraft> items,
+    required String createdBy,
+    required String createdByName,
+    String? comment,
+    int? createdAt,
+  }) async {
 
     final itemsMap = <String, Object?>{};
     var totalPrice = 0.0;
@@ -432,7 +484,11 @@ class OrderService {
         'active': true,
         'createdBy': createdBy,
         'createdByName': createdByName,
-        'createdAt': ServerValue.timestamp,
+        // Navbatdan kelgan buyurtmada bu — buyurtma QURILMADA
+        // yozilgan payt, serverga yetib kelgan payt emas. Aks holda
+        // internetsiz ertalab yozilgan buyurtma kechqurungi
+        // hisobotga tushib qolardi.
+        'createdAt': createdAt ?? ServerValue.timestamp,
         'items': itemsMap,
         'itemCount': items.length,
         'totalPrice': totalPrice,
@@ -456,8 +512,6 @@ class OrderService {
         'toStatus': initialStatus.key,
       }),
     }));
-
-    return orderId;
   }
 
   /// Buyurtma darajasidagi (mahsulotlarga bog'liq bo'lmagan) holat

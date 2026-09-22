@@ -5,14 +5,19 @@ import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
 import '../../models/calculation_method.dart';
+import '../../models/order.dart';
 import '../../models/order_status.dart';
 import '../../models/staff_access.dart';
 import '../../models/work_section.dart';
-import '../../services/order_service.dart';
+import '../../models/pending_order.dart';
+import '../../services/order_sync_service.dart';
+import '../../services/pending_order_store.dart';
 import '../../theme/app_colors.dart';
 import '../../utils/phone.dart';
 import '../../widgets/notification_action.dart';
 import '../../widgets/required_label.dart';
+import '../../widgets/settings_action.dart';
+import '../../widgets/sync_status_action.dart';
 import 'cart_line.dart';
 import 'product_picker_sheet.dart';
 
@@ -24,11 +29,15 @@ class NewOrderScreen extends StatefulWidget {
     required this.currentUserId,
     required this.currentUserName,
     required this.access,
+    required this.todaysOrders,
   });
 
   final String currentUserId;
   final String currentUserName;
   final StaffAccess access;
+
+  /// Bugun yaratilgan buyurtmalar — o'ng yuqoridagi ro'yxat uchun.
+  final List<Order> todaysOrders;
 
   @override
   State<NewOrderScreen> createState() => _NewOrderScreenState();
@@ -112,28 +121,33 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
       _creating = true;
     });
     try {
-      final orderId = await OrderService().createOrder(
-        customerName: _nameCtrl.text,
+      // Buyurtma HAR DOIM avval navbatga tushadi — aloqa bor-yo'qligidan
+      // qat'i nazar.
+      //
+      // Ilgari bu yerda to'g'ridan-to'g'ri server chaqirilardi va
+      // internet yo'q bo'lsa buyurtma UMUMAN yaratilmasdi: raqam
+      // serverdagi hisoblagichdan olinadi. Endi buyurtma qurilmada
+      // saqlanadi, raqam esa aloqa tiklangach keladi. Aloqa bor
+      // bo'lsa bularning hammasi bir soniyada bo'lib o'tadi.
+      await OrderSyncService.instance.enqueue(PendingOrder(
+        localId: PendingOrderStore.newLocalId(),
+        createdAt: DateTime.now().millisecondsSinceEpoch,
+        customerName: _nameCtrl.text.trim(),
         customerPhone: _phoneCtrl.text,
-        address: _addressCtrl.text,
-        deadline: _deadline,
+        address: _addressCtrl.text.trim(),
+        deadline: _deadline?.millisecondsSinceEpoch,
         deliveryType: _deliveryType,
         items: expandCartToDrafts(_cart),
         createdBy: widget.currentUserId,
         createdByName: widget.currentUserName,
-        comment: _commentCtrl.text,
-      );
+        comment: _commentCtrl.text.trim(),
+      ));
+
       if (!mounted) return;
       _resetForm();
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Buyurtma #$orderId yaratildi')),
+        const SnackBar(content: Text('Buyurtma qabul qilindi')),
       );
-    } on TimeoutException {
-      // Buyurtma raqami serverdagi hisoblagichdan olinadi - internetsiz
-      // yangi buyurtma ochib bo'lmaydi (boshqa amallar esa ishlayveradi).
-      setState(() => _error =
-          'Internet aloqasi yo\'q. Yangi buyurtma yaratish uchun aloqa '
-              'kerak - qolgan ishlar aloqasiz ham davom etadi.');
     } catch (_) {
       setState(() => _error = 'Buyurtmani saqlab bo\'lmadi. Qayta urining.');
     } finally {
@@ -147,6 +161,7 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
     return Scaffold(
       resizeToAvoidBottomInset: true,
       appBar: AppBar(
+        leading: const SettingsAction(),
         title: const Text('Yangi buyurtma'),
         actions: [
           NotificationAction(
@@ -154,6 +169,7 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
             currentUserName: widget.currentUserName,
             access: widget.access,
           ),
+          SyncStatusAction(todaysOrders: widget.todaysOrders),
         ],
       ),
       body: !_canCreate

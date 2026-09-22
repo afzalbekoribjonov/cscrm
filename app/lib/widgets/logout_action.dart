@@ -4,6 +4,7 @@ import '../screens/auth/login_screen.dart';
 import '../services/auth_service.dart';
 import '../services/license_controller.dart';
 import '../services/notification_center.dart';
+import '../services/order_sync_service.dart';
 import '../services/session_service.dart';
 
 /// Tizimdan chiqaradi — avval tasdiqlash so'raydi.
@@ -49,6 +50,9 @@ Future<void> confirmAndLogout(BuildContext context) async {
   // qolmasligi uchun kesh ham tozalanadi.
   await LicenseController.instance.stop();
   await NotificationCenter.instance.stop();
+  // Yuborilmagan buyurtmalar navbati ham tozalanadi: ular shu
+  // foydalanuvchining ishi, keyingisiga o'tib ketmasligi kerak.
+  await OrderSyncService.instance.stop();
 
   navigator.pushAndRemoveUntil(
     MaterialPageRoute(builder: (_) => const LoginScreen()),
