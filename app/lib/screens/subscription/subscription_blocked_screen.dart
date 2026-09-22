@@ -149,7 +149,7 @@ class _SubscriptionBlockedScreenState extends State<SubscriptionBlockedScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const CscrmWordmark(markSize: 28),
+        title: const CscrmWordmark(height: 28),
         actions: const [LogoutAction()],
       ),
       body: SafeArea(

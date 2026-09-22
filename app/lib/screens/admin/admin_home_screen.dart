@@ -50,7 +50,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
     final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(
-        title: const CscrmWordmark(markSize: 30),
+        title: const CscrmWordmark(height: 30),
         actions: const [LogoutAction()],
       ),
       body: StreamBuilder<List<Order>>(

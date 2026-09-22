@@ -1,167 +1,159 @@
 import 'package:flutter/material.dart';
 
-import '../theme/app_colors.dart';
-import 'app_branding.dart';
-
-/// CSCRM brend nishoni — vektor sifatida chiziladi.
+/// CS CRM logotipi — faqat matn, hech qanday tasvirsiz.
 ///
-/// Rasm (PNG) o'rniga [CustomPainter] ishlatilgan: nishon istalgan o'lchamda
-/// aniq chiqadi, ilova hajmiga qo'shilmaydi va qorong'i mavzuda ham to'g'ri
-/// ko'rinadi. Launcher ikonkasi bilan bir xil shakl — `tools/generate_icons.py`
-/// aynan shu geometriyani PNG'ga chiqaradi.
+/// NEGA FON QORAROQ KO'K. Logotipda "CS" qizil, "CRM" oq. Qizil rang
+/// ilovaning asosiy yorqin ko'k foni (#0B5FFF) ustida **o'qilmaydi** —
+/// ularning yorug'lik darajasi deyarli teng va kontrast atigi 1,57:1
+/// chiqadi (o'qilishi uchun kamida 3:1 kerak). Bu did masalasi emas,
+/// o'lchanadigan narsa.
+///
+/// Shuning uchun logotip foni chuqurroq ko'k (#0B2E77) qilingan: qizil
+/// 3,84:1, oq esa 12,56:1 ga chiqadi — ikkalasi ham toza o'qiladi.
+/// Ilovaning qolgan qismidagi yorqin ko'k o'zgarishsiz qoladi.
+abstract class LogoColors {
+  /// Logotip plashkasining foni. Ilovaning `AppColors.brand` idan
+  /// ATAYLAB quyuqroq — yuqoridagi izohga qarang.
+  static const Color badge = Color(0xFF0B2E77);
+
+  /// "CS" qismi.
+  static const Color cs = Color(0xFFFF4D4D);
+
+  /// "CRM" qismi.
+  static const Color crm = Color(0xFFFFFFFF);
+}
+
+/// Logotip harflarining umumiy uslubi.
+///
+/// Manfiy `letterSpacing` — harflarni bir-biriga yaqinlashtiradi va
+/// matnni yozuvdan LOGOTIPGA aylantiradi. Odatiy oraliqda u shunchaki
+/// qalin matnga o'xshab qolardi.
+TextStyle _letters(double fontSize, Color color) => TextStyle(
+      fontSize: fontSize,
+      // `height` birdan KICHIK. Shrift qatori harflarning o'zidan
+      // balandroq: u pastga tushadigan (g, y) va yuqoriga chiqadigan
+      // harflar uchun joy qoldiradi. Logotipda esa faqat bosh harflar
+      // bor — o'sha bo'sh joy ikki qator orasini keraksiz kengaytirib
+      // yuborardi.
+      height: 0.86,
+      fontWeight: FontWeight.w900,
+      letterSpacing: -fontSize * 0.035,
+      color: color,
+    );
+
+/// Kvadrat nishon: "CS" tepada, "CRM" pastda.
+///
+/// Ikki qatorli, chunki nishon KVADRAT (ilova ikonkasi, splash, kirish
+/// ekrani). "CS CRM" bitta qatorda kvadratga sig'ishi uchun harflar
+/// juda kichrayib ketardi va telefon ekranidagi ikonkada umuman
+/// o'qilmasdi. Gorizontal joylar uchun [CscrmWordmark] bor.
 class CscrmMark extends StatelessWidget {
   const CscrmMark({
     super.key,
     this.size = 56,
     this.rounded = 0.225,
-    this.filled = true,
   });
 
   final double size;
 
-  /// Fon kvadratining burchak radiusi (o'lchamga nisbatan).
+  /// Burchak radiusi — o'lchamga nisbatan.
   final double rounded;
-
-  /// `true` — gradient fon ustida oq tomchi (asosiy ko'rinish).
-  /// `false` — fon yo'q, tomchi brend rangida (yorug' sirtlar uchun).
-  final bool filled;
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
+    return Container(
       width: size,
       height: size,
-      child: CustomPaint(
-        painter: _MarkPainter(rounded: rounded, filled: filled),
-        isComplex: true,
-        willChange: false,
+      decoration: BoxDecoration(
+        color: LogoColors.badge,
+        borderRadius: BorderRadius.circular(size * rounded),
+      ),
+      // `alignment` ATAYLAB qo'yilmaydi. U bolaga BO'SH cheklov beradi —
+      // shunda `FittedBox` kengaymay, matnni o'z tabiiy o'lchamida
+      // qoldiradi va nishon ichida bir chekkada kichkina bo'lib
+      // ko'rinadi. Usiz esa bola nishonni to'liq to'ldiradi va matn
+      // haqiqatan kattalashadi.
+      //
+      // `FittedBox` o'zi shrift o'lchamidagi farqlardan himoya qiladi:
+      // foydalanuvchi tizim shriftini kattalashtirib qo'ysa ham matn
+      // nishondan chiqib ketmaydi.
+      child: Padding(
+        padding: EdgeInsets.all(size * 0.14),
+        child: const CscrmStackedLetters(),
       ),
     );
   }
 }
 
-class _MarkPainter extends CustomPainter {
-  const _MarkPainter({required this.rounded, required this.filled});
+/// Plashkasiz, ikki qatorli yozuv: "CS" ustida, "CRM" ostida.
+///
+/// Ota-vidjet bergan joyni to'liq egallaydi.
+///
+/// Alohida ajratilgan, chunki uni IKKI joy ishlatadi: [CscrmMark] va
+/// ikonka generatori (`tool/generate_icons_test.dart`) — Android
+/// adaptiv ikonkasida fon alohida qatlam bo'lgani uchun u faqat
+/// yozuvni chizadi. Ikki joyda ikki nusxa bo'lsa, ular vaqt o'tib
+/// bir-biridan ajralib ketardi.
+class CscrmStackedLetters extends StatelessWidget {
+  const CscrmStackedLetters({super.key});
 
-  final double rounded;
-  final bool filled;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final s = size.shortestSide;
-    final rect = Rect.fromLTWH(0, 0, s, s);
-
-    if (filled) {
-      final bg = Paint()
-        ..shader = const LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [AppColors.brand, AppColors.brandLight],
-        ).createShader(rect);
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(rect, Radius.circular(s * rounded)),
-        bg,
-      );
-    }
-
-    // Tomchi: pastdagi doira + tepadagi uch. `saveLayer` ichida chiziladi,
-    // shunda porlashlarni `BlendMode.clear` bilan "teshib" olamiz.
-    canvas.saveLayer(rect, Paint());
-
-    final drop = Paint()..color = filled ? Colors.white : AppColors.brand;
-    final cx = s / 2;
-    final r = s * 0.242;
-    final cy = s * 0.635;
-    canvas.drawCircle(Offset(cx, cy), r, drop);
-
-    final tip = Path()
-      ..moveTo(cx, s * 0.115)
-      ..lineTo(cx - r * 0.955, cy - r * 0.30)
-      ..lineTo(cx + r * 0.955, cy - r * 0.30)
-      ..close();
-    canvas.drawPath(tip, drop);
-
-    // Porlashlar — tomchi ichidan kesib olinadi.
-    final cut = Paint()..blendMode = BlendMode.clear;
-    _sparkle(canvas, Offset(s * 0.435, s * 0.615), s * 0.115, cut);
-    _sparkle(canvas, Offset(s * 0.605, s * 0.475), s * 0.070, cut);
-
-    canvas.restore();
-  }
-
-  /// To'rt uchli porlash (yulduzcha).
-  void _sparkle(Canvas canvas, Offset c, double r, Paint paint) {
-    final thin = r * 0.20;
-    final path = Path()
-      ..moveTo(c.dx, c.dy - r)
-      ..lineTo(c.dx + thin, c.dy - thin)
-      ..lineTo(c.dx + r, c.dy)
-      ..lineTo(c.dx + thin, c.dy + thin)
-      ..lineTo(c.dx, c.dy + r)
-      ..lineTo(c.dx - thin, c.dy + thin)
-      ..lineTo(c.dx - r, c.dy)
-      ..lineTo(c.dx - thin, c.dy - thin)
-      ..close();
-    canvas.drawPath(path, paint);
-  }
-
-  @override
-  bool shouldRepaint(_MarkPainter old) =>
-      old.rounded != rounded || old.filled != filled;
-}
-
-/// Nishon + "CSCRM" so'z belgisi — login, splash va app bar sarlavhalari uchun.
-class CscrmWordmark extends StatelessWidget {
-  const CscrmWordmark({
-    super.key,
-    this.markSize = 44,
-    this.titleStyle,
-    this.subtitle,
-    this.subtitleStyle,
-  });
-
-  final double markSize;
-  final TextStyle? titleStyle;
-
-  /// Nom ostidagi qo'shimcha qator. `null` bo'lsa ko'rsatilmaydi.
-  final String? subtitle;
-  final TextStyle? subtitleStyle;
+  /// "CS" va "CRM" ning nisbiy o'lchami. Aniq qiymatlar muhim emas —
+  /// [FittedBox] hammasini berilgan joyga moslaydi; muhimi ularning
+  /// BIR-BIRIGA nisbati.
+  static const _csSize = 42.0;
+  static const _crmSize = 30.0;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        CscrmMark(size: markSize),
-        SizedBox(width: markSize * 0.28),
-        Flexible(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                AppBranding.name,
-                overflow: TextOverflow.ellipsis,
-                style: titleStyle ??
-                    theme.textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 0.2,
-                    ),
-              ),
-              if (subtitle != null)
-                Text(
-                  subtitle!,
-                  overflow: TextOverflow.ellipsis,
-                  style: subtitleStyle ??
-                      theme.textTheme.bodySmall?.copyWith(
-                        color: context.colorTextSecondary,
-                      ),
-                ),
-            ],
-          ),
+    return FittedBox(
+      fit: BoxFit.contain,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text('CS', style: _letters(_csSize, LogoColors.cs)),
+          const SizedBox(height: _csSize * 0.02),
+          Text('CRM', style: _letters(_crmSize, LogoColors.crm)),
+        ],
+      ),
+    );
+  }
+}
+
+/// Gorizontal so'z belgisi: bitta qatorda "CS CRM".
+///
+/// AppBar, sayt sarlavhasi va boshqa keng joylar uchun.
+class CscrmWordmark extends StatelessWidget {
+  const CscrmWordmark({
+    super.key,
+    this.height = 34,
+  });
+
+  /// Plashkaning balandligi. Kengligi matnga qarab o'zi hisoblanadi.
+  final double height;
+
+  @override
+  Widget build(BuildContext context) {
+    final fontSize = height * 0.46;
+
+    return Container(
+      height: height,
+      padding: EdgeInsets.symmetric(horizontal: height * 0.30),
+      decoration: BoxDecoration(
+        color: LogoColors.badge,
+        borderRadius: BorderRadius.circular(height * 0.26),
+      ),
+      alignment: Alignment.center,
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('CS', style: _letters(fontSize, LogoColors.cs)),
+            SizedBox(width: fontSize * 0.22),
+            Text('CRM', style: _letters(fontSize, LogoColors.crm)),
+          ],
         ),
-      ],
+      ),
     );
   }
 }

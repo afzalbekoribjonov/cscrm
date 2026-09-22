@@ -1,59 +1,75 @@
 /**
- * CSCRM nishoni — mobil ilovadagi vektor nishon bilan bir xil geometriya
- * (app/lib/branding/logo.dart va tools/generate_icons.py).
+ * CS CRM logotipi — faqat matn, tasvirsiz.
+ *
+ * Mobil ilovadagi nusxasi: `app/lib/branding/logo.dart`. Ikkalasi bir xil
+ * bo'lishi kerak: ranglar, nisbatlar va harflar orasidagi oraliq.
+ *
+ * NEGA FON QUYUQ KO'K. "CS" qizil, "CRM" oq. Qizil rang brendning
+ * yorqin ko'ki (#0B5FFF) ustida O'QILMAYDI — kontrast atigi 1,57:1
+ * (o'qilishi uchun kamida 3:1 kerak). Quyuqroq ko'k (#0B2E77) da esa
+ * qizil 3,84:1, oq 12,56:1 ga chiqadi.
+ *
+ * Plashka HAR DOIM bor — oq fonda ham, qora fonda ham. Shu sababli
+ * logotip saytda, ilovada va ilova ikonkasida bir xil ko'rinadi.
  */
-export function Logo({ size = 40 }: { size?: number }) {
+
+const BADGE = '#0B2E77';
+const CS = '#FF4D4D';
+
+/** Kvadrat nishon: "CS" tepada, "CRM" pastda. */
+export function Logo({ size = 44 }: { size?: number }) {
   return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 512 512"
+    <span
+      aria-label="CS CRM"
       role="img"
-      aria-label="CSCRM"
-      style={{ flexShrink: 0 }}
+      style={{
+        display: 'inline-flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: size,
+        height: size,
+        flexShrink: 0,
+        background: BADGE,
+        borderRadius: size * 0.225,
+        // Harflar logotipga o'xshashi uchun oraliq siqiladi va
+        // qator balandligi harflarning o'ziga qisqartiriladi.
+        lineHeight: 0.86,
+        letterSpacing: '-0.035em',
+        fontWeight: 900,
+      }}
     >
-      <defs>
-        <linearGradient id="cscrm-bg" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#0B5FFF" />
-          <stop offset="1" stopColor="#00C2FF" />
-        </linearGradient>
-        <mask id="cscrm-cut">
-          <rect width="512" height="512" fill="#fff" />
-          <path
-            d="M223 315l10-25 25-10-25-10-10-25-10 25-25 10 25 10z"
-            fill="#000"
-          />
-          <path
-            d="M310 243l6-15 15-6-15-6-6-15-6 15-15 6 15 6z"
-            fill="#000"
-          />
-        </mask>
-      </defs>
-      <rect width="512" height="512" rx="115" fill="url(#cscrm-bg)" />
-      <path
-        d="M256 108c58 74 88 122 88 158a88 88 0 1 1-176 0c0-36 30-84 88-158z"
-        fill="#fff"
-        mask="url(#cscrm-cut)"
-      />
-    </svg>
+      <span style={{ color: CS, fontSize: size * 0.34 }}>CS</span>
+      <span style={{ color: '#fff', fontSize: size * 0.245 }}>CRM</span>
+    </span>
   );
 }
 
-export function Wordmark({ size = 36 }: { size?: number }) {
+/** Gorizontal so'z belgisi: bitta qatorda "CS CRM". */
+export function Wordmark({ size = 34 }: { size?: number }) {
+  const fontSize = size * 0.46;
+
   return (
     <span
+      aria-label="CS CRM"
+      role="img"
       style={{
         display: 'inline-flex',
         alignItems: 'center',
-        gap: 10,
-        fontWeight: 800,
-        fontSize: size * 0.5,
-        letterSpacing: '0.02em',
-        color: 'var(--text)',
+        height: size,
+        padding: `0 ${size * 0.3}px`,
+        background: BADGE,
+        borderRadius: size * 0.26,
+        fontWeight: 900,
+        fontSize,
+        lineHeight: 1,
+        letterSpacing: '-0.035em',
+        whiteSpace: 'nowrap',
       }}
     >
-      <Logo size={size} />
-      CSCRM
+      <span style={{ color: CS }}>CS</span>
+      <span style={{ width: fontSize * 0.22, display: 'inline-block' }} />
+      <span style={{ color: '#fff' }}>CRM</span>
     </span>
   );
 }
