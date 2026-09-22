@@ -7,7 +7,9 @@ import '../../models/staff_access.dart';
 import '../../services/order_service.dart';
 import '../../theme/app_colors.dart';
 import '../../utils/date_utils.dart';
+import '../../services/session_service.dart';
 import '../../widgets/settings_action.dart';
+import 'profile_screen.dart';
 import '../../widgets/stream_error_view.dart';
 import 'admin_credentials_screen.dart';
 import 'debtors_screen.dart';
@@ -44,6 +46,17 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
     startOfDay(DateTime.now()),
     endOfDay(DateTime.now()),
   );
+
+  /// Biznes nomi sessiyadan o'qiladi — profil sarlavhasi uchun.
+  var _businessName = '';
+
+  @override
+  void initState() {
+    super.initState();
+    SessionService().loadSession().then((session) {
+      if (mounted) setState(() => _businessName = session.tenantName ?? '');
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -115,6 +128,21 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                 ),
               ),
               const SizedBox(height: 24),
+              // Profil ENG TEPADA: obuna holati va tarif — biznes egasi
+              // uchun eng tez-tez kerak bo'ladigan ma'lumot.
+              _AdminMenuCard(
+                icon: Icons.badge_outlined,
+                color: AppColors.primaryDark,
+                title: 'Profilim',
+                subtitle: 'Tarif, muddat va xodimlar',
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) =>
+                        ProfileScreen(businessName: _businessName),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 14),
               _AdminMenuCard(
                 icon: Icons.groups_rounded,
                 color: AppColors.primary,

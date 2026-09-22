@@ -12,6 +12,8 @@
 // Fayl `test/` papkasidan tashqarida: bu tekshiruv emas, vosita.
 
 import 'package:cscrm/screens/auth/register_business_screen.dart';
+import 'package:cscrm/models/employee.dart';
+import 'package:cscrm/screens/admin/profile_screen.dart';
 import 'package:cscrm/screens/settings/settings_screen.dart';
 import 'package:cscrm/theme/app_theme.dart';
 import 'package:flutter/material.dart';
@@ -84,6 +86,26 @@ void main() {
       child: _app(const SettingsScreen(), dark: true),
       path: 'build/screens/sozlamalar-tun.png',
       size: _phone,
+    );
+
+    await renderToPng(
+      tester,
+      child: _app(ProfileScreen(
+        businessName: 'Nihol gilam yuvish',
+        employees: Stream.value(const <Employee>[]),
+      )),
+      path: 'build/screens/profil.png',
+      size: _phone,
+    );
+
+    await renderToPng(
+      tester,
+      child: _app(ProfileScreen(
+        businessName: 'Nihol gilam yuvish',
+        employees: Stream.value(const <Employee>[]),
+      )),
+      path: 'build/screens/profil-tor.png',
+      size: _narrow,
     );
   });
 }
