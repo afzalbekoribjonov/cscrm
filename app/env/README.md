@@ -23,9 +23,26 @@ cp env/example.json env/dev.json
 
 ```bash
 flutter run --dart-define-from-file=env/dev.json
-flutter build apk --release --dart-define-from-file=env/prod.json
-flutter build appbundle --release --dart-define-from-file=env/prod.json
 ```
+
+## Yig'ish
+
+APK **skript orqali** yig'iladi:
+
+```bash
+bash tool/build_apk.sh          # prod
+bash tool/build_apk.sh dev      # dev
+```
+
+Nega qo'lda emas: `--dart-define-from-file` bayrog'i unutilsa,
+`flutter build apk` baribir MUVAFFAQIYATLI tugaydi — faqat natijadagi
+ilova kalitsiz bo'ladi va qurilmada "Serverga ulanib bo'lmadi" deb
+ochiladi. Ya'ni xato yig'ish paytida emas, foydalanuvchi qo'lida
+ko'rinadi.
+
+Skript bayroqni o'zi qo'yadi va yig'ishdan KEYIN tayyor APK ichida
+loyiha identifikatori borligini tekshiradi. Topilmasa yiqiladi —
+kalitsiz APK tarqalmaydi.
 
 ## Qiymatlarni qayerdan olish
 
