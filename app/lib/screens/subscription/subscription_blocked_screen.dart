@@ -10,8 +10,8 @@ import '../../services/license_service.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/logout_action.dart';
 import 'payment_request_sheet.dart';
+import '../../utils/money.dart';
 
-final _money = NumberFormat.decimalPattern('uz');
 
 /// Sana formati raqamli — ilovaning qolgan qismidagidek. Oy nomini
 /// yozadigan format `initializeDateFormatting('uz')` ni talab qiladi,
@@ -457,7 +457,7 @@ class _RequestCard extends StatelessWidget {
                 Text(title, style: theme.textTheme.titleSmall),
                 const SizedBox(height: 4),
                 Text(
-                  '${request.planName} · ${_money.format(request.amount)} so\'m'
+                  '${request.planName} · ${formatMoney(request.amount)} so\'m'
                   ' · ${_dateTime.format(when)}',
                   style: theme.textTheme.bodySmall,
                 ),
@@ -505,7 +505,7 @@ class _PlanCard extends StatelessWidget {
   String? get _perMonth {
     final months = plan.months;
     if (months == null || months <= 1 || plan.priceUnset) return null;
-    return '${_money.format((plan.price / months).round())} so\'m/oy';
+    return '${formatMoney((plan.price / months).round())} so\'m/oy';
   }
 
   @override
@@ -636,7 +636,7 @@ class _PlanCard extends StatelessWidget {
                   Text(
                     plan.priceUnset
                         ? 'Kelishiladi'
-                        : _money.format(plan.price),
+                        : formatMoney(plan.price),
                     style: theme.textTheme.titleSmall?.copyWith(
                       fontWeight: FontWeight.w800,
                       height: 1.15,

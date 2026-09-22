@@ -28,6 +28,7 @@ import 'widgets/order_history_view.dart';
 import 'widgets/order_item_card.dart';
 import 'widgets/order_sheets.dart';
 import 'widgets/order_view_common.dart';
+import '../../utils/money.dart';
 
 class OrderDetailScreen extends StatefulWidget {
   const OrderDetailScreen({
@@ -95,6 +96,18 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
   /// bo'lsa Yuvish vakolati bilan, olib kelinayotgan bo'lsa Yetgazma
   /// vakolati bilan.
   bool _canManage(Order order) {
+    // YETGAZILGAN buyurtma YOPIQ — adminga ham.
+    //
+    // Sabab hisobda: buyurtma topshirilgan, puli olingan va u kunlik
+    // daromadga kirgan. Keyin unga xizmat qo'shilsa yoki narxi
+    // o'zgartirilsa, allaqachon yopilgan hisobot o'zgarib ketadi va
+    // kassa bilan raqam to'g'ri kelmay qoladi.
+    //
+    // Ilgari bu shart YO'Q edi: xodimga yopiq, adminga esa ochiq
+    // bo'lardi — chunki birinchi qator "admin bo'lsa hammasi mumkin"
+    // deb qaytarardi.
+    if (order.status.isClosed) return false;
+
     if (_isAdmin) return true;
     if (order.status.isInWorkshop) return _canWashHere;
     if (order.status == OrderStatus.olibKelish) return _canTransportHere;
@@ -110,7 +123,10 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
   bool _canEditDetails(Order order) =>
       _canManage(order) && widget.access.can(StaffPermission.editOrder);
 
-  bool get _canDelete => widget.access.can(StaffPermission.deleteOrder);
+  /// O'chirish. Yopilgan buyurtmada berilmaydi — u hisobotga
+  /// kirgan, o'chirilsa kunlik daromad o'zgarib ketardi.
+  bool _canDelete(Order order) =>
+      !order.status.isClosed && widget.access.can(StaffPermission.deleteOrder);
 
   bool get _canSeePhone => widget.access.can(StaffPermission.viewPhone);
 
@@ -508,7 +524,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
               icon: const Icon(Icons.edit_outlined),
               onPressed: () => _openEdit(order),
             ),
-          if (_canDelete)
+          if (_canDelete(order))
             IconButton(
               tooltip: 'O\'chirish',
               icon: const Icon(Icons.delete_outline_rounded,
@@ -602,7 +618,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                     if (order.deliveredAt != null)
                       Text(
                         'Yetgazildi: ${orderTimeFormat.format(DateTime.fromMillisecondsSinceEpoch(order.deliveredAt!))}'
-                        '${order.paymentMethod != null ? ' · ${order.paymentMethod} · ${order.paymentAmount?.toStringAsFixed(0)} so\'m' : ''}',
+                        '${order.paymentMethod != null ? ' · ${order.paymentMethod} · ${formatSom(order.paymentAmount ?? 0)}' : ''}',
                         style: theme.textTheme.bodySmall,
                       ),
                     if (order.totalPrice > 0) ...[
@@ -616,7 +632,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                               style: theme.textTheme.bodyMedium
                                   ?.copyWith(fontWeight: FontWeight.w700)),
                           Text(
-                            '${order.totalPrice.toStringAsFixed(0)} so\'m',
+                            formatSom(order.totalPrice),
                             style: theme.textTheme.titleMedium?.copyWith(
                               color: AppColors.primary,
                               fontWeight: FontWeight.w800,

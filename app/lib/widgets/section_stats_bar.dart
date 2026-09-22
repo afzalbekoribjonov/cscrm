@@ -108,12 +108,23 @@ class _StatCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  stat.value,
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
-                    height: 1.1,
-                    color: stat.emphasise ? stat.color : null,
+                // Qiymat kartaga SIG'ADIGAN darajada kichrayadi.
+                //
+                // Hajm ko'rsatkichlari uzun bo'lishi mumkin ("1 240 m²")
+                // va ular kartadan chiqib ketardi. Uch nuqta bilan
+                // qisqartirish yaramaydi — yarim raqam hech narsa
+                // demaydi.
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    stat.value,
+                    maxLines: 1,
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      height: 1.1,
+                      color: stat.emphasise ? stat.color : null,
+                    ),
                   ),
                 ),
                 const SizedBox(height: 1),

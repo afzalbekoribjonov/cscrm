@@ -9,6 +9,7 @@ import '../../theme/app_colors.dart';
 import '../../utils/date_utils.dart';
 import '../../services/session_service.dart';
 import '../../widgets/settings_action.dart';
+import '../../widgets/stat_tile.dart';
 import 'profile_screen.dart';
 import '../../widgets/stream_error_view.dart';
 import 'admin_credentials_screen.dart';
@@ -94,38 +95,27 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                 style: theme.textTheme.bodySmall,
               ),
               const SizedBox(height: 16),
-              IntrinsicHeight(
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Expanded(
-                      child: _StatCard(
-                        icon: Icons.receipt_long_rounded,
-                        color: AppColors.primary,
-                        value: '$acceptedToday',
-                        label: 'Bugungi buyurtma',
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: _StatCard(
-                        icon: Icons.local_shipping_rounded,
-                        color: AppColors.statusDelivered,
-                        value: '$deliveredToday',
-                        label: 'Yetgazilgan',
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: _StatCard(
-                        icon: Icons.local_laundry_service_rounded,
-                        color: AppColors.statusWashing,
-                        value: '$inWorkshop',
-                        label: 'Sexda mavjud',
-                      ),
-                    ),
-                  ],
-                ),
+              StatTileRow(
+                tiles: [
+                  StatTile(
+                    icon: Icons.receipt_long_rounded,
+                    color: AppColors.primary,
+                    value: '$acceptedToday',
+                    label: 'Bugungi buyurtma',
+                  ),
+                  StatTile(
+                    icon: Icons.local_shipping_rounded,
+                    color: AppColors.statusDelivered,
+                    value: '$deliveredToday',
+                    label: 'Yetgazilgan',
+                  ),
+                  StatTile(
+                    icon: Icons.local_laundry_service_rounded,
+                    color: AppColors.statusWashing,
+                    value: '$inWorkshop',
+                    label: 'Sexda mavjud',
+                  ),
+                ],
               ),
               const SizedBox(height: 24),
               // Profil ENG TEPADA: obuna holati va tarif — biznes egasi
@@ -247,51 +237,6 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
   }
 }
 
-class _StatCard extends StatelessWidget {
-  const _StatCard({
-    required this.icon,
-    required this.color,
-    required this.value,
-    required this.label,
-  });
-
-  final IconData icon;
-  final Color color;
-  final String value;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              width: 32,
-              height: 32,
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.14),
-                borderRadius: BorderRadius.circular(9),
-              ),
-              child: Icon(icon, color: color, size: 17),
-            ),
-            const SizedBox(height: 10),
-            Text(
-              value,
-              style: theme.textTheme.headlineSmall
-                  ?.copyWith(fontWeight: FontWeight.w800),
-            ),
-            const SizedBox(height: 1),
-            Text(label, style: theme.textTheme.bodySmall, maxLines: 2),
-          ],
-        ),
-      ),
-    );
-  }
-}
 
 class _AdminMenuCard extends StatelessWidget {
   const _AdminMenuCard({

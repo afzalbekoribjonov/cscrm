@@ -41,6 +41,21 @@ class _RegisterBusinessScreenState extends State<RegisterBusinessScreen> {
   final _login = TextEditingController();
   final _password = TextEditingController();
 
+  /// Har bir qadam uchun alohida fokus tuguni.
+  ///
+  /// NEGA KERAK: `PageView` BARCHA sahifalarni birdan quradi. Ilgari
+  /// har bir maydonda `autofocus: true` turardi — ya'ni to'rttala
+  /// maydon bir vaqtda fokus so'rardi. Natijada:
+  ///   * klaviatura oxirgi qurilgan maydonning turida ochilardi
+  ///     (telefon qadamida ham harf klaviaturasi chiqardi);
+  ///   * boshqa sahifalarda kursor chaqnab turardi;
+  ///   * qadam almashganda klaviatura yopilmay qolardi.
+  ///
+  /// Endi fokus FAQAT joriy qadamda va u qo'lda boshqariladi.
+  late final _focus = {
+    for (final step in _Step.values) step: FocusNode(),
+  };
+
   late final _authService = widget.service ?? AuthService();
 
   var _step = _Step.business;
@@ -56,6 +71,12 @@ class _RegisterBusinessScreenState extends State<RegisterBusinessScreen> {
     for (final c in [_business, _phone, _login, _password]) {
       c.addListener(_onTyping);
     }
+
+    // Birinchi kadrdan KEYIN: shu paytda vidjet daraxti tayyor
+    // bo'ladi va fokus so'rovi yo'qolib ketmaydi.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _focus[_Step.business]!.requestFocus();
+    });
   }
 
   @override
@@ -65,6 +86,9 @@ class _RegisterBusinessScreenState extends State<RegisterBusinessScreen> {
       c
         ..removeListener(_onTyping)
         ..dispose();
+    }
+    for (final node in _focus.values) {
+      node.dispose();
     }
     super.dispose();
   }
@@ -111,6 +135,10 @@ class _RegisterBusinessScreenState extends State<RegisterBusinessScreen> {
   }
 
   void _goTo(_Step step) {
+    // Avval eski maydon fokusni bo'shatadi. Busiz klaviatura eski
+    // maydonning turida ochiq qolardi.
+    FocusManager.instance.primaryFocus?.unfocus();
+
     setState(() {
       _step = step;
       _error = null;
@@ -120,6 +148,12 @@ class _RegisterBusinessScreenState extends State<RegisterBusinessScreen> {
       duration: const Duration(milliseconds: 260),
       curve: Curves.easeOutCubic,
     );
+
+    // Fokus o'tish animatsiyasi tugagach beriladi: animatsiya
+    // davomida klaviatura ochilsa, sahifa sakrab ketadi.
+    Future<void>.delayed(const Duration(milliseconds: 280), () {
+      if (mounted && _step == step) _focus[step]!.requestFocus();
+    });
   }
 
   // -------------------------------------------------------------------
@@ -127,6 +161,10 @@ class _RegisterBusinessScreenState extends State<RegisterBusinessScreen> {
   // -------------------------------------------------------------------
 
   Future<void> _submit() async {
+    // Klaviatura yopiladi: yuborish davomida u ekranni bekitib
+    // turishining hojati yo'q va xatolik chiqsa ham ko'rinmay qolardi.
+    FocusManager.instance.primaryFocus?.unfocus();
+
     setState(() {
       _loading = true;
       _error = null;
@@ -215,6 +253,7 @@ class _RegisterBusinessScreenState extends State<RegisterBusinessScreen> {
                     title: 'Biznesingiz nomi',
                     field: _Field(
                       controller: _business,
+                      focusNode: _focus[_Step.business]!,
                       hint: 'Nihol gilam yuvish',
                       textCapitalization: TextCapitalization.words,
                       onSubmitted: _next,
@@ -224,6 +263,7 @@ class _RegisterBusinessScreenState extends State<RegisterBusinessScreen> {
                     title: 'Telefon raqamingiz',
                     field: _Field(
                       controller: _phone,
+                      focusNode: _focus[_Step.phone]!,
                       hint: '+998 90 123 45 67',
                       keyboardType: TextInputType.phone,
                       formatters: [
@@ -237,8 +277,13 @@ class _RegisterBusinessScreenState extends State<RegisterBusinessScreen> {
                     hint: 'Tizimga shu bilan kirasiz',
                     field: _Field(
                       controller: _login,
+                      focusNode: _focus[_Step.login]!,
                       hint: 'nihol',
+                      // Login — takrorlanmaydigan so'z. Avtomatik
+                      // tuzatish uni o'zgartirib yuborardi, takliflar
+                      // esa klaviatura ustida keraksiz qator ochardi.
                       autocorrect: false,
+                      suggestions: false,
                       onSubmitted: _next,
                     ),
                   ),
@@ -247,8 +292,12 @@ class _RegisterBusinessScreenState extends State<RegisterBusinessScreen> {
                     hint: 'Kamida 6 ta belgi',
                     field: _Field(
                       controller: _password,
+                      focusNode: _focus[_Step.password]!,
                       hint: '••••••',
                       obscure: _obscure,
+                      autocorrect: false,
+                      suggestions: false,
+                      last: true,
                       onSubmitted: _next,
                       suffix: IconButton(
                         tooltip: _obscure ? 'Ko\'rsatish' : 'Yashirish',
@@ -358,29 +407,42 @@ class _StepPage extends StatelessWidget {
 
 /// Katta, bitta maydon.
 ///
-/// `autofocus` ATAYLAB yoqilgan: ekranda bitta maydon bor, ya'ni
-/// foydalanuvchi baribir o'shanga bosadi — klaviaturani o'zi ochib
-/// berish bitta ortiqcha harakatni olib tashlaydi.
+/// `autofocus` ISHLATILMAYDI. `PageView` barcha sahifalarni birdan
+/// quradi, ya'ni to'rttala maydon bir vaqtda fokus so'rardi va
+/// klaviatura noto'g'ri turda ochilardi. Fokusni ota-vidjet qadamga
+/// qarab beradi.
 class _Field extends StatelessWidget {
   const _Field({
     required this.controller,
+    required this.focusNode,
     required this.hint,
     required this.onSubmitted,
     this.keyboardType,
     this.formatters,
     this.obscure = false,
     this.autocorrect = true,
+    this.suggestions = true,
+    this.last = false,
     this.textCapitalization = TextCapitalization.none,
     this.suffix,
   });
 
   final TextEditingController controller;
+  final FocusNode focusNode;
   final String hint;
   final VoidCallback onSubmitted;
   final TextInputType? keyboardType;
   final List<TextInputFormatter>? formatters;
   final bool obscure;
   final bool autocorrect;
+
+  /// Klaviatura ustidagi takliflar qatori.
+  final bool suggestions;
+
+  /// Oxirgi qadammi — klaviaturadagi tugma shunga qarab
+  /// "Keyingi" yoki "Tayyor" bo'ladi.
+  final bool last;
+
   final TextCapitalization textCapitalization;
   final Widget? suffix;
 
@@ -388,13 +450,15 @@ class _Field extends StatelessWidget {
   Widget build(BuildContext context) {
     return TextField(
       controller: controller,
-      autofocus: true,
+      focusNode: focusNode,
       obscureText: obscure,
       autocorrect: autocorrect,
+      enableSuggestions: suggestions,
       keyboardType: keyboardType,
       inputFormatters: formatters,
       textCapitalization: textCapitalization,
-      textInputAction: TextInputAction.done,
+      textInputAction:
+          last ? TextInputAction.done : TextInputAction.next,
       onSubmitted: (_) => onSubmitted(),
       style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w600),
       decoration: InputDecoration(

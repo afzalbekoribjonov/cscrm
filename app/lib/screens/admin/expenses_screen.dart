@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
 import '../../models/expense.dart';
@@ -9,6 +8,7 @@ import '../../utils/date_utils.dart';
 import '../../widgets/item_measurement_form.dart' show fmtSom;
 import '../../widgets/period_calendar.dart';
 import '../../widgets/stream_error_view.dart';
+import '../../utils/money.dart';
 
 final _dateFormat = DateFormat('dd.MM.yyyy');
 
@@ -321,7 +321,7 @@ class _ExpenseFormSheetState extends State<_ExpenseFormSheet> {
       TextEditingController(text: widget.expense?.title ?? '');
   late final _amountCtrl = TextEditingController(
     text:
-        widget.expense == null ? '' : widget.expense!.amount.toStringAsFixed(0),
+        widget.expense == null ? '' : formatMoney(widget.expense!.amount),
   );
   late final _noteCtrl =
       TextEditingController(text: widget.expense?.note ?? '');
@@ -358,7 +358,7 @@ class _ExpenseFormSheetState extends State<_ExpenseFormSheet> {
 
   Future<void> _save() async {
     final title = _titleCtrl.text.trim();
-    final amount = double.tryParse(_amountCtrl.text.replaceAll(',', '.')) ?? 0;
+    final amount = parseMoney(_amountCtrl.text);
     if (title.isEmpty) {
       setState(() => _error = 'Chiqim nomini kiriting');
       return;
@@ -432,11 +432,8 @@ class _ExpenseFormSheetState extends State<_ExpenseFormSheet> {
             const SizedBox(height: 14),
             TextField(
               controller: _amountCtrl,
-              keyboardType:
-                  const TextInputType.numberWithOptions(decimal: true),
-              inputFormatters: [
-                FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
-              ],
+              keyboardType: TextInputType.number,
+              inputFormatters: const [MoneyInputFormatter()],
               decoration: const InputDecoration(
                 labelText: 'Summa',
                 suffixText: 'so\'m',

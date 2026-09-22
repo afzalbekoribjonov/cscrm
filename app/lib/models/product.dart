@@ -1,4 +1,5 @@
 import 'calculation_method.dart';
+import '../utils/money.dart';
 
 class Product {
   const Product({
@@ -39,10 +40,10 @@ class Product {
   /// Mahsulot ro'yxatida ko'rsatiladigan qisqa narx yorlig'i.
   String get priceLabel {
     if (method.hasTwoSizes) {
-      return 'Kichik: ${priceSmall.toStringAsFixed(0)} · Katta: ${priceLarge.toStringAsFixed(0)} so\'m';
+      return 'Kichik: ${formatMoney(priceSmall)} · Katta: ${formatSom(priceLarge)}';
     }
     final unit = method.unitSymbol.isEmpty ? '' : '/${method.unitSymbol}';
-    return '${price.toStringAsFixed(0)} so\'m$unit';
+    return '${formatSom(price)}$unit';
   }
 
   Map<String, Object?> toMap() => {

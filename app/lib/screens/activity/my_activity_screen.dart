@@ -81,46 +81,36 @@ class _MyActivityScreenState extends State<MyActivityScreen> {
                 onChanged: (v) => setState(() => _today = v),
               ),
               const SizedBox(height: 18),
-              Row(
-                children: [
-                  Expanded(
-                    child: StatTile(
-                      icon: Icons.move_to_inbox_rounded,
-                      color: AppColors.statusPickup,
-                      value: '${stats.pickedUpCount}',
-                      label: '$dayLabel olib kelgan',
-                    ),
+              StatTileRow(
+                tiles: [
+                  StatTile(
+                    icon: Icons.move_to_inbox_rounded,
+                    color: AppColors.statusPickup,
+                    value: '${stats.pickedUpCount}',
+                    label: '$dayLabel olib kelgan',
                   ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: StatTile(
-                      icon: Icons.local_shipping_rounded,
-                      color: AppColors.statusDelivered,
-                      value: '${stats.deliveredCount}',
-                      label: '$dayLabel yetkazgan',
-                    ),
+                  StatTile(
+                    icon: Icons.local_shipping_rounded,
+                    color: AppColors.statusDelivered,
+                    value: '${stats.deliveredCount}',
+                    label: '$dayLabel yetkazgan',
                   ),
                 ],
               ),
               const SizedBox(height: 10),
-              Row(
-                children: [
-                  Expanded(
-                    child: StatTile(
-                      icon: Icons.payments_rounded,
-                      color: AppColors.success,
-                      value: fmtSom(stats.cashTotal),
-                      label: 'Naqd pul',
-                    ),
+              StatTileRow(
+                tiles: [
+                  StatTile(
+                    icon: Icons.payments_rounded,
+                    color: AppColors.success,
+                    value: fmtSom(stats.cashTotal),
+                    label: 'Naqd pul',
                   ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: StatTile(
-                      icon: Icons.credit_card_rounded,
-                      color: AppColors.accent,
-                      value: fmtSom(stats.cardTotal),
-                      label: 'Karta orqali',
-                    ),
+                  StatTile(
+                    icon: Icons.credit_card_rounded,
+                    color: AppColors.accent,
+                    value: fmtSom(stats.cardTotal),
+                    label: 'Karta orqali',
                   ),
                 ],
               ),

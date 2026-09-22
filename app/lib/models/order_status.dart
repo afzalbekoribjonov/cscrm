@@ -21,6 +21,13 @@ enum OrderStatus {
   /// `ishniBoshlash` faqat eski (migratsiyadan oldingi) ma'lumot uchun.
   bool get isInWorkshop =>
       this == OrderStatus.yuvishda || this == OrderStatus.ishniBoshlash;
+
+  /// Buyurtma YOPILGAN — ish tugagan, unga endi tegilmaydi.
+  ///
+  /// Yetgazilgan buyurtmaning puli olingan va u kunlik daromadga
+  /// kirgan. Keyin unga xizmat qo'shilsa yoki narxi o'zgartirilsa,
+  /// allaqachon yopilgan hisobot o'zgarib ketadi.
+  bool get isClosed => this == OrderStatus.yetgazildi;
 }
 
 enum DeliveryType {

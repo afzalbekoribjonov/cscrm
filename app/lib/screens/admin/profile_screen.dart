@@ -8,8 +8,8 @@ import '../../services/license_controller.dart';
 import '../../services/license_service.dart';
 import '../../theme/app_colors.dart';
 import '../subscription/payment_request_sheet.dart';
+import '../../utils/money.dart';
 
-final _money = NumberFormat.decimalPattern('uz');
 final _date = DateFormat('dd.MM.yyyy');
 
 /// Biznes profili: joriy tarif, muddat, xodimlar soni va boshqa rejalar.
@@ -502,7 +502,7 @@ class _PlanRow extends StatelessWidget {
                     Text(
                       per == null
                           ? plan.description
-                          : '${_money.format(per)} so\'m/oy',
+                          : '${formatMoney(per)} so\'m/oy',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: theme.textTheme.bodySmall,
@@ -517,7 +517,7 @@ class _PlanRow extends StatelessWidget {
                   Text(
                     plan.priceUnset
                         ? 'Kelishiladi'
-                        : _money.format(plan.price.round()),
+                        : formatMoney(plan.price.round()),
                     style: theme.textTheme.bodyLarge
                         ?.copyWith(fontWeight: FontWeight.w800),
                   ),

@@ -5,12 +5,13 @@ import '../models/calculation_method.dart';
 import '../models/measure_unit.dart';
 import '../models/product.dart';
 import '../theme/app_colors.dart';
+import '../utils/money.dart';
 
 String fmtNum(double v) {
   return v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toStringAsFixed(2);
 }
 
-String fmtSom(double v) => '${v.toStringAsFixed(0)} so\'m';
+String fmtSom(double v) => formatSom(v);
 
 /// Bitta jismoniy birlik (masalan bitta gilam) uchun hisoblash holati.
 /// Mahsulotning hisoblash usuliga qarab kerakli maydonlarni saqlaydi va

@@ -385,27 +385,8 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen> {
       ];
     }
 
-    // Ikkitadan qatorga joylaymiz.
-    final rows = <Widget>[];
-    for (var i = 0; i < tiles.length; i += 2) {
-      rows.add(Padding(
-        padding: const EdgeInsets.only(bottom: 10),
-        child: IntrinsicHeight(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Expanded(child: tiles[i]),
-              const SizedBox(width: 10),
-              if (i + 1 < tiles.length)
-                Expanded(child: tiles[i + 1])
-              else
-                const Expanded(child: SizedBox()),
-            ],
-          ),
-        ),
-      ));
-    }
-    return rows;
+    // Ikkitadan qatorga joylaymiz — kartalar teng balandlikda.
+    return [StatTileGrid(tiles: tiles)];
   }
 }
 

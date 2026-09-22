@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 import '../theme/app_colors.dart';
+import '../utils/money.dart';
 import 'item_measurement_form.dart' show fmtSom;
 
 /// To'liq olinmagan summa nima deb yozilishi.
@@ -66,7 +66,7 @@ class _PaymentDialogState extends State<PaymentDialog> {
   bool get _knownTotal => widget.orderTotal > 0;
 
   double get _entered =>
-      double.tryParse(_amountCtrl.text.replaceAll(',', '.')) ?? 0;
+      parseMoney(_amountCtrl.text);
 
   /// To'lanmagan qism. Ortiqcha to'lansa 0 bo'ladi.
   double get _shortfall {
@@ -81,7 +81,7 @@ class _PaymentDialogState extends State<PaymentDialog> {
     // Odatda to'liq summa olinadi - shu sabab maydon oldindan to'ldiriladi
     // va dastavchik faqat kam olgan holatda o'zgartiradi.
     if (_knownTotal) {
-      _amountCtrl.text = widget.orderTotal.toStringAsFixed(0);
+      _amountCtrl.text = formatMoney(widget.orderTotal);
     }
   }
 
@@ -179,11 +179,8 @@ class _PaymentDialogState extends State<PaymentDialog> {
             const SizedBox(height: 16),
             TextField(
               controller: _amountCtrl,
-              keyboardType:
-                  const TextInputType.numberWithOptions(decimal: true),
-              inputFormatters: [
-                FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
-              ],
+              keyboardType: TextInputType.number,
+              inputFormatters: const [MoneyInputFormatter()],
               onChanged: (_) => setState(() => _error = null),
               decoration: const InputDecoration(
                 labelText: 'Qabul qilingan summa',

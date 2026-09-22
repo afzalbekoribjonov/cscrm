@@ -14,6 +14,7 @@ import '../utils/offline_write.dart';
 import '../utils/order_totals.dart';
 import '../utils/phone.dart';
 import 'tenant_scope.dart';
+import '../utils/money.dart';
 
 /// Hisoblash bosqichida tayyorlangan, alohida jismoniy birlikka aylantirilgan
 /// mahsulot — hali Firebase'ga yozilmagan, faqat qurilmada.
@@ -752,7 +753,7 @@ class OrderService implements OrderWriter {
     final productChanged =
         newProductName != null && newProductName != item.productName;
     final oldLabel = item.isMeasured
-        ? '${item.hajm} (${item.price.toStringAsFixed(0)} so\'m)'
+        ? '${item.hajm} (${formatSom(item.price)})'
         : 'o\'lchanmagan';
 
     await _mutateOrder(
@@ -766,8 +767,8 @@ class OrderService implements OrderWriter {
         'itemProductName': newProductName ?? item.productName,
         'itemKey': item.key,
         'note': productChanged
-            ? '${item.productName} → $newProductName · $oldLabel → $hajm (${price.toStringAsFixed(0)} so\'m)'
-            : '$oldLabel → $hajm (${price.toStringAsFixed(0)} so\'m)',
+            ? '${item.productName} → $newProductName · $oldLabel → $hajm (${formatSom(price)})'
+            : '$oldLabel → $hajm (${formatSom(price)})',
       },
       mutate: (map, items) {
         final existing = items[item.key];
@@ -920,11 +921,11 @@ class OrderService implements OrderWriter {
       map['discountAmount'] = settlement.discount;
 
       final parts = <String>[
-        '$paymentMethod orqali ${settlement.paid.toStringAsFixed(0)} so\'m qabul qilindi',
+        '$paymentMethod orqali ${formatSom(settlement.paid)} qabul qilindi',
         if (settlement.debt > 0)
-          'qarz: ${settlement.debt.toStringAsFixed(0)} so\'m',
+          'qarz: ${formatSom(settlement.debt)}',
         if (settlement.discount > 0)
-          'skidka: ${settlement.discount.toStringAsFixed(0)} so\'m',
+          'skidka: ${formatSom(settlement.discount)}',
       ];
 
       // Kim yetkazgani buyurtmada belgilanadi — yetgazma statistikasi va
@@ -955,7 +956,7 @@ class OrderService implements OrderWriter {
           'fromStatus': order.status.key,
           'toStatus': OrderStatus.yetgazildi.key,
           'note':
-              '$paymentMethod orqali ${paymentAmount.toStringAsFixed(0)} so\'m qabul qilindi',
+              '$paymentMethod orqali ${formatSom(paymentAmount)} qabul qilindi',
         })));
   }
 
@@ -1005,8 +1006,8 @@ class OrderService implements OrderWriter {
         byEmployeeId: byEmployeeId,
         byName: byName,
         note: remaining > 0
-            ? '$method orqali ${applied.toStringAsFixed(0)} so\'m qarz to\'landi · qoldi: ${remaining.toStringAsFixed(0)} so\'m'
-            : '$method orqali ${applied.toStringAsFixed(0)} so\'m - qarz to\'liq yopildi',
+            ? '$method orqali ${formatSom(applied)} qarz to\'landi · qoldi: ${formatSom(remaining)}'
+            : '$method orqali ${formatSom(applied)} - qarz to\'liq yopildi',
       ));
       map.addAll(_lastAction(byEmployeeId));
 
@@ -1028,7 +1029,7 @@ class OrderService implements OrderWriter {
           'amount': appliedAmount,
           'method': method,
           'note':
-              '$method orqali ${appliedAmount.toStringAsFixed(0)} so\'m qabul qilindi',
+              '$method orqali ${formatSom(appliedAmount)} qabul qilindi',
         })));
   }
 

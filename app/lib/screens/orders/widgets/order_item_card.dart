@@ -6,6 +6,7 @@ import '../../../models/order_item.dart';
 import '../../../theme/app_colors.dart';
 import 'order_sheets.dart';
 import 'order_view_common.dart';
+import '../../../utils/money.dart';
 
 class OrderItemCard extends StatefulWidget {
   const OrderItemCard({
@@ -201,7 +202,7 @@ class _OrderItemCardState extends State<OrderItemCard> {
                 Padding(
                   padding: const EdgeInsets.only(right: 5),
                   child: Text(
-                    '${item.hajm}  ·  ${item.price.toStringAsFixed(0)} so\'m',
+                    '${item.hajm}  ·  ${formatSom(item.price)}',
                     style: theme.textTheme.bodySmall
                         ?.copyWith(fontWeight: FontWeight.w700),
                   ),

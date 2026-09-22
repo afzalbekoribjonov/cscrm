@@ -5,6 +5,7 @@ import '../../../models/product.dart';
 import '../../../theme/app_colors.dart';
 import '../../../widgets/item_measurement_form.dart';
 import '../../new_order/product_picker_sheet.dart';
+import '../../../utils/money.dart';
 
 class ItemEditResult {
   const ItemEditResult({
@@ -113,7 +114,7 @@ class EditItemSheetState extends State<EditItemSheet> {
               )
             else if (widget.currentHajm.isNotEmpty)
               Text(
-                'Joriy: ${widget.currentHajm} · ${widget.currentPrice.toStringAsFixed(0)} so\'m',
+                'Joriy: ${widget.currentHajm} · ${formatSom(widget.currentPrice)}',
                 style: theme.textTheme.bodySmall,
               ),
             const SizedBox(height: 16),

@@ -5,6 +5,7 @@ import '../../models/calculation_method.dart';
 import '../../models/product.dart';
 import '../../services/product_service.dart';
 import '../../theme/app_colors.dart';
+import '../../utils/money.dart';
 
 class ProductsAdminScreen extends StatefulWidget {
   const ProductsAdminScreen({super.key});
@@ -132,17 +133,17 @@ class _ProductFormSheetState extends State<_ProductFormSheet> {
       TextEditingController(text: widget.product?.name ?? '');
   late final _priceCtrl = TextEditingController(
     text: widget.product != null && widget.product!.price > 0
-        ? widget.product!.price.toStringAsFixed(0)
+        ? formatMoney(widget.product!.price)
         : '',
   );
   late final _priceSmallCtrl = TextEditingController(
     text: widget.product != null && widget.product!.priceSmall > 0
-        ? widget.product!.priceSmall.toStringAsFixed(0)
+        ? formatMoney(widget.product!.priceSmall)
         : '',
   );
   late final _priceLargeCtrl = TextEditingController(
     text: widget.product != null && widget.product!.priceLarge > 0
-        ? widget.product!.priceLarge.toStringAsFixed(0)
+        ? formatMoney(widget.product!.priceLarge)
         : '',
   );
   late CalculationMethod _method =
@@ -163,9 +164,9 @@ class _ProductFormSheetState extends State<_ProductFormSheet> {
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _saving = true);
-    final price = double.tryParse(_priceCtrl.text) ?? 0;
-    final priceSmall = double.tryParse(_priceSmallCtrl.text) ?? 0;
-    final priceLarge = double.tryParse(_priceLargeCtrl.text) ?? 0;
+    final price = parseMoney(_priceCtrl.text);
+    final priceSmall = parseMoney(_priceSmallCtrl.text);
+    final priceLarge = parseMoney(_priceLargeCtrl.text);
     if (_isEdit) {
       await widget.service.updateProduct(
         id: widget.product!.id,
@@ -252,16 +253,13 @@ class _ProductFormSheetState extends State<_ProductFormSheet> {
                   Expanded(
                     child: TextFormField(
                       controller: _priceSmallCtrl,
-                      keyboardType:
-                          const TextInputType.numberWithOptions(decimal: true),
-                      inputFormatters: [
-                        FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
-                      ],
+                      keyboardType: TextInputType.number,
+                      inputFormatters: const [MoneyInputFormatter()],
                       decoration: const InputDecoration(
                         labelText: 'Kichik narxi',
                         suffixText: 'so\'m',
                       ),
-                      validator: (v) => (double.tryParse(v ?? '') ?? 0) <= 0
+                      validator: (v) => parseMoney(v ?? '') <= 0
                           ? 'Narx kiriting'
                           : null,
                     ),
@@ -280,7 +278,7 @@ class _ProductFormSheetState extends State<_ProductFormSheet> {
                         labelText: 'Katta narxi',
                         suffixText: 'so\'m',
                       ),
-                      validator: (v) => (double.tryParse(v ?? '') ?? 0) <= 0
+                      validator: (v) => parseMoney(v ?? '') <= 0
                           ? 'Narx kiriting'
                           : null,
                       onFieldSubmitted: (_) => _submit(),
@@ -303,7 +301,7 @@ class _ProductFormSheetState extends State<_ProductFormSheet> {
                       ? 'so\'m'
                       : 'so\'m/${_method.unitSymbol}',
                 ),
-                validator: (v) => (double.tryParse(v ?? '') ?? 0) <= 0
+                validator: (v) => parseMoney(v ?? '') <= 0
                     ? 'Narx kiriting'
                     : null,
                 onFieldSubmitted: (_) => _submit(),

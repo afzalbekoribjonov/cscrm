@@ -6,8 +6,8 @@ import '../models/pending_order.dart';
 import '../services/order_sync_service.dart';
 import '../services/pending_order_store.dart';
 import '../theme/app_colors.dart';
+import '../utils/money.dart';
 
-final _money = NumberFormat.decimalPattern('uz');
 final _time = DateFormat('HH:mm');
 
 /// Yangi buyurtma ekranining o'ng yuqori burchagidagi holat belgisi.
@@ -214,7 +214,7 @@ class _Row extends StatelessWidget {
             ),
           ),
           Text(
-            '${_money.format(total.round())} so\'m',
+            '${formatMoney(total.round())} so\'m',
             style: theme.textTheme.bodyMedium
                 ?.copyWith(fontWeight: FontWeight.w700),
           ),

@@ -10,6 +10,7 @@ import '../../widgets/order_card.dart';
 import '../../widgets/order_search_action.dart';
 import '../../widgets/period_calendar.dart';
 import '../../widgets/stream_error_view.dart';
+import '../../utils/money.dart';
 
 /// Boshqaruvchi uchun barcha buyurtmalar tarixi - haqiqiy kalendar bo'yicha
 /// kunlik/haftalik/oylik filtr, shu davrdagi buyurtmalar soni va daromad.
@@ -115,7 +116,7 @@ class _OrdersAdminScreenState extends State<OrdersAdminScreen> {
                       Expanded(
                         child: _MiniStat(
                           label: 'Daromad',
-                          value: '${filteredRevenue.toStringAsFixed(0)} so\'m',
+                          value: formatSom(filteredRevenue),
                         ),
                       ),
                     ],
@@ -205,7 +206,7 @@ class _MonthSummaryCard extends StatelessWidget {
               ),
               const SizedBox(height: 4),
               Text(
-                '${revenue.toStringAsFixed(0)} so\'m',
+                formatSom(revenue),
                 style: theme.textTheme.titleLarge?.copyWith(
                   color: Colors.white,
                   fontWeight: FontWeight.w800,

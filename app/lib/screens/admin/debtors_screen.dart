@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
 import '../../models/order.dart';
@@ -12,6 +11,7 @@ import '../../widgets/item_measurement_form.dart' show fmtSom;
 import '../../widgets/period_calendar.dart';
 import '../../widgets/phone_link.dart';
 import '../../widgets/stream_error_view.dart';
+import '../../utils/money.dart';
 
 final _dateFormat = DateFormat('dd.MM.yyyy');
 
@@ -311,7 +311,7 @@ class _SettleDebtSheet extends StatefulWidget {
 
 class _SettleDebtSheetState extends State<_SettleDebtSheet> {
   late final _amountCtrl =
-      TextEditingController(text: widget.order.debtAmount.toStringAsFixed(0));
+      TextEditingController(text: formatMoney(widget.order.debtAmount));
   String _method = 'Naqd pul';
   String? _error;
 
@@ -322,7 +322,7 @@ class _SettleDebtSheetState extends State<_SettleDebtSheet> {
   }
 
   void _submit() {
-    final amount = double.tryParse(_amountCtrl.text.replaceAll(',', '.')) ?? 0;
+    final amount = parseMoney(_amountCtrl.text);
     if (amount <= 0) {
       setState(() => _error = 'Summani to\'g\'ri kiriting');
       return;
@@ -377,10 +377,8 @@ class _SettleDebtSheetState extends State<_SettleDebtSheet> {
           const SizedBox(height: 16),
           TextField(
             controller: _amountCtrl,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            inputFormatters: [
-              FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
-            ],
+            keyboardType: TextInputType.number,
+            inputFormatters: const [MoneyInputFormatter()],
             onChanged: (_) => setState(() => _error = null),
             decoration: const InputDecoration(
               labelText: 'To\'lanayotgan summa',

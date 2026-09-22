@@ -1,12 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:intl/intl.dart';
 
 import '../../services/api_client.dart';
 import '../../services/license_service.dart';
 import '../../theme/app_colors.dart';
-
-final _money = NumberFormat.decimalPattern('uz');
+import '../../utils/money.dart';
 
 /// "To'lov qildim" formasi.
 ///
@@ -74,7 +71,7 @@ class _PaymentRequestSheetState extends State<_PaymentRequestSheet> {
       _amount.clear();
       return;
     }
-    _amount.text = plan.price.round().toString();
+    _amount.text = formatMoney(plan.price);
   }
 
   Future<void> _submit() async {
@@ -90,7 +87,7 @@ class _PaymentRequestSheetState extends State<_PaymentRequestSheet> {
     try {
       final request = await LicenseService().submitPaymentRequest(
         planId: plan.id,
-        amount: double.tryParse(_amount.text.trim()),
+        amount: parseMoney(_amount.text),
         reference: _reference.text,
         note: _note.text,
       );
@@ -156,7 +153,7 @@ class _PaymentRequestSheetState extends State<_PaymentRequestSheet> {
                       child: Text(
                         p.priceUnset
                             ? p.name
-                            : '${p.name} — ${_money.format(p.price)} so\'m',
+                            : '${p.name} — ${formatMoney(p.price)} so\'m',
                       ),
                     ),
                 ],
@@ -173,17 +170,14 @@ class _PaymentRequestSheetState extends State<_PaymentRequestSheet> {
               TextFormField(
                 controller: _amount,
                 keyboardType: TextInputType.number,
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                inputFormatters: const [MoneyInputFormatter()],
                 enabled: !_sending,
                 decoration: const InputDecoration(
                   labelText: 'To\'langan summa',
                   suffixText: 'so\'m',
                 ),
-                validator: (v) {
-                  final n = double.tryParse((v ?? '').trim());
-                  if (n == null || n <= 0) return 'Summani kiriting';
-                  return null;
-                },
+                validator: (v) =>
+                    parseMoney(v ?? '') <= 0 ? 'Summani kiriting' : null,
               ),
               const SizedBox(height: 14),
 
