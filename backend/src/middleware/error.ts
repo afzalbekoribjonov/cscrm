@@ -17,7 +17,7 @@ export class ApiError extends Error {
   static badRequest(msg: string, details?: unknown) {
     return new ApiError(400, msg, 'bad_request', details);
   }
-  static unauthorized(msg = 'Avtorizatsiya talab qilinadi') {
+  static unauthorized(msg = 'Qaytadan tizimga kiring.') {
     return new ApiError(401, msg, 'unauthorized');
   }
   static forbidden(msg = 'Ruxsat yo\'q') {
@@ -28,8 +28,15 @@ export class ApiError extends Error {
   }
 }
 
-export function notFoundHandler(req: Request, _res: Response, next: NextFunction) {
-  next(ApiError.notFound(`Yo'l topilmadi: ${req.method} ${req.originalUrl}`));
+/**
+ * Noma'lum yo'l.
+ *
+ * Yo'l va metod JAVOBGA yozilmaydi — ular foydalanuvchiga hech narsa
+ * bermaydi, tashqi odamga esa API tuzilmasini ochadi. Tahlil uchun ular
+ * so'rov logida baribir bor.
+ */
+export function notFoundHandler(_req: Request, _res: Response, next: NextFunction) {
+  next(ApiError.notFound('Ma\'lumot topilmadi.'));
 }
 
 export function errorHandler(
@@ -54,7 +61,7 @@ export function errorHandler(
       code: isApi ? err.code : 'internal',
       message: isApi
         ? err.message
-        : 'Serverda kutilmagan xatolik. Keyinroq urinib ko\'ring.',
+        : 'Amalni bajarib bo\'lmadi. Birozdan so\'ng qayta urinib ko\'ring.',
       ...(isApi && err.details ? { details: err.details } : {}),
       // Stack faqat ishlab chiqishda - prod'da ichki tuzilma oshkor bo'lmasin.
       ...(!env.isProd && !isApi && err instanceof Error

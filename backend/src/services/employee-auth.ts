@@ -1,5 +1,7 @@
 import { db, auth } from '../lib/firebase.js';
 import { normalizePhone } from '../lib/phone.js';
+import { staffUid } from '../lib/staff.js';
+import { employeePath, pinHashUpdates, readPinHash } from './pin-store.js';
 import { ApiError } from '../middleware/error.js';
 import type {
   AppClaims,
@@ -118,7 +120,8 @@ export async function employeeLogin(
     );
   }
 
-  const ok = await verifyPin(pin, employee.pinHash);
+  const stored = await readPinHash(target.tenantId, target.employeeId, employee);
+  const ok = await verifyPin(pin, stored.hash);
 
   if (!ok) {
     const attempts = (employee.failedAttempts ?? 0) + 1;
@@ -131,9 +134,19 @@ export async function employeeLogin(
     throw failed();
   }
 
-  // Muvaffaqiyatli kirish — hisoblagichni tozalaymiz.
-  if (employee.failedAttempts || employee.lockedUntil) {
-    await ref.update({ failedAttempts: 0, lockedUntil: null });
+  // Muvaffaqiyatli kirish — hisoblagichni tozalaymiz va (kerak bo'lsa)
+  // eski joydagi hashni yopiq tugunga ko'chiramiz. Bitta yozuvda.
+  const base = employeePath(target.tenantId, target.employeeId);
+  const onSuccess: Record<string, unknown> = {
+    ...(employee.failedAttempts || employee.lockedUntil
+      ? { [`${base}/failedAttempts`]: 0, [`${base}/lockedUntil`]: null }
+      : {}),
+    ...(stored.legacy && stored.hash
+      ? pinHashUpdates(target.tenantId, target.employeeId, stored.hash)
+      : {}),
+  };
+  if (Object.keys(onSuccess).length > 0) {
+    await db().ref().update(onSuccess);
   }
 
   const claims: AppClaims = {
@@ -144,7 +157,7 @@ export async function employeeLogin(
 
   // Xodim uchun barqaror Firebase UID — har bir xodim o'z uid'iga ega
   // bo'lsa, kim nima qilgani auth darajasida ham kuzatiladi.
-  const uid = `staff_${target.tenantId}_${target.employeeId}`;
+  const uid = staffUid(target.tenantId, target.employeeId);
   const customToken = await auth().createCustomToken(uid, { ...claims });
 
   return {

@@ -9,7 +9,7 @@ Har bir biznes = bitta **tenant**. Ma'lumot to'liq ajratilgan:
     profile/        biznes nomi, telefon, manzil
     license/        obuna holati   (FAQAT backend yozadi)
     members/{uid}   egalar
-    employees/{id}  xodimlar       (pinHash mijozga ko'rinmaydi)
+    employees/{id}  xodimlar       (PIN hashi bu yerda EMAS — pastga qarang)
     products/{id}   xizmat turlari
     orders/{id}     buyurtmalar  (tarixsiz - pastga qarang)
     order_history/  o'zgarishlar jurnali (TEKIS, indeks: orderId + at)
@@ -21,6 +21,7 @@ Har bir biznes = bitta **tenant**. Ma'lumot to'liq ajratilgan:
 /admin_logins/{login}       → {uid, tenantId}   (mijozga berk)
 /user_tenants/{uid}         → tenantId
 /employee_phone_index/{tel} → {tenantId, employeeId, tenantName}  (berk)
+/employee_secrets/{t}/{e}   → {pinHash}   (berk — faqat backend)
 /super_admins/{uid}         → true
 /tenant_directory/{id}      → createdAt   (bizneslar ro'yxati, berk)
 /pending_payments/{id}      → ko'rib chiqilmagan to'lov so'rovi (berk)
@@ -100,8 +101,8 @@ Himoya qatlamlari:
 |---|---|
 | bcrypt (cost 10) | Har bir tekshiruv ~100 ms, har hash o'z tuzi bilan |
 | 5 xato → 15 daq blok | Hisob darajasida |
-| 10 urinish / 10 daq | IP darajasida (`loginLimiter`) |
-| `pinHash` `.read: false` | Hash umuman o'qilmaydi |
+| 10 XATO urinish / 10 daq | IP darajasida (`loginLimiter`); muvaffaqiyatli kirish sanalmaydi |
+| `employee_secrets` (berk tugun) | Hash mijozga umuman yuborilmaydi |
 
 ---
 

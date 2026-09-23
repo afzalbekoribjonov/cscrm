@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { requireAuth, requireSuperAdmin } from '../middleware/auth.js';
 import { ApiError, asyncRoute } from '../middleware/error.js';
 import {
+  IDEMPOTENCY_KEY,
   confirmPayment,
   getStats,
   getTenant,
@@ -100,6 +101,11 @@ const confirmBody = z.object({
   note: z.string().max(500).optional(),
   /** Mijozning so'rovi asosida tasdiqlansa — o'sha so'rov yopiladi. */
   requestId: z.string().min(1).max(60).optional(),
+  /**
+   * Qo'lda tasdiqlashda takroriy bosishdan himoya: bir xil kalit bilan
+   * kelgan ikkinchi so'rov yangi to'lov yaratmaydi.
+   */
+  idempotencyKey: z.string().regex(IDEMPOTENCY_KEY).optional(),
 });
 
 /**
@@ -124,6 +130,9 @@ adminRouter.post(
       ...(parsed.data.amount !== undefined ? { amount: parsed.data.amount } : {}),
       ...(parsed.data.note ? { note: parsed.data.note } : {}),
       ...(parsed.data.requestId ? { requestId: parsed.data.requestId } : {}),
+      ...(parsed.data.idempotencyKey
+        ? { idempotencyKey: parsed.data.idempotencyKey }
+        : {}),
       byUid: req.user!.uid,
       now: Date.now(),
     });

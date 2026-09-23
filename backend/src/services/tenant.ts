@@ -2,6 +2,7 @@ import { customAlphabet } from 'nanoid';
 
 import { auth, db } from '../lib/firebase.js';
 import { normalizePhone } from '../lib/phone.js';
+import { staffUid } from '../lib/staff.js';
 import { ApiError } from '../middleware/error.js';
 import type {
   AppClaims,
@@ -13,6 +14,12 @@ import type { License } from '../types/license.js';
 import { directoryEntry } from './admin.js';
 import { computeExpiry, findPlan } from './license.js';
 import { hashPin, isValidPin, verifyPin } from './pin.js';
+import {
+  employeePath,
+  pinHashUpdates,
+  readPinHash,
+  secretPath,
+} from './pin-store.js';
 
 /**
  * Tenant ID - o'qishga qulay, adashtirmaydigan alifbo (0/O, 1/I/l yo'q).
@@ -219,7 +226,6 @@ export async function createEmployee(
     firstName: input.firstName.trim(),
     lastName: input.lastName.trim(),
     phone,
-    pinHash: await hashPin(input.pin),
     active: true,
     createdAt: Date.now(),
     createdBy: input.createdBy,
@@ -233,8 +239,10 @@ export async function createEmployee(
     tenantName,
   };
 
+  // Hash xodim yozuviga EMAS, yopiq tugunga (qarang: pin-store.ts).
   await db().ref().update({
-    [`tenants/${input.tenantId}/employees/${employeeId}`]: record,
+    [employeePath(input.tenantId, employeeId)]: record,
+    [`${secretPath(input.tenantId, employeeId)}/pinHash`]: await hashPin(input.pin),
     [`employee_phone_index/${phone}/${input.tenantId}`]: indexEntry,
   });
 
@@ -250,13 +258,15 @@ export async function resetEmployeePin(
   if (!isValidPin(newPin)) {
     throw ApiError.badRequest('PIN 4-8 xonali raqam bo\'lishi kerak.');
   }
-  const ref = db().ref(`tenants/${tenantId}/employees/${employeeId}`);
-  if (!(await ref.get()).exists()) throw ApiError.notFound('Xodim topilmadi.');
+  const base = employeePath(tenantId, employeeId);
+  if (!(await db().ref(base).get()).exists()) {
+    throw ApiError.notFound('Xodim topilmadi.');
+  }
 
-  await ref.update({
-    pinHash: await hashPin(newPin),
-    failedAttempts: 0,
-    lockedUntil: null,
+  await db().ref().update({
+    ...pinHashUpdates(tenantId, employeeId, await hashPin(newPin)),
+    [`${base}/failedAttempts`]: 0,
+    [`${base}/lockedUntil`]: null,
   });
 }
 
@@ -281,21 +291,27 @@ export async function changeOwnPin(params: {
     throw ApiError.badRequest('Yangi PIN 4-8 xonali raqam bo\'lishi kerak.');
   }
 
-  const ref = db().ref(
-    `tenants/${params.tenantId}/employees/${params.employeeId}`,
-  );
-  const snap = await ref.get();
+  const base = employeePath(params.tenantId, params.employeeId);
+  const snap = await db().ref(base).get();
   if (!snap.exists()) throw ApiError.notFound('Xodim topilmadi.');
 
-  const record = snap.val() as { pinHash?: string };
-  if (!(await verifyPin(params.currentPin, record.pinHash))) {
+  const stored = await readPinHash(
+    params.tenantId,
+    params.employeeId,
+    snap.val() as { pinHash?: unknown },
+  );
+  if (!(await verifyPin(params.currentPin, stored.hash))) {
     throw new ApiError(400, 'Joriy PIN noto\'g\'ri.', 'wrong_pin');
   }
 
-  await ref.update({
-    pinHash: await hashPin(params.newPin),
-    failedAttempts: 0,
-    lockedUntil: null,
+  await db().ref().update({
+    ...pinHashUpdates(
+      params.tenantId,
+      params.employeeId,
+      await hashPin(params.newPin),
+    ),
+    [`${base}/failedAttempts`]: 0,
+    [`${base}/lockedUntil`]: null,
   });
 }
 
@@ -311,6 +327,19 @@ export async function deleteEmployee(
 
   await db().ref().update({
     [`tenants/${tenantId}/employees/${employeeId}`]: null,
+    [secretPath(tenantId, employeeId)]: null,
     [`employee_phone_index/${phone}/${tenantId}`]: null,
   });
+
+  // Sessiyani bekor qilamiz. Busiz o'chirilgan xodimning telefonidagi
+  // kirish tokeni yangilanishda davom etar va u buyurtmalar, mijoz
+  // raqamlari va manzillarini o'qiyverardi — ilova uni o'zi chiqarib
+  // yuborishi faqat to'g'ri ishlayotgan ilovaga tegishli.
+  //
+  // Xodim hech qachon kirmagan bo'lsa Auth'da hisobi yo'q — bu xato emas.
+  await auth()
+    .revokeRefreshTokens(staffUid(tenantId, employeeId))
+    .catch((err: { code?: string }) => {
+      if (err.code !== 'auth/user-not-found') throw err;
+    });
 }

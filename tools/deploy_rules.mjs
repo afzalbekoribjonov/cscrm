@@ -61,6 +61,19 @@ const sa = JSON.parse(
 const source = JSON.parse(
   readFileSync(join(root, 'firebase/database.rules.json'), 'utf8'),
 );
+
+// JSON qo'lda tahrirlanib, manbadan (firebase/rules.mjs) ajralib ketgan
+// bo'lsa — JOYLAMAYMIZ. Aks holda keyingi generatsiya o'sha tahrirni
+// jimgina o'chirib yuborardi yoki aksincha, manbadagi tuzatish bazaga
+// yetib bormasdi.
+const { rules: generated } = await import('../firebase/rules.mjs');
+if (JSON.stringify(generated) !== JSON.stringify(source)) {
+  console.error(
+    'database.rules.json manbadan farq qiladi. Avval: node firebase/rules.mjs',
+  );
+  process.exit(1);
+}
+
 const payload = stripComments(source);
 
 if (!payload.rules) {

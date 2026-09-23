@@ -97,7 +97,8 @@ class ApiClient {
   ) async {
     if (!AppConfig.hasApi) {
       throw ApiException(
-        'Server manzili sozlanmagan. `API_BASE_URL` qiymatini bering.',
+        // Faqat noto'g'ri yig'ilgan ilovada — build skripti buni oldini oladi.
+        'Ilova to\'liq o\'rnatilmagan. Yangi versiyasini o\'rnating.',
         code: 'no_api_url',
       );
     }
@@ -107,13 +108,13 @@ class ApiClient {
       response = await request().timeout(AppConfig.requestTimeout);
     } on TimeoutException {
       throw ApiException(
-        'Server javob bermadi. Internet aloqasini tekshirib, qayta urining.',
+        'Javob kelmadi. Internetni tekshirib, qayta urinib ko\'ring.',
         code: 'timeout',
       );
     } catch (e) {
       debugPrint('API so\'rovi uzildi: $e');
       throw ApiException(
-        'Serverga ulanib bo\'lmadi. Internet aloqasini tekshiring.',
+        'Aloqa o\'rnatilmadi. Internetni tekshirib, qayta urinib ko\'ring.',
         code: 'network',
       );
     }
@@ -125,7 +126,8 @@ class ApiClient {
     } catch (_) {
       // Server HTML yoki bo'sh javob qaytardi (masalan proxy xatosi).
       throw ApiException(
-        'Serverdan tushunarsiz javob keldi (${response.statusCode}).',
+        // Holat kodi foydalanuvchiga ko'rsatilmaydi — `status` da qoladi.
+        'Amalni bajarib bo\'lmadi. Birozdan so\'ng qayta urinib ko\'ring.',
         status: response.statusCode,
       );
     }

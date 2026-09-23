@@ -10,7 +10,7 @@ import { useSyncExternalStore } from 'react';
  * va uni o'zgartira ham olmasdi. Endi tanlov foydalanuvchida: u
  * `localStorage` da saqlanadi va keyingi tashrifda tiklanadi.
  *
- * Boshlang'ich qiymatni `index.html` dagi kichik skript qo'yadi —
+ * Boshlang'ich qiymatni `public/theme-init.js` qo'yadi —
  * React yuklanguncha. Aks holda sahifa avval oq, keyin qora bo'lib
  * "chaqnardi".
  */
@@ -46,7 +46,7 @@ export function setTheme(theme: Theme): void {
  * Joriy rejim va uni almashtirish.
  *
  * `useSyncExternalStore` — chunki haqiqiy manba React holati emas,
- * `<html data-theme>` atributi: uni `index.html` dagi skript ham
+ * `<html data-theme>` atributi: uni `public/theme-init.js` ham
  * qo'yadi. Shu tufayli server/klient mos kelmasligi ham bo'lmaydi.
  */
 export function useTheme(): { theme: Theme; toggle: () => void } {

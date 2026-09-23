@@ -221,6 +221,33 @@ export function computeRenewal(
 }
 
 /**
+ * So'rov holatini "tasdiqlangan" deb BAND QILADI — tranzaksiya ichida.
+ *
+ * NEGA KERAK. Bir so'rovni ikki marta tasdiqlash mumkin edi: panel
+ * ikki oynada ochiq tursa, "To'lov so'rovlari" va biznes kartasidan
+ * bir vaqtda bosilsa yoki javob kechikib, tugma qayta bosilsa. Har
+ * safar obuna YANA uzayar va tushum YANA yozilardi.
+ *
+ * Tranzaksiya faqat bittasiga "pending → approved" o'tishga ruxsat
+ * beradi, qolganlari rad etiladi.
+ *
+ * `null` holati: Admin SDK tranzaksiyani avval MAHALLIY nusxa bilan
+ * chaqiradi — u hali yuklanmagan bo'lsa `null`. Shu yerda bekor qilsak
+ * (`undefined`), server qiymati umuman tekshirilmay qolardi. `null`
+ * qaytarilsa, server haqiqiy qiymat bilan qayta chaqiradi; haqiqatan
+ * `null` bo'lsa — so'rov yo'q, natija `approved` bo'lmaydi.
+ *
+ * Sof funksiya — sinovda tekshiriladi.
+ */
+export function claimPendingStatus(current: unknown): unknown {
+  if (current === null) return null;
+  return current === 'pending' ? 'approved' : undefined;
+}
+
+/** Takrorlanmas kalit formati — baza kaliti bo'la oladigan belgilar. */
+export const IDEMPOTENCY_KEY = /^[A-Za-z0-9_-]{8,64}$/;
+
+/**
  * To'lovni tasdiqlaydi va obunani uzaytiradi.
  *
  * To'lov usuli qo'lda (karta o'tkazma), shuning uchun tasdiqlashni
@@ -236,9 +263,15 @@ export async function confirmPayment(params: {
   note?: string;
   /** Mijoz yuborgan so'rov asosida tasdiqlanayotgan bo'lsa — uning ID'si. */
   requestId?: string;
+  /**
+   * Qo'lda tasdiqlashda panel beradigan takrorlanmas kalit. Xuddi shu
+   * kalit bilan qayta kelgan so'rov yangi to'lov yaratmaydi — oldingi
+   * natija qaytariladi.
+   */
+  idempotencyKey?: string;
   byUid: string;
   now: number;
-}): Promise<{ license: License; payment: PaymentRecord }> {
+}): Promise<{ license: License; payment: PaymentRecord; duplicate?: boolean }> {
   // Narx bazadagi JORIY qiymat bilan olinadi - summa ko'rsatilmasa
   // o'sha yoziladi, ya'ni panelda o'zgartirilgan narx amal qiladi.
   const plan = await findPlanWithPrice(params.planId);
@@ -254,6 +287,45 @@ export async function confirmPayment(params: {
   if (!licenseSnap.exists()) throw ApiError.notFound('Biznes topilmadi.');
 
   const current = licenseSnap.val() as Omit<License, 'tenantId'>;
+
+  // Shu kalit bilan to'lov allaqachon yozilgan — takroriy bosish.
+  if (params.idempotencyKey) {
+    const existing = await db()
+      .ref(`tenants/${params.tenantId}/payments/${params.idempotencyKey}`)
+      .get();
+    if (existing.exists()) {
+      return {
+        license: { tenantId: params.tenantId, ...current },
+        payment: existing.val() as PaymentRecord,
+        duplicate: true,
+      };
+    }
+  }
+
+  // So'rov ko'rsatilmagan bo'lsa ham, kutayotgani bo'lsa uni yopamiz.
+  // Aks holda super-admin to'lovni oddiy tugma bilan tasdiqlaganda so'rov
+  // navbatda abadiy qolib, mijozga "kutilmoqda" deb turaverardi.
+  const requestId =
+    params.requestId ?? (await findPendingFor(params.tenantId)) ?? undefined;
+
+  // So'rov bor bo'lsa — uni avval band qilamiz. Bittadan ortiq tasdiq
+  // shu yerda to'xtaydi, obunaga tegilmasdan. Bu ikkala yo'lni ham
+  // qamraydi: so'rov sahifasidan tasdiqlash va qo'lda tasdiqlash bir
+  // vaqtda bosilsa, faqat bittasi o'tadi.
+  const statusRef = requestId
+    ? db().ref(`tenants/${params.tenantId}/payment_requests/${requestId}/status`)
+    : null;
+  if (statusRef) {
+    const claim = await statusRef.transaction(claimPendingStatus);
+    if (!claim.committed || claim.snapshot.val() !== 'approved') {
+      throw new ApiError(
+        409,
+        'Bu to\'lov so\'rovi allaqachon ko\'rib chiqilgan.',
+        'already_resolved',
+      );
+    }
+  }
+
   const renewal = computeRenewal(plan, current.expiresAt, params.now);
 
   const license: License = {
@@ -278,18 +350,14 @@ export async function confirmPayment(params: {
     newExpiresAt: renewal.expiresAt,
   };
 
-  const paymentId = db().ref(`tenants/${params.tenantId}/payments`).push().key!;
+  const paymentId =
+    params.idempotencyKey ??
+    db().ref(`tenants/${params.tenantId}/payments`).push().key!;
   const tenantName = profileSnap.exists()
     ? (profileSnap.val() as TenantProfile).name
     : params.tenantId;
 
-  // So'rov ko'rsatilmagan bo'lsa ham, kutayotgani bo'lsa uni yopamiz.
-  // Aks holda super-admin to'lovni oddiy tugma bilan tasdiqlaganda so'rov
-  // navbatda abadiy qolib, mijozga "kutilmoqda" deb turaverardi.
-  const requestId =
-    params.requestId ?? (await findPendingFor(params.tenantId)) ?? undefined;
-
-  await db().ref().update({
+  const updates = {
     [`tenants/${params.tenantId}/license`]: {
       planId: license.planId,
       kind: license.kind,
@@ -317,7 +385,17 @@ export async function confirmPayment(params: {
           now: params.now,
         })
       : {}),
-  });
+  };
+
+  try {
+    await db().ref().update(updates);
+  } catch (err) {
+    // So'rov band qilingan, lekin obuna yozilmadi — bandlikni qaytaramiz,
+    // aks holda qayta urinish "allaqachon ko'rib chiqilgan" deb rad
+    // etilardi va to'lov hech qachon tasdiqlanmasdi.
+    if (statusRef) await statusRef.set('pending').catch(() => undefined);
+    throw err;
+  }
 
   return { license, payment };
 }

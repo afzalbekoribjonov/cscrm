@@ -1,180 +1,184 @@
 {
   "//": [
-    "CSCRM Realtime Database xavfsizlik qoidalari — KO'P IJARACHILI (multi-tenant).",
+    "CSCRM Realtime Database xavfsizlik qoidalari — KO'P IJARACHILI.",
+    "MANBA: firebase/rules.mjs — bu faylni qo'lda tahrirlamang.",
     "",
     "ASOSIY G'OYA: har bir biznes = bitta `tenant`. Foydalanuvchi FAQAT o'z",
-    "tenant'ining ma'lumotini ko'radi. Bu tekshiruv `auth.token.tenantId`",
-    "custom claim orqali bajariladi — claim'ni faqat backend (Admin SDK)",
-    "qo'ya oladi, shuning uchun uni ilova tomondan soxtalashtirib bo'lmaydi.",
+    "tenant'ining ma'lumotini ko'radi (`auth.token.tenantId` — uni faqat",
+    "backend (Admin SDK) qo'ya oladi).",
     "",
-    "MUHIM O'ZGARISH (eski loyihaga nisbatan): xodimlar endi ANONIM",
-    "kirmaydi. Eski qoidalarda `.read: auth != null` edi — bu o'sha Firebase",
-    "loyihasidagi HAR QANDAY anonim foydalanuvchiga butun bazani o'qish",
-    "imkonini berardi. Endi backend telefon+PIN ni tekshirib, `tenantId`,",
-    "`role` va `employeeId` claim'lari bilan CUSTOM TOKEN beradi.",
+    "A'ZO = ega YOKI mavjud va bloklanmagan xodim. Token da'vosining o'zi",
+    "yetarli emas: o'chirilgan xodimning telefonidagi token yangilanishda",
+    "davom etadi. `active !== false` — eski yozuvlarda maydon bo'lmasligi mumkin.",
     "",
-    "LITSENZIYA: `license` tugunini mijoz HECH QACHON yoza olmaydi",
-    "(.write: false). Uni faqat backend Admin SDK orqali yangilaydi —",
-    "aks holda obunani o'zi uzaytirib qo'yish mumkin bo'lardi."
+    "MEROS QOIDASI: ota tugunda berilgan ruxsat bolalarga o'tadi va bola",
+    "darajasida BEKOR QILIB BO'LMAYDI. Shu sababli yozish ruxsati ro'yxat",
+    "tugunida emas, har bir YOZUV darajasida (`$orderId` va h.k.) beriladi.",
+    "",
+    "TO'XTATILGAN BIZNES (`license/suspended`) o'qiy oladi, yoza olmaydi.",
+    "Muddat tugashi bu yerda ATAYLAB tekshirilmaydi — uni server imzolagan",
+    "javob orqali ilova hal qiladi."
   ],
-
   "rules": {
     ".read": false,
     ".write": false,
-
     "super_admins": {
       "$uid": {
         ".read": "auth != null && auth.uid === $uid",
         ".write": false
       }
     },
-
     "admin_logins": {
       "$login": {
         ".read": false,
         ".write": false
       }
     },
-
     "employee_phone_index": {
-      "//": "Telefon -> tenant xaritasi. Mijozga BUTUNLAY berk: ochiq bo'lsa, tizimdagi barcha xodim raqamlarini yig'ib olish mumkin bo'lardi. Faqat backend (Admin SDK) o'qiydi va yozadi.",
+      "//": "Telefon -> tenant xaritasi. Ochiq bo'lsa, barcha xodim raqamlarini yig'ib olish mumkin bo'lardi.",
       ".read": false,
       ".write": false
     },
-
+    "employee_secrets": {
+      "//": "Xodimlarning PIN hashlari. Avval xodim yozuvi ichida `.read: false` bilan turardi — lekin ota `employees` ochiq bo'lgani uchun bu ishlamasdi (meros qoidasi). Endi alohida, mijozga butunlay berk tugunda.",
+      ".read": false,
+      ".write": false
+    },
     "user_tenants": {
       "$uid": {
         ".read": "auth != null && auth.uid === $uid",
         ".write": false
       }
     },
-
     "tenant_directory": {
-      "//": "Bizneslar ID'lari ro'yxati. Super-admin paneli SHU tugundan bizneslarni sanaydi. Nega kerak: `tenants` tugunini o'qish uning butun daraxtini - ya'ni barcha bizneslarning barcha buyurtmalarini - yuklab olardi. Mijozga butunlay berk.",
+      "//": "Bizneslar ID'lari — super-admin paneli uchun.",
       ".read": false,
       ".write": false
     },
-
     "pending_payments": {
-      "//": "Ko'rib chiqilmagan to'lov so'rovlari navbati. Hal bo'lishi bilan yozuv O'CHIRILADI, shuning uchun tugun kattalashmaydi. Faqat backend yozadi va o'qiydi.",
+      "//": "Ko'rib chiqilmagan to'lov so'rovlari navbati.",
       ".read": false,
       ".write": false,
-      ".indexOn": ["tenantId"]
+      ".indexOn": [
+        "tenantId"
+      ]
     },
-
     "broadcasts": {
-      "//": "CSCRM'dan barcha bizneslarga xabarlar. O'qish tizimga kirgan hammaga ochiq - xabar biznesga emas, ilovadan foydalanuvchining hammasiga tegishli. Yozish FAQAT backend (super-admin) orqali. Ildizda turadi: har bir tenantga nusxa yozilsa, matnni tuzatish uchun hammasini yangilash kerak bo'lardi.",
-      ".read": "auth != null && auth.token.tenantId !== null",
+      "//": "CSCRM xabarlari. Ilova ularni `/license/messages` orqali oladi — u yerda ichki maydonlar (yuborgan admin UID'i) olib tashlanadi. Ilova bu tugunni hech qachon to'g'ridan-to'g'ri o'qimagan.",
+      ".read": false,
       ".write": false,
-      ".indexOn": ["createdAt"]
+      ".indexOn": [
+        "createdAt"
+      ]
     },
-
     "push_tokens": {
-      "//": "Qurilma FCM tokenlari. Mijozga BUTUNLAY berk: ochiq bo'lsa, birov boshqa qurilmalarning tokenini o'qib olishi mumkin bo'lardi. Faqat backend yozadi va o'qiydi. Ildizda: xabar barcha bizneslarga ketadi, ya'ni bitta so'rovda hamma token kerak.",
+      "//": "Qurilma FCM tokenlari.",
       ".read": false,
       ".write": false
     },
-
     "plan_prices": {
-      "//": "Reja narxlari. Panelda o'zgartiriladi, faqat backend yozadi. Mijozga BERK: narxni ilova to'g'ridan-to'g'ri emas, `/license/plans` orqali oladi - shunda fayl qiymati bilan birlashtirilgan, tekshirilgan natija keladi.",
+      "//": "Reja narxlari. Ilova ularni `/license/plans` orqali oladi.",
       ".read": false,
       ".write": false
     },
-
     "site_settings": {
-      "//": "Websaytning boshqariladigan sozlamalari — ilovani yuklab olish manzili, versiyasi. Mijozga BERK: sayt bu qiymatni bazadan emas, `/site/settings` orqali oladi. Yozish faqat backend (super-admin) orqali.",
+      "//": "Websayt sozlamalari.",
       ".read": false,
       ".write": false
     },
-
     "payments_log": {
-      "//": "Barcha tasdiqlangan to'lovlar - daromad statistikasi uchun. `at` indeksi tufayli 'oxirgi 30 kun' so'rovi butun tarixni emas, faqat kerakli qismini o'qiydi.",
+      "//": "Tasdiqlangan to'lovlar — daromad statistikasi.",
       ".read": false,
       ".write": false,
-      ".indexOn": ["at"]
+      ".indexOn": [
+        "at"
+      ]
     },
-
     "tenants": {
       "$tenantId": {
-        "//": "Butun tenant faqat o'sha tenant a'zolariga ochiq.",
-
         "profile": {
-          ".read": "auth != null && auth.token.tenantId === $tenantId",
-          ".write": "auth != null && auth.token.tenantId === $tenantId && auth.token.role === 'owner'",
-          "name": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 120" },
-          "phone": { ".validate": "newData.isString() && newData.val().length <= 32" },
-          "address": { ".validate": "newData.isString() && newData.val().length <= 300" },
-          "ownerUid": { ".validate": "newData.isString()" },
-          "createdAt": { ".validate": "newData.isNumber()" },
-          "$other": { ".validate": false }
+          "//": "Mijoz YOZA OLMAYDI. `ownerUid` ni mijoz o'zgartira olishi hisobni egallash zanjiriga yo'l ochardi. Ilova profilga hech qachon yozmagan; tahrirlash backend orqali.",
+          ".read": "auth != null && auth.token.tenantId === $tenantId && (auth.token.role === 'owner' || (root.child('tenants').child($tenantId).child('employees').child(auth.token.employeeId).exists() && root.child('tenants').child($tenantId).child('employees').child(auth.token.employeeId).child('active').val() !== false))",
+          ".write": false
         },
-
         "license": {
-          "//": "Faqat o'qish. Yozish — faqat backend (Admin SDK qoidalarni chetlab o'tadi).",
-          ".read": "auth != null && auth.token.tenantId === $tenantId",
+          ".read": "auth != null && auth.token.tenantId === $tenantId && (auth.token.role === 'owner' || (root.child('tenants').child($tenantId).child('employees').child(auth.token.employeeId).exists() && root.child('tenants').child($tenantId).child('employees').child(auth.token.employeeId).child('active').val() !== false))",
           ".write": false
         },
-
         "members": {
-          ".read": "auth != null && auth.token.tenantId === $tenantId",
+          ".read": "auth != null && auth.token.tenantId === $tenantId && (auth.token.role === 'owner' || (root.child('tenants').child($tenantId).child('employees').child(auth.token.employeeId).exists() && root.child('tenants').child($tenantId).child('employees').child(auth.token.employeeId).child('active').val() !== false))",
           ".write": false
         },
-
         "employees": {
-          ".read": "auth != null && auth.token.tenantId === $tenantId",
-          ".write": "auth != null && auth.token.tenantId === $tenantId && auth.token.role === 'owner'",
-          ".indexOn": ["phone", "active"],
+          ".read": "auth != null && auth.token.tenantId === $tenantId && (auth.token.role === 'owner' || (root.child('tenants').child($tenantId).child('employees').child(auth.token.employeeId).exists() && root.child('tenants').child($tenantId).child('employees').child(auth.token.employeeId).child('active').val() !== false))",
+          ".write": "auth != null && auth.token.tenantId === $tenantId && auth.token.role === 'owner' && root.child('tenants').child($tenantId).child('license').child('suspended').val() !== true",
+          ".indexOn": [
+            "phone",
+            "active"
+          ],
           "$employeeId": {
-            "pinHash": {
-              "//": "PIN hash'ini mijoz O'QIY OLMAYDI — tekshiruv backendda.",
-              ".read": false
-            }
+            "//": "Xodim O'Z yozuvini bloklangan bo'lsa ham o'qiy oladi: ilova shu yozuvni kuzatib, `active: false` ni ko'rgach xodimni toza chiqarib yuboradi.",
+            ".read": "auth != null && auth.token.tenantId === $tenantId && auth.token.employeeId === $employeeId"
           }
         },
-
         "products": {
-          ".read": "auth != null && auth.token.tenantId === $tenantId",
-          ".write": "auth != null && auth.token.tenantId === $tenantId && auth.token.role === 'owner'"
+          ".read": "auth != null && auth.token.tenantId === $tenantId && (auth.token.role === 'owner' || (root.child('tenants').child($tenantId).child('employees').child(auth.token.employeeId).exists() && root.child('tenants').child($tenantId).child('employees').child(auth.token.employeeId).child('active').val() !== false))",
+          ".write": "auth != null && auth.token.tenantId === $tenantId && auth.token.role === 'owner' && root.child('tenants').child($tenantId).child('license').child('suspended').val() !== true"
         },
-
         "counters": {
-          ".read": "auth != null && auth.token.tenantId === $tenantId",
-          ".write": "auth != null && auth.token.tenantId === $tenantId"
+          ".read": "auth != null && auth.token.tenantId === $tenantId && (auth.token.role === 'owner' || (root.child('tenants').child($tenantId).child('employees').child(auth.token.employeeId).exists() && root.child('tenants').child($tenantId).child('employees').child(auth.token.employeeId).child('active').val() !== false))",
+          "$counter": {
+            "//": "Faqat O'SADI va o'chirilmaydi — aks holda keyingi buyurtma mavjud buyurtma raqamini olib, uning ustidan yozilardi. `!data.isNumber()` — eski matnli qiymatni ilova o'zi tuzatadi.",
+            ".write": "auth != null && auth.token.tenantId === $tenantId && (auth.token.role === 'owner' || (root.child('tenants').child($tenantId).child('employees').child(auth.token.employeeId).exists() && root.child('tenants').child($tenantId).child('employees').child(auth.token.employeeId).child('active').val() !== false)) && root.child('tenants').child($tenantId).child('license').child('suspended').val() !== true && newData.exists()",
+            ".validate": "newData.isNumber() && (!data.exists() || !data.isNumber() || newData.val() > data.val())"
+          }
         },
-
         "orders": {
-          ".read": "auth != null && auth.token.tenantId === $tenantId",
-          ".write": "auth != null && auth.token.tenantId === $tenantId",
-          "//": "active - operatsion ekranlar uchun; createdAt/deliveredAt - hisobotlar uchun; debtAmount - qarzdorlar uchun. Indekssiz bu so'rovlar butun daraxtni o'qib, keyin filtrlaydi.",
-          ".indexOn": ["active", "status", "createdAt", "deliveredAt", "createdBy", "debtAmount"]
+          "//": "Yozish har bir BUYURTMA darajasida: butun ro'yxatni bitta so'rov bilan o'chirib bo'lmaydi.",
+          ".read": "auth != null && auth.token.tenantId === $tenantId && (auth.token.role === 'owner' || (root.child('tenants').child($tenantId).child('employees').child(auth.token.employeeId).exists() && root.child('tenants').child($tenantId).child('employees').child(auth.token.employeeId).child('active').val() !== false))",
+          ".indexOn": [
+            "active",
+            "status",
+            "createdAt",
+            "deliveredAt",
+            "createdBy",
+            "debtAmount"
+          ],
+          "$orderId": {
+            ".write": "auth != null && auth.token.tenantId === $tenantId && (auth.token.role === 'owner' || (root.child('tenants').child($tenantId).child('employees').child(auth.token.employeeId).exists() && root.child('tenants').child($tenantId).child('employees').child(auth.token.employeeId).child('active').val() !== false)) && root.child('tenants').child($tenantId).child('license').child('suspended').val() !== true"
+          }
         },
-
         "expenses": {
-          ".read": "auth != null && auth.token.tenantId === $tenantId",
-          ".write": "auth != null && auth.token.tenantId === $tenantId",
-          ".indexOn": ["spentAt"]
+          ".read": "auth != null && auth.token.tenantId === $tenantId && (auth.token.role === 'owner' || (root.child('tenants').child($tenantId).child('employees').child(auth.token.employeeId).exists() && root.child('tenants').child($tenantId).child('employees').child(auth.token.employeeId).child('active').val() !== false))",
+          ".indexOn": [
+            "spentAt"
+          ],
+          "$expenseId": {
+            ".write": "auth != null && auth.token.tenantId === $tenantId && (auth.token.role === 'owner' || (root.child('tenants').child($tenantId).child('employees').child(auth.token.employeeId).exists() && root.child('tenants').child($tenantId).child('employees').child(auth.token.employeeId).child('active').val() !== false)) && root.child('tenants').child($tenantId).child('license').child('suspended').val() !== true"
+          }
         },
-
         "order_history": {
-          "//": "Buyurtma o'zgarishlari jurnali. ATAYLAB buyurtma tugunidan TASHQARIDA: RTDB so'rovi buyurtmaning butun daraxtini qaytaradi, tarix ichida bo'lsa ro'yxat ekranlari uni ham yuklab olardi. Tekis tuzilma ikki xil so'rov uchun kerak - buyurtma bo'yicha (orderId) va davr bo'yicha (at).",
-          ".read": "auth != null && auth.token.tenantId === $tenantId",
-          ".write": "auth != null && auth.token.tenantId === $tenantId",
-          ".indexOn": ["orderId", "at"]
+          "//": "O'zgarishlar jurnali — FAQAT QO'SHILADI. Mavjud yozuvni o'zgartirib yoki o'chirib bo'lmaydi. Ilova har doim yangi (push) kalitga yozadi.",
+          ".read": "auth != null && auth.token.tenantId === $tenantId && (auth.token.role === 'owner' || (root.child('tenants').child($tenantId).child('employees').child(auth.token.employeeId).exists() && root.child('tenants').child($tenantId).child('employees').child(auth.token.employeeId).child('active').val() !== false))",
+          ".indexOn": [
+            "orderId",
+            "at"
+          ],
+          "$entryId": {
+            ".write": "auth != null && auth.token.tenantId === $tenantId && (auth.token.role === 'owner' || (root.child('tenants').child($tenantId).child('employees').child(auth.token.employeeId).exists() && root.child('tenants').child($tenantId).child('employees').child(auth.token.employeeId).child('active').val() !== false)) && root.child('tenants').child($tenantId).child('license').child('suspended').val() !== true && !data.exists()"
+          }
         },
-
         "payments": {
-          "//": "To'lovlar tarixi. Biznes o'z to'lovlarini KO'RA oladi, lekin yoza olmaydi - tasdiqlashni faqat super-admin backend orqali qiladi.",
-          ".read": "auth != null && auth.token.tenantId === $tenantId",
+          ".read": "auth != null && auth.token.tenantId === $tenantId && (auth.token.role === 'owner' || (root.child('tenants').child($tenantId).child('employees').child(auth.token.employeeId).exists() && root.child('tenants').child($tenantId).child('employees').child(auth.token.employeeId).child('active').val() !== false))",
           ".write": false
         },
-
         "payment_requests": {
-          "//": "Biznes yuborgan 'men to'ladim' so'rovlari. O'qish ochiq - ilova 'so'rovingiz kutilmoqda' deb ko'rsatadi. Yozish BERK: aks holda biznes o'z so'rovini 'tasdiqlangan' deb belgilab qo'yardi.",
-          ".read": "auth != null && auth.token.tenantId === $tenantId",
+          ".read": "auth != null && auth.token.tenantId === $tenantId && (auth.token.role === 'owner' || (root.child('tenants').child($tenantId).child('employees').child(auth.token.employeeId).exists() && root.child('tenants').child($tenantId).child('employees').child(auth.token.employeeId).child('active').val() !== false))",
           ".write": false
         },
-
-        "$other": { ".validate": false }
+        "$other": {
+          ".validate": false
+        }
       }
     }
   }

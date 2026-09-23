@@ -5,7 +5,7 @@ import { env } from '../config/env.js';
 import { parseCards } from '../lib/card.js';
 import { requireAuth, requireTenant } from '../middleware/auth.js';
 import { ApiError, asyncRoute } from '../middleware/error.js';
-import { listBroadcasts } from '../services/broadcast.js';
+import { listBroadcasts, toPublicBroadcast } from '../services/broadcast.js';
 import { evaluate, loadLicense, signed } from '../services/license.js';
 import { plansWithPrices } from '../services/plan-prices.js';
 import {
@@ -161,7 +161,9 @@ licenseRouter.get(
     requireTenant(req);
     res.json({
       ok: true,
-      messages: await listBroadcasts({ now: Date.now(), activeOnly: true }),
+      messages: (
+        await listBroadcasts({ now: Date.now(), activeOnly: true })
+      ).map(toPublicBroadcast),
     });
   }),
 );

@@ -30,27 +30,10 @@
     <meta name="twitter:card" content="summary" />
 
     <!--
-      REJIM SKRIPTI — React'dan OLDIN ishlashi SHART.
-
-      Agar rejim React yuklangandan keyin qo'yilsa, sahifa bir lahza
-      standart (oq) ko'rinishda chizilib, keyin qoraga sakraydi —
-      ko'zga urilib turadigan "chaqnash".
-
-      Standart — KUN rejimi. Operatsion tizim sozlamasiga ATAYLAB
-      qaralmaydi: sayt hamma uchun bir xil, yorug' ko'rinishda ochiladi,
-      tun rejimini foydalanuvchining o'zi tanlaydi.
+      REJIM SKRIPTI — React'dan OLDIN, bloklovchi holda yuklanadi.
+      Nega alohida fayl (inline emas): qarang public/theme-init.js.
     -->
-    <script>
-      (function () {
-        var t = 'light';
-        try {
-          if (localStorage.getItem('cscrm-theme') === 'dark') t = 'dark';
-        } catch (e) {
-          /* maxfiy oyna — standart qoladi */
-        }
-        document.documentElement.dataset.theme = t;
-      })();
-    </script>
+    <script src="/theme-init.js"></script>
 
     <script type="application/ld+json">
       {

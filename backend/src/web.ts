@@ -63,7 +63,7 @@ export function mountWeb(app: Express, webDir: string): void {
    * kerak - aks holda ilova "server buzildi" deb tushunadi.
    */
   app.get('*', (req: Request, res: Response, next: NextFunction) => {
-    if (req.path.startsWith('/api/')) return next();
+    if (!isSpaRoute(req.path)) return next();
 
     // Yangi joylashdan keyin foydalanuvchi eski ilovada qolib
     // ketmasligi uchun index keshlanmaydi.
@@ -72,6 +72,25 @@ export function mountWeb(app: Express, webDir: string): void {
       if (err) next(err);
     });
   });
+}
+
+/**
+ * Bu yo'lga `index.html` berilsinmi (SPA yo'naltirishi).
+ *
+ * ISTISNOLAR — ular 404 oladi:
+ *  * `/api/` — noma'lum API yo'li HTML emas, JSON 404 qaytarishi kerak,
+ *    aks holda ilova "server buzildi" deb tushunadi;
+ *  * `/assets/` va kengaytmali fayllar (`.js`, `.map`, `.txt`…) —
+ *    yangi joylashdan keyin eski sahifa o'chirilgan JS faylni so'rasa,
+ *    unga HTML berilsa brauzer uni skript deb o'qib "Unexpected token <"
+ *    bilan yiqiladi. Haqiqiy 404 bo'lsa brauzer buni to'g'ri tushunadi.
+ *
+ * Sof funksiya — sinovda tekshiriladi.
+ */
+export function isSpaRoute(path: string): boolean {
+  if (path.startsWith('/api/') || path.startsWith('/assets/')) return false;
+  const last = path.slice(path.lastIndexOf('/') + 1);
+  return !/\.[a-z0-9]+$/i.test(last);
 }
 
 /**

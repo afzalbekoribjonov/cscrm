@@ -22,6 +22,13 @@ export function TenantDetailPage() {
   const [tenant, setTenant] = useState<TenantDetail | null>(null);
   const [plans, setPlans] = useState<Plan[]>([]);
   const [error, setError] = useState<string | null>(null);
+  /**
+   * Amal (tasdiqlash, rad etish, to'xtatish) xatosi — sahifa ustida
+   * alohida ko'rsatiladi. Yuklash xatosidan farqli ravishda u sahifani
+   * ALMASHTIRMAYDI: aks holda kiritilgan forma yo'qolib, qayta urinish
+   * yangi kalit bilan ketardi va takroriy to'lovdan himoya ishlamasdi.
+   */
+  const [actionError, setActionError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
@@ -48,13 +55,16 @@ export function TenantDetailPage() {
   const visual = stateVisual(tenant.status.state);
   const suspended = tenant.license.suspended === true;
 
+  /** Muvaffaqiyatli bo'lsa `true` — forma shundagina tozalanadi. */
   async function confirmPayment(
     planId: string,
     amount: number,
     note: string,
     requestId?: string,
-  ) {
+    idempotencyKey?: string,
+  ): Promise<boolean> {
     setBusy(true);
+    setActionError(null);
     try {
       await api.post(`/api/v1/admin/tenants/${tenantId}/confirm-payment`, {
         planId,
@@ -62,10 +72,15 @@ export function TenantDetailPage() {
         ...(note.trim() ? { note: note.trim() } : {}),
         // So'rov asosida tasdiqlansa - o'sha so'rov navbatdan yopiladi.
         ...(requestId ? { requestId } : {}),
+        // Qo'lda tasdiqlashda: javob yo'qolib qayta bosilsa ham ikkinchi
+        // to'lov yozilmaydi.
+        ...(idempotencyKey ? { idempotencyKey } : {}),
       });
       await load();
+      return true;
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Xatolik');
+      setActionError(e instanceof Error ? e.message : 'Amalni bajarib bo\'lmadi.');
+      return false;
     } finally {
       setBusy(false);
     }
@@ -84,7 +99,7 @@ export function TenantDetailPage() {
       );
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Xatolik');
+      setActionError(e instanceof Error ? e.message : 'Amalni bajarib bo\'lmadi.');
     } finally {
       setBusy(false);
     }
@@ -105,7 +120,7 @@ export function TenantDetailPage() {
       });
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Xatolik');
+      setActionError(e instanceof Error ? e.message : 'Amalni bajarib bo\'lmadi.');
     } finally {
       setBusy(false);
     }
@@ -116,6 +131,32 @@ export function TenantDetailPage() {
       <Link to="/admin/tenants" style={{ fontSize: 14 }}>
         ← Bizneslar
       </Link>
+
+      {actionError && (
+        <div
+          role="alert"
+          className="card"
+          style={{
+            marginTop: 12,
+            display: 'flex',
+            gap: 12,
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            borderColor: 'color-mix(in srgb, var(--danger) 45%, transparent)',
+            background: 'color-mix(in srgb, var(--danger) 8%, transparent)',
+          }}
+        >
+          <span>{actionError}</span>
+          <button
+            type="button"
+            className="btn btn--ghost"
+            style={{ padding: '6px 12px', fontSize: 14 }}
+            onClick={() => setActionError(null)}
+          >
+            Yopish
+          </button>
+        </div>
+      )}
 
       <div
         style={{
@@ -352,11 +393,27 @@ function ConfirmPaymentCard({
 }: {
   plans: Plan[];
   busy: boolean;
-  onConfirm: (planId: string, amount: number, note: string) => void;
+  onConfirm: (
+    planId: string,
+    amount: number,
+    note: string,
+    requestId: undefined,
+    idempotencyKey: string,
+  ) => Promise<boolean>;
 }) {
   const [planId, setPlanId] = useState('');
   const [amount, setAmount] = useState('');
   const [note, setNote] = useState('');
+
+  /**
+   * Shu formaning takrorlanmas kaliti.
+   *
+   * Muvaffaqiyatsiz urinishda O'ZGARMAYDI: javob yo'lda yo'qolgan-u,
+   * to'lov aslida yozilgan bo'lsa, qayta bosish o'sha kalit bilan
+   * ketadi va server ikkinchi to'lovni yozmaydi. Faqat muvaffaqiyatdan
+   * keyin yangilanadi — keyingi to'lov boshqa to'lov.
+   */
+  const [key, setKey] = useState(newIdempotencyKey);
 
   const plan = plans.find((p) => p.id === planId);
 
@@ -415,18 +472,38 @@ function ConfirmPaymentCard({
         className="btn btn--primary"
         style={{ width: '100%' }}
         disabled={busy || !planId}
-        onClick={() => {
+        onClick={async () => {
           if (!planId) return;
-          onConfirm(planId, Number(amount) || 0, note);
+          const ok = await onConfirm(
+            planId,
+            Number(amount) || 0,
+            note,
+            undefined,
+            key,
+          );
+          // Xato bo'lsa forma SAQLANADI — qayta urinish uchun.
+          if (!ok) return;
           setPlanId('');
           setAmount('');
           setNote('');
+          setKey(newIdempotencyKey());
         }}
       >
         {busy ? 'Bajarilmoqda…' : 'To\'lovni tasdiqlash'}
       </button>
     </section>
   );
+}
+
+/**
+ * Takrorlanmas kalit. `crypto.randomUUID` faqat xavfsiz (https yoki
+ * localhost) sahifada bor — boshqa holatda vaqt + tasodifiy son.
+ */
+function newIdempotencyKey(): string {
+  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
+    return crypto.randomUUID();
+  }
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
 }
 
 function Row({ label, value }: { label: string; value: React.ReactNode }) {

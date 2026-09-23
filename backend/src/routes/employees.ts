@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
 
 import { requireAuth, requireTenant } from '../middleware/auth.js';
@@ -92,6 +93,33 @@ employeesRouter.delete(
   }),
 );
 
+/**
+ * O'z PIN'ini almashtirish — HISOB bo'yicha cheklov.
+ *
+ * Joriy PIN so'raladi, lekin cheklovsiz uni tanlab topish mumkin edi:
+ * ochiq qolgan telefonni olgan odam 10 000 variantni sinab, PIN'ni
+ * o'zinikiga almashtirib olardi. Kalit — IP emas, foydalanuvchi: hujum
+ * aynan shu hisobga qaratilgan, IP esa o'zgartirilishi oson.
+ *
+ * Faqat xato urinishlar sanaladi — to'g'ri PIN bilan almashtirish
+ * cheklanmaydi.
+ */
+const ownPinLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 5,
+  skipSuccessfulRequests: true,
+  keyGenerator: (req) => req.user?.uid ?? req.ip ?? 'noma\'lum',
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  message: {
+    ok: false,
+    error: {
+      code: 'rate_limited',
+      message: 'Juda ko\'p xato urinish. 15 daqiqadan so\'ng qayta urining.',
+    },
+  },
+});
+
 const ownPinBody = z.object({
   currentPin: z.string().min(4).max(8),
   newPin: z.string().min(4).max(8),
@@ -109,6 +137,7 @@ const ownPinBody = z.object({
 employeesRouter.post(
   '/me/pin',
   requireAuth,
+  ownPinLimiter,
   asyncRoute(async (req, res) => {
     const { tenantId, claims } = requireTenant(req);
     const employeeId = claims.employeeId;

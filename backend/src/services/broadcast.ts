@@ -27,6 +27,29 @@ export interface Broadcast {
   expiresAt: number | null;
 }
 
+/** Ilovaga ketadigan ko'rinish — ichki maydonlarsiz. */
+export type PublicBroadcast = Omit<Broadcast, 'createdBy'> & { id: string };
+
+/**
+ * Xabarni mijozga beriladigan ko'rinishga keltiradi.
+ *
+ * `createdBy` — super-admin UID'i. U mijozga kerak emas va oshkor
+ * bo'lishi xavfli: UID ma'lum bo'lsa, uni boshqa joyga "ega" deb
+ * yozib, hisobni egallashga urinish mumkin (qarang:
+ * `credentials.ts` → `isVerifiedOwner`). Shuning uchun ro'yxatdan
+ * olib tashlanadi — ichki maydon qo'shilsa ham tashqariga chiqmaydi.
+ */
+export function toPublicBroadcast(b: Broadcast & { id: string }): PublicBroadcast {
+  return {
+    id: b.id,
+    title: b.title,
+    body: b.body,
+    kind: b.kind,
+    createdAt: b.createdAt,
+    expiresAt: b.expiresAt ?? null,
+  };
+}
+
 const MAX_TITLE = 120;
 const MAX_BODY = 2000;
 

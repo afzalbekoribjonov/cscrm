@@ -1,3 +1,4 @@
+import { env } from '../config/env.js';
 import { auth, db } from '../lib/firebase.js';
 import { ApiError } from '../middleware/error.js';
 import { AUTH_EMAIL_DOMAIN, sanitizeLogin } from './tenant.js';
@@ -69,9 +70,7 @@ export async function ownerCredentials(tenantId: string): Promise<{
   lastSignInAt: string | null;
   disabled: boolean;
 }> {
-  const snap = await db().ref(`tenants/${tenantId}/profile/ownerUid`).get();
-  if (!snap.exists()) throw ApiError.notFound('Biznes topilmadi.');
-  const uid = snap.val() as string;
+  const uid = await ownerUidOf(tenantId);
 
   const user = await auth().getUser(uid);
   const email = user.email ?? null;
@@ -89,11 +88,86 @@ export async function ownerCredentials(tenantId: string): Promise<{
   };
 }
 
-/** Tenant'ning ega UID'sini qaytaradi. */
+/**
+ * Nomzod haqiqatan shu biznesning egasimi.
+ *
+ * NEGA KERAK. `profile/ownerUid` ni biznes egasi ilova orqali O'ZI
+ * yoza oladi. Unga ko'r-ko'rona ishonilsa zanjir hosil bo'ladi: ega
+ * u yerga super-admin UID'ini yozadi, "parolimni unutdim" deb
+ * murojaat qiladi — va panel SUPER-ADMINNING parolini almashtirib,
+ * uni hujumchiga beradi.
+ *
+ * Shu sabab nomzod faqat MIJOZ YOZA OLMAYDIGAN manbalar orqali
+ * tasdiqlanadi (ikkalasini ham faqat Admin SDK yozadi):
+ *   * token da'volari — `tenantId` mos va `role === 'owner'`;
+ *   * `user_tenants/{uid}` + `members/{uid}` — ro'yxatdan o'tishda
+ *     yoziladi; da'vosi hali tiklanmagan eski hisoblar uchun.
+ *
+ * Super-admin HECH QACHON biznes egasi deb qabul qilinmaydi.
+ *
+ * Sof funksiya — sinovda bazasiz tekshiriladi.
+ */
+export function isVerifiedOwner(input: {
+  tenantId: string;
+  uid: string;
+  claims: Record<string, unknown> | undefined;
+  userTenant: unknown;
+  isMember: boolean;
+  superAdminUids: ReadonlySet<string>;
+}): boolean {
+  if (input.uid.length === 0) return false;
+  if (input.superAdminUids.has(input.uid)) return false;
+
+  const claimsOk =
+    input.claims?.tenantId === input.tenantId && input.claims?.role === 'owner';
+  const indexOk = input.userTenant === input.tenantId && input.isMember;
+
+  return claimsOk || indexOk;
+}
+
+/**
+ * Tenant'ning ega UID'sini qaytaradi — faqat tasdiqlangan bo'lsa.
+ *
+ * Tasdiqlanmasa amal bekor qilinadi va logga yoziladi: bu yo
+ * ma'lumotdagi nosozlik, yo qasddan qilingan urinish.
+ */
 async function ownerUidOf(tenantId: string): Promise<string> {
   const snap = await db().ref(`tenants/${tenantId}/profile/ownerUid`).get();
   if (!snap.exists()) throw ApiError.notFound('Biznes topilmadi.');
-  return snap.val() as string;
+
+  const uid = String(snap.val());
+
+  const [claims, userTenantSnap, memberSnap] = await Promise.all([
+    auth()
+      .getUser(uid)
+      .then((u) => u.customClaims as Record<string, unknown> | undefined)
+      .catch(() => undefined),
+    db().ref(`user_tenants/${uid}`).get(),
+    db().ref(`tenants/${tenantId}/members/${uid}`).get(),
+  ]);
+
+  const verified = isVerifiedOwner({
+    tenantId,
+    uid,
+    claims,
+    userTenant: userTenantSnap.val(),
+    isMember: memberSnap.val() === true,
+    superAdminUids: env.superAdminUids,
+  });
+
+  if (!verified) {
+    // eslint-disable-next-line no-console
+    console.warn(
+      `[cscrm] ega tasdiqlanmadi: tenant=${tenantId} — ownerUid ishonchli manbalar bilan mos emas`,
+    );
+    throw new ApiError(
+      409,
+      'Bu biznes egasining hisobi tasdiqlanmadi. Amal bajarilmadi.',
+      'owner_unverified',
+    );
+  }
+
+  return uid;
 }
 
 /**

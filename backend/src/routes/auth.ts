@@ -17,10 +17,17 @@ export const authRouter: Router = Router();
  * tanlash uchun juda ko'p (10 000 ta variantni ~1.5 soatda sinab ko'rish
  * mumkin bo'lardi). Shu sabab bu yerda ancha qattiq chegara qo'yiladi.
  * Xodim hisobining o'zi ham 5 ta xatodan keyin bloklanadi.
+ *
+ * FAQAT MUVAFFAQIYATSIZ urinishlar sanaladi. Mobil operatorlar ko'p
+ * abonentni bitta tashqi IP ortidan chiqaradi, sexdagi Wi-Fi ham shunday.
+ * Muvaffaqiyatli kirishlar ham sanalsa, ertalab smena boshlanganda
+ * o'n birinchi xodim "juda ko'p urinish" deb to'xtatilardi — hujum
+ * bo'lmasa ham. PIN tanlab topishni aynan xato urinishlar ko'rsatadi.
  */
 const loginLimiter = rateLimit({
   windowMs: 10 * 60 * 1000,
   limit: 10,
+  skipSuccessfulRequests: true,
   standardHeaders: 'draft-7',
   legacyHeaders: false,
   message: {
@@ -28,6 +35,28 @@ const loginLimiter = rateLimit({
     error: {
       code: 'rate_limited',
       message: 'Juda ko\'p urinish. 10 daqiqadan so\'ng qayta urining.',
+    },
+  },
+});
+
+/**
+ * Ro'yxatdan o'tish — alohida hisoblagich.
+ *
+ * Ilgari kirish bilan UMUMIY edi: bir IP'dan bir nechta xodim kirsa,
+ * yangi biznesni ro'yxatdan o'tkazish ham to'xtab qolardi (va aksincha).
+ * Bu yerda muvaffaqiyatli so'rovlar ham sanaladi — har biri yangi hisob
+ * yaratadi, ya'ni ommaviy hisob ochishni cheklash kerak.
+ */
+const registerLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: 20,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  message: {
+    ok: false,
+    error: {
+      code: 'rate_limited',
+      message: 'Juda ko\'p urinish. Birozdan so\'ng qayta urining.',
     },
   },
 });
@@ -73,7 +102,7 @@ const registerBody = z.object({
 /** Yangi biznes ro'yxatdan o'tkazish (ega hisobi bilan birga). */
 authRouter.post(
   '/register',
-  loginLimiter,
+  registerLimiter,
   asyncRoute(async (req, res) => {
     const parsed = registerBody.safeParse(req.body);
     if (!parsed.success) {

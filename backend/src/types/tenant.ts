@@ -23,12 +23,16 @@ export interface AppClaims {
   employeeId?: string;
 }
 
-/** Xodim yozuvi (backend ko'rinishi — `pinHash` mijozga hech qachon ketmaydi). */
+/** Xodim yozuvi (backend ko'rinishi). */
 export interface EmployeeRecord {
   firstName: string;
   lastName: string;
   phone: string;
-  pinHash: string;
+  /**
+   * ESKI joy — faqat hali ko'chirilmagan yozuvlarda bor. Yangi hash
+   * `employee_secrets` da saqlanadi (qarang: services/pin-store.ts).
+   */
+  pinHash?: string;
   active: boolean;
   createdAt: number;
   createdBy: string;

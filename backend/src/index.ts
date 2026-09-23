@@ -5,6 +5,7 @@ import helmet from 'helmet';
 import { pinoHttp } from 'pino-http';
 
 import { env } from './config/env.js';
+import { loggerOptions } from './lib/logger.js';
 import { errorHandler, notFoundHandler } from './middleware/error.js';
 import { adminRouter } from './routes/admin.js';
 import { authRouter } from './routes/auth.js';
@@ -22,7 +23,8 @@ app.set('trust proxy', 1);
 
 app.use(
   pinoHttp({
-    level: env.isProd ? 'info' : 'debug',
+    // Daraja va MAXFIY maydonlarni yashirish — qarang: lib/logger.ts.
+    ...loggerOptions(env.isProd),
     // Sog'liq tekshiruvi va uxlashga qarshi ping muntazam keladi -
     // loglarni bosib ketmasligi uchun jimlashtiramiz.
     autoLogging: {

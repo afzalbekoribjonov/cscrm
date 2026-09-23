@@ -61,7 +61,11 @@ export default defineConfig(({ command, mode }) => {
     },
     build: {
       outDir: 'dist',
-      sourcemap: true,
+      // Manba xaritasi prod'ga CHIQARILMAYDI. U butun manba kodini
+      // izohlari bilan ochib beradi — izohlarda esa xavfsizlik qanday
+      // qurilgani batafsil yozilgan. `hidden` ham yetmaydi: fayl
+      // baribir `dist/` ga tushadi va nomi bundle nomidan oson topiladi.
+      sourcemap: false,
     },
   };
 });

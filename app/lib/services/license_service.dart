@@ -227,7 +227,7 @@ class LicenseService {
       return LicenseResolution(
         status: cached,
         fromCache: true,
-        error: e is ApiException ? e.message : 'Serverga ulanib bo\'lmadi.',
+        error: e is ApiException ? e.message : 'Aloqa o\'rnatilmadi.',
       );
     }
   }
@@ -239,7 +239,7 @@ class LicenseService {
     final payload = response['payload'];
     final signature = response['signature'];
     if (payload is! Map || signature is! String) {
-      throw ApiException('Serverdan tushunarsiz javob keldi.');
+      throw ApiException('Obuna holatini tekshirib bo\'lmadi.');
     }
 
     final status = LicenseStatus.fromJson(Map<String, dynamic>.from(payload));
@@ -311,7 +311,7 @@ class LicenseService {
     );
 
     final raw = response['request'];
-    if (raw is! Map) throw ApiException('Serverdan tushunarsiz javob keldi.');
+    if (raw is! Map) throw ApiException('Obuna holatini tekshirib bo\'lmadi.');
 
     return PaymentRequest.fromJson({
       ...Map<String, dynamic>.from(raw),

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import { findPlan } from './license.js';
-import { computeRenewal } from './admin.js';
+import { IDEMPOTENCY_KEY, claimPendingStatus, computeRenewal } from './admin.js';
 
 const DAY = 24 * 60 * 60 * 1000;
 const NOW = Date.UTC(2026, 5, 15); // 15-iyun
@@ -71,5 +71,44 @@ describe('computeRenewal — muddat hisobi', () => {
   it('muddatli rejada yillik baza to\'lovi bo\'lmaydi', () => {
     const r = computeRenewal(m3, null, NOW);
     assert.equal(r.nextAnnualFeeAt, null);
+  });
+});
+
+describe('claimPendingStatus — to\'lovni ikki marta tasdiqlashdan himoya', () => {
+  it('kutilayotgan so\'rov band qilinadi', () => {
+    assert.equal(claimPendingStatus('pending'), 'approved');
+  });
+
+  it('allaqachon tasdiqlangan so\'rov QAYTA band qilinmaydi', () => {
+    // `undefined` — tranzaksiya bekor qilinadi, obuna uzaytirilmaydi.
+    assert.equal(claimPendingStatus('approved'), undefined);
+  });
+
+  it('rad etilgan so\'rovni tasdiqlab bo\'lmaydi', () => {
+    assert.equal(claimPendingStatus('rejected'), undefined);
+  });
+
+  it('mahalliy nusxa yo\'q bo\'lsa server qiymati kutiladi', () => {
+    // Bekor qilinsa (undefined) server tekshirilmay qolardi — shuning
+    // uchun `null` qaytadi va SDK haqiqiy qiymat bilan qayta chaqiradi.
+    assert.equal(claimPendingStatus(null), null);
+  });
+
+  it('kutilmagan qiymat band qilinmaydi', () => {
+    assert.equal(claimPendingStatus('PENDING'), undefined);
+    assert.equal(claimPendingStatus(1), undefined);
+  });
+});
+
+describe('IDEMPOTENCY_KEY — takrorlanmas kalit formati', () => {
+  it('UUID va push-kalit o\'tadi', () => {
+    assert.ok(IDEMPOTENCY_KEY.test('3f2b8c1e-9d4a-4e6b-8f1a-2c3d4e5f6a7b'));
+    assert.ok(IDEMPOTENCY_KEY.test('-NqZ1abcDEF_xyz12'));
+  });
+
+  it('baza yo\'lini buzadigan belgilar o\'tmaydi', () => {
+    for (const bad of ['../x/yyyyyy', 'a.b.c.d.e.f', 'aaaa#bbbb', 'aaaa$bbbb', 'aaaa/bbbb', 'short']) {
+      assert.equal(IDEMPOTENCY_KEY.test(bad), false, bad);
+    }
   });
 });

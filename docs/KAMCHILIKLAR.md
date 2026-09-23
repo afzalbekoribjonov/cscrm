@@ -39,7 +39,11 @@ o'chira, to'lov belgilay oladi.
 * `bcrypt` (cost 10), har hash o'z tuzi bilan — `backend/src/services/pin.ts`
 * Hisob darajasida blok: 5 xatodan keyin 15 daqiqa
 * IP darajasida cheklov: 10 daqiqada 10 urinish
-* `pinHash` qoidada `".read": false` — hash umuman o'qilmaydi
+* ~~`pinHash` qoidada `".read": false` — hash umuman o'qilmaydi~~ —
+  **bu ishlamagan** (2026-09-23 auditida topildi): RTDB'da ota tugundagi
+  o'qish ruxsati bolaga meros o'tadi va uni bekor qilib bo'lmaydi.
+  Hash endi alohida `employee_secrets` tugunida — pastdagi
+  "2026-09-23 auditi" bo'limiga qarang
 * PIN uzunligi 4-8 xonaga kengaytirildi (avval qat'iy 4 edi)
 * `Employee` modelidan `pinHash` maydoni butunlay olib tashlandi
 * Vaqt hujumiga qarshi: xodim topilmaganda ham bcrypt chaqiriladi
@@ -325,3 +329,31 @@ Yo'l-yo'lakay topilgan va tuzatilgan qo'shimcha muammolar:
 * T1 tuzatilgandan keyin Yetgazma bo'limidagi "Yetgazildi" ro'yxati bo'sh
   qolgan edi (yetgazilgan buyurtma `active: false` bo'ladi) — operatsion
   oqimga bugungi yetgazilganlar qo'shildi
+
+---
+
+## 2026-09-23 xavfsizlik auditi (0-bosqich)
+
+Kod va jonli sayt tekshiruvida topilgan, shu bosqichda tuzatilgan bandlar.
+
+| # | Muammo | Tuzatish |
+|---|---|---|
+| X1 | Ega `profile/ownerUid` ni o'zi yoza olardi, backend esa parolni tiklashda shunga ishonardi. Super-admin UID'i `broadcasts/*/createdBy` da ochiq edi → "parolimni unutdim" orqali super-admin hisobini egallash mumkin edi | Ega faqat mijoz yoza olmaydigan manbalar (token da'volari yoki `user_tenants` + `members`) orqali tasdiqlanadi, super-admin hech qachon ega bo'la olmaydi (`isVerifiedOwner`). `profile` mijozga yopildi. Xabarlardan `createdBy` olib tashlandi, `broadcasts` tuguni yopildi |
+| X2 | pino har so'rovning `authorization` sarlavhasini (ID token) logga yozardi | `redact` — `lib/logger.ts` |
+| X3 | Xodim `orders`, `order_history`, `expenses` ni bitta so'rov bilan butunlay o'chira olardi; hisoblagichni orqaga sura olardi | Yozish yozuv darajasiga tushirildi; tarix faqat qo'shiladi; hisoblagich faqat o'sadi |
+| X4 | O'chirilgan/bloklangan xodimning tokeni ishlashda davom etardi | `revokeRefreshTokens` + qoidada xodim yozuvi va `active` tekshiruvi |
+| X5 | To'lov so'rovini ikki marta tasdiqlash obunani ikki marta uzaytirardi | Tranzaksiyali band qilish (`claimPendingStatus`) + qo'lda tasdiqlash uchun takrorlanmas kalit |
+| X6 | To'xtatilgan biznes bazaga yozishda davom eta olardi | Qoidada `license/suspended` tekshiruvi (faqat yozish) |
+| X7 | Manba xaritasi (1.9 MB, izohlar bilan) ochiq edi | `sourcemap: false` |
+| X8 | Kirish cheklovi muvaffaqiyatli urinishlarni ham sanardi — bitta IP ortidagi xodimlar bir-birini bloklardi | `skipSuccessfulRequests`; ro'yxatdan o'tishga alohida cheklov |
+| X9 | `/employees/me/pin` da urinishlar cheklanmagan | Hisob bo'yicha 5 xato / 15 daqiqa |
+| X10 | Panelga kirgan oddiy egaga `SUPER_ADMIN_UIDS` va UID ko'rsatilardi | Oddiy "ruxsat yo'q" xabari |
+| X11 | `pinHash: {.read: false}` meros qoidasi tufayli ishlamasdi — har bir xodim hamkasblarining PIN hashini o'qiy olardi | Hash `employee_secrets` ga ko'chirildi. Eski hash xodim keyingi muvaffaqiyatli kirganda avtomatik ko'chadi |
+
+Qo'shimcha: CSP inline "tun rejimi" skriptini bloklardi (tanlov har
+qayta yuklashda yo'qolardi) — skript `public/theme-init.js` ga ko'chirildi.
+Yo'q JS fayl so'ralganda HTML o'rniga 404 qaytadi. Foydalanuvchiga
+ko'rinadigan xato matnlaridan "server", "token", holat kodlari va
+Firebase'ning xom matni olib tashlandi.
+
+Qoidalar manbasi endi `firebase/rules.mjs` — JSON undan yig'iladi.

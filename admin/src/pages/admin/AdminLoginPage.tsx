@@ -36,7 +36,7 @@ export function AdminLoginPage() {
       <div className="card" style={{ width: '100%', maxWidth: 400 }}>
         <div style={{ display: 'grid', placeItems: 'center', marginBottom: 20 }}>
           <Logo size={56} />
-          <h2 style={{ margin: '14px 0 4px', fontSize: 22 }}>CSCRM boshqaruv</h2>
+          <h1 style={{ margin: '14px 0 4px', fontSize: 22 }}>CSCRM boshqaruv</h1>
           <p className="muted" style={{ fontSize: 14, margin: 0 }}>
             Faqat tizim egalari uchun
           </p>
@@ -44,34 +44,29 @@ export function AdminLoginPage() {
 
         {!configured ? (
           <Notice tone="warning">
-            <strong>Firebase hali sozlanmagan.</strong>
-            <p style={{ margin: '8px 0 0' }}>
-              <code>admin/.env.local</code> faylini <code>.env.example</code>{' '}
-              asosida to'ldiring.
-            </p>
+            <strong>Kirish vaqtincha ishlamayapti.</strong>
+            {/* Sozlash bo'yicha ko'rsatma faqat ishlab chiqishda — prod'da
+                tashrifchi ichki fayl nomlarini ko'rmasligi kerak. */}
+            {import.meta.env.DEV && (
+              <p style={{ margin: '8px 0 0' }}>
+                <code>admin/.env.local</code> faylini <code>.env.example</code>{' '}
+                asosida to'ldiring.
+              </p>
+            )}
           </Notice>
         ) : ready && user && !isSuperAdmin ? (
           // Hisob haqiqiy, lekin ruxsat yo'q. Bu xatolik emas - shunchaki
           // bu hisob super-adminlar ro'yxatida yo'q.
+          //
+          // Ruxsat qanday berilishi (sozlama nomi, UID) bu yerda
+          // ATAYLAB aytilmaydi: bu sahifaga har qanday biznes egasi o'z
+          // login-paroli bilan kira oladi va ichki tuzilmani bilishi
+          // unga kerak emas.
           <Notice tone="danger">
-            <strong>Bu hisobga ruxsat yo'q.</strong>
+            <strong>Bu hisobga boshqaruv paneliga kirish ruxsati berilmagan.</strong>
             <p style={{ margin: '8px 0 12px' }}>
-              <code>{user.email}</code> super-adminlar ro'yxatida emas.
-              Serverdagi <code>SUPER_ADMIN_UIDS</code> sozlamasiga bu
-              hisobning UID'ini qo'shing:
+              Biznesingizni boshqarish uchun CSCRM ilovasidan foydalaning.
             </p>
-            <code
-              style={{
-                display: 'block',
-                padding: 10,
-                borderRadius: 8,
-                background: 'var(--surface-muted)',
-                fontSize: 12,
-                wordBreak: 'break-all',
-              }}
-            >
-              {user.uid}
-            </code>
             <button
               className="btn btn--ghost"
               style={{ marginTop: 12, width: '100%' }}

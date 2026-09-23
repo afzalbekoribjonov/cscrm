@@ -168,7 +168,7 @@ void main() {
   });
 
   testWidgets('boshqa xatolik joyida ko\'rsatiladi', (tester) async {
-    final auth = _FakeAuth(AuthFailure('Server javob bermadi.'));
+    final auth = _FakeAuth(AuthFailure('Javob kelmadi.'));
 
     await tester.pumpWidget(wrap(RegisterBusinessScreen(service: auth)));
     await tester.pump();
@@ -183,11 +183,11 @@ void main() {
     await tapNext(tester);
 
     expect(find.text('Parol yarating'), findsOneWidget);
-    expect(find.text('Server javob bermadi.'), findsOneWidget);
+    expect(find.text('Javob kelmadi.'), findsOneWidget);
   });
 
   testWidgets('xatolik yangi harf kiritilganda yo\'qoladi', (tester) async {
-    final auth = _FakeAuth(AuthFailure('Server javob bermadi.'));
+    final auth = _FakeAuth(AuthFailure('Javob kelmadi.'));
 
     await tester.pumpWidget(wrap(RegisterBusinessScreen(service: auth)));
     await tester.pump();
@@ -201,9 +201,9 @@ void main() {
     await type(tester, 'parol123');
     await tapNext(tester);
 
-    expect(find.text('Server javob bermadi.'), findsOneWidget);
+    expect(find.text('Javob kelmadi.'), findsOneWidget);
 
     await type(tester, 'parol1234');
-    expect(find.text('Server javob bermadi.'), findsNothing);
+    expect(find.text('Javob kelmadi.'), findsNothing);
   });
 }

@@ -73,8 +73,8 @@
 /* Tun rejimi.
    `prefers-color-scheme` ATAYLAB ishlatilmaydi: standart hamma uchun
    kun rejimi, tunni foydalanuvchi o'zi yoqadi (sarlavhadagi tugma).
-   Shu sababli bitta `[data-theme='dark']` yetarli — uni `index.html`
-   dagi skript React'dan oldin qo'yadi.
+   Shu sababli bitta `[data-theme='dark']` yetarli — uni
+   `public/theme-init.js` React'dan oldin qo'yadi.
 
    Ranglar oddiy "teskari" emas, alohida tanlangan: qora emas, ko'kish
    quyuq fon (#0b1220) ko'zni kamroq charchatadi, sirt esa fondan

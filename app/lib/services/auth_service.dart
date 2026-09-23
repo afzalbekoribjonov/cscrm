@@ -402,9 +402,11 @@ class AuthService implements BusinessRegistrar {
         return 'Internet aloqasini tekshiring.';
       case 'invalid-custom-token':
       case 'custom-token-mismatch':
-        return 'Kirish tokeni yaroqsiz. Qayta urinib ko\'ring.';
+        return 'Kirish amalga oshmadi. Qayta urinib ko\'ring.';
       default:
-        return 'Xatolik yuz berdi: ${e.message ?? e.code}';
+        // Firebase'ning o'z matni (inglizcha, texnik) ko'rsatilmaydi.
+        debugPrint('Kirish xatosi: ${e.code} ${e.message}');
+        return 'Kirishda muammo yuz berdi. Qayta urinib ko\'ring.';
     }
   }
 }

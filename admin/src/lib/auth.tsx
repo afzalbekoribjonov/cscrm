@@ -116,6 +116,10 @@ export function authErrorMessage(err: unknown): string {
     case 'auth/network-request-failed':
       return 'Internet aloqasini tekshiring.';
     default:
-      return err instanceof Error ? err.message : 'Kirishda xatolik.';
+      // Firebase'ning o'z matni ("Firebase: Error (auth/…)") ko'rsatilmaydi —
+      // u inglizcha va foydalanuvchiga hech narsa aytmaydi. Tahlil uchun
+      // konsolda qoladi.
+      console.error('Kirish bajarilmadi', err);
+      return 'Kirishda muammo yuz berdi. Qayta urinib ko\'ring.';
   }
 }

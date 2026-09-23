@@ -40,29 +40,53 @@ async function request<T>(
       },
     });
   } catch {
-    throw new ApiError('Serverga ulanib bo\'lmadi. Aloqani tekshiring.');
+    throw new ApiError(MESSAGES.offline);
   }
 
   let json: unknown;
   try {
     json = await response.json();
   } catch {
-    throw new ApiError(
-      `Serverdan tushunarsiz javob keldi (${response.status}).`,
-      response.status,
-    );
+    // Holat kodi FOYDALANUVCHIGA ko'rsatilmaydi, lekin `status` sifatida
+    // saqlanadi — sahifa kerak bo'lsa unga qarab qaror qiladi.
+    throw new ApiError(MESSAGES.failed, response.status);
   }
 
   if (!response.ok) {
     const err = (json as { error?: { message?: string; code?: string } }).error;
     throw new ApiError(
-      err?.message ?? `Xatolik yuz berdi (${response.status}).`,
+      humanMessage(response.status, err?.message),
       response.status,
       err?.code,
     );
   }
 
   return json as T;
+}
+
+/**
+ * Foydalanuvchiga ko'rsatiladigan matnlar.
+ *
+ * "500", "Server", "token" kabi so'zlar bu yerda ATAYLAB yo'q: ular
+ * foydalanuvchiga nima qilish kerakligini aytmaydi.
+ */
+const MESSAGES = {
+  offline: 'Aloqa o\'rnatilmadi. Internetni tekshirib, qayta urinib ko\'ring.',
+  failed: 'Amalni bajarib bo\'lmadi. Birozdan so\'ng qayta urinib ko\'ring.',
+  signedOut: 'Sessiya muddati tugagan. Qaytadan kiring.',
+} as const;
+
+/**
+ * Server javobidan foydalanuvchi matnini tanlaydi.
+ *
+ * 4xx — server aniq sababni aytadi ("Bu login band" va h.k.), uni
+ * ko'rsatamiz. 5xx — ichki nosozlik, uning matni foydalanuvchiga
+ * foyda bermaydi, umumiy matn chiqadi.
+ */
+export function humanMessage(status: number, serverMessage?: string): string {
+  if (status === 401) return MESSAGES.signedOut;
+  if (status >= 500) return MESSAGES.failed;
+  return serverMessage?.trim() || MESSAGES.failed;
 }
 
 export const api = {

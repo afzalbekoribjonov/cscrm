@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -58,44 +59,49 @@ class FirebaseUnavailableScreen extends StatelessWidget {
                   const SizedBox(height: 12),
                   Text(
                     _isConfigError
-                        ? 'Sozlamalar to\'liq emas'
-                        : 'Serverga ulanib bo\'lmadi',
+                        ? 'Ilova to\'liq o\'rnatilmagan'
+                        : 'Aloqa o\'rnatilmadi',
                     textAlign: TextAlign.center,
                     style: theme.textTheme.titleMedium,
                   ),
                   const SizedBox(height: 8),
                   Text(
                     _isConfigError
-                        ? 'Ilova Firebase kalitlarisiz yig\'ilgan. Quyidagi '
-                            'buyruq bilan qayta ishga tushiring:'
-                        : 'Internet aloqasini tekshirib, qayta urinib ko\'ring. '
-                            'Muammo takrorlansa, quyidagi matnni nusxalab '
-                            'yordam xizmatiga yuboring.',
+                        ? (kDebugMode
+                            ? 'Ilova Firebase kalitlarisiz yig\'ilgan. Quyidagi '
+                                'buyruq bilan qayta ishga tushiring:'
+                            : 'Ilovaning yangi versiyasini o\'rnating. Muammo '
+                                'takrorlansa, yordam xizmatiga murojaat qiling.')
+                        : 'Internetni tekshirib, qayta urinib ko\'ring.',
                     textAlign: TextAlign.center,
                     style: theme.textTheme.bodySmall
                         ?.copyWith(color: context.colorTextSecondary),
                   ),
                   const SizedBox(height: 14),
-                  if (_isConfigError) ...[
+                  // Texnik tafsilot faqat ISHLAB CHIQISHDA ko'rinadi.
+                  // Relizda foydalanuvchi xom xato matnini ko'rmaydi — u
+                  // "Nusxalash" tugmasi orqali yordam xizmatiga yuboriladi.
+                  if (kDebugMode && _isConfigError) ...[
                     _CodeBlock(
-                      text: 'flutter run \\n'
+                      text: 'flutter run \n'
                           '  --dart-define-from-file=env/dev.json',
                     ),
                     const SizedBox(height: 10),
                   ],
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: context.colorSurfaceMuted,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: context.colorBorder),
+                  if (kDebugMode)
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: context.colorSurfaceMuted,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: context.colorBorder),
+                      ),
+                      child: SelectableText(
+                        details,
+                        style: theme.textTheme.bodySmall,
+                      ),
                     ),
-                    child: SelectableText(
-                      details,
-                      style: theme.textTheme.bodySmall,
-                    ),
-                  ),
                   const SizedBox(height: 18),
                   Wrap(
                     spacing: 10,
@@ -111,7 +117,9 @@ class FirebaseUnavailableScreen extends StatelessWidget {
                           );
                         },
                         icon: const Icon(Icons.copy_rounded, size: 18),
-                        label: const Text('Nusxalash'),
+                        label: Text(
+                          kDebugMode ? 'Nusxalash' : 'Xato ma\'lumotini nusxalash',
+                        ),
                       ),
                       if (onRetry != null)
                         ElevatedButton.icon(
@@ -121,7 +129,7 @@ class FirebaseUnavailableScreen extends StatelessWidget {
                         ),
                     ],
                   ),
-                  if (!_isConfigError) ...[
+                  if (!kDebugMode || !_isConfigError) ...[
                     const SizedBox(height: 16),
                     Text(
                       'Yordam: ${AppBranding.supportPhone}',
