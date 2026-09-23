@@ -1,6 +1,7 @@
 import { env } from '../config/env.js';
 import { auth, db } from '../lib/firebase.js';
 import { normalizePhone } from '../lib/phone.js';
+import { whereEquals } from '../lib/query.js';
 import { staffUid } from '../lib/staff.js';
 import { ApiError } from '../middleware/error.js';
 import type { License, Plan } from '../types/license.js';
@@ -416,12 +417,14 @@ export function authUidsToDelete(t: DeletionTargets, protectedUids: ReadonlySet<
 const keysOf = (v: unknown): string[] => (v && typeof v === 'object' ? Object.keys(v) : []);
 
 async function collectDeletionTargets(tenantId: string): Promise<DeletionTargets> {
+  // `admin_logins` va `push_tokens` indekslari hali joylanmagan bo'lishi
+  // mumkin — `whereEquals` ikkala holatda ham ishlaydi.
   const [members, employees, logins, pending, tokens] = await Promise.all([
     db().ref(`tenants/${tenantId}/members`).get(),
     db().ref(`tenants/${tenantId}/employees`).get(),
-    db().ref('admin_logins').orderByChild('tenantId').equalTo(tenantId).get(),
-    db().ref('pending_payments').orderByChild('tenantId').equalTo(tenantId).get(),
-    db().ref('push_tokens').orderByChild('tenantId').equalTo(tenantId).get(),
+    whereEquals(db().ref('admin_logins'), 'tenantId', tenantId),
+    whereEquals(db().ref('pending_payments'), 'tenantId', tenantId),
+    whereEquals(db().ref('push_tokens'), 'tenantId', tenantId),
   ]);
 
   const memberUids = keysOf(members.val());
@@ -436,9 +439,9 @@ async function collectDeletionTargets(tenantId: string): Promise<DeletionTargets
     employees: Object.entries((employees.val() ?? {}) as Record<string, { phone?: string }>).map(
       ([id, e]) => ({ id, ...(e.phone ? { phone: e.phone } : {}) }),
     ),
-    loginKeys: keysOf(logins.val()),
-    pendingIds: keysOf(pending.val()),
-    pushTokens: keysOf(tokens.val()),
+    loginKeys: keysOf(logins),
+    pendingIds: keysOf(pending),
+    pushTokens: keysOf(tokens),
   };
 }
 

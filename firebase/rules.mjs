@@ -105,6 +105,10 @@ export const rules = {
       "Admin amallari jurnali (kim, nima, qachon). Mijozga BUTUNLAY berk; parol va tokenlar bu yerga hech qachon yozilmaydi.",
       { '.indexOn': ['at', 'tenantId'] },
     ),
+    admin_roles: backendOnly(
+      "Panel rollari va ularning vakolatlari. Faqat server o'qiydi va yozadi — mijoz o'ziga rol bera olmasligi kerak.",
+    ),
+    admin_members: backendOnly("Panel xodimlari (uid → rol). Faqat server."),
     plan_prices: backendOnly('Reja narxlari. Ilova ularni `/license/plans` orqali oladi.'),
     site_settings: backendOnly('Websayt sozlamalari.'),
     payments_log: backendOnly("Tasdiqlangan to'lovlar — daromad statistikasi.", {

@@ -3,6 +3,7 @@ import type { NextFunction, Request, Response } from 'express';
 import { env } from '../config/env.js';
 import { auth } from '../lib/firebase.js';
 import { hasPermission, type Permission } from '../lib/permissions.js';
+import { resolveAccess, type Access } from '../services/admin-access.js';
 import type { AppClaims, Role } from '../types/tenant.js';
 import { ApiError } from './error.js';
 
@@ -22,10 +23,12 @@ declare global {
          */
         claims?: AppClaims | undefined;
         /**
-         * Rol orqali berilgan vakolatlar (super-admin uchun kerak emas —
-         * u hammasiga ega). Rollar kiritilganda shu yerda to'ldiriladi.
+         * Rol orqali berilgan vakolatlar (super-admin hammasiga ega).
+         * `requireAdmin` to'ldiradi.
          */
         permissions?: Set<Permission> | undefined;
+        /** Panelga kirish turi — `requireAdmin` dan keyin bor. */
+        access?: Access | undefined;
       };
     }
   }
@@ -83,25 +86,34 @@ export async function requireAuth(
   }
 }
 
-/** `requireAuth` dan KEYIN ishlatiladi - faqat super-adminlarga ruxsat. */
-export function requireSuperAdmin(
-  req: Request,
-  _res: Response,
-  next: NextFunction,
-) {
+/**
+ * Panel xodimi (`requireAuth` dan KEYIN): super-admin yoki rolga ega.
+ *
+ * `req.user.permissions` shu yerda to'ldiriladi — keyingi
+ * `requirePermission` aynan shu to'plamni tekshiradi.
+ */
+export async function requireAdmin(req: Request, _res: Response, next: NextFunction) {
   if (!req.user) return next(ApiError.unauthorized());
-  if (!req.user.isSuperAdmin) {
-    req.log?.warn({ uid: req.user.uid }, 'super-admin bo\'lmagan urinish');
-    return next(ApiError.forbidden());
+  try {
+    const access = await resolveAccess(req.user.uid);
+    if (!access) {
+      req.log?.warn({ uid: req.user.uid }, 'panelga ruxsatsiz urinish');
+      return next(ApiError.forbidden());
+    }
+    req.user.isSuperAdmin = access.kind === 'super';
+    req.user.permissions = new Set(access.permissions);
+    req.user.access = access;
+    next();
+  } catch (err) {
+    next(err);
   }
-  next();
 }
 
 /**
- * Aniq vakolatni talab qiladi (`requireAuth` dan keyin).
+ * Aniq vakolatni talab qiladi (`requireAdmin` dan keyin).
  *
- * Hozir super-admin hammasiga ega; rollar kiritilganda shu tekshiruv
- * har bir yo'lda o'zi ishlaydi.
+ * Super-admin hammasiga ega; boshqa panel xodimi — faqat roli bergan
+ * vakolatlarga.
  */
 export function requirePermission(permission: Permission) {
   return (req: Request, _res: Response, next: NextFunction) => {

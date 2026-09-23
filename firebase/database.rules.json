@@ -96,6 +96,16 @@
         "tenantId"
       ]
     },
+    "admin_roles": {
+      "//": "Panel rollari va ularning vakolatlari. Faqat server o'qiydi va yozadi — mijoz o'ziga rol bera olmasligi kerak.",
+      ".read": false,
+      ".write": false
+    },
+    "admin_members": {
+      "//": "Panel xodimlari (uid → rol). Faqat server.",
+      ".read": false,
+      ".write": false
+    },
     "plan_prices": {
       "//": "Reja narxlari. Ilova ularni `/license/plans` orqali oladi.",
       ".read": false,

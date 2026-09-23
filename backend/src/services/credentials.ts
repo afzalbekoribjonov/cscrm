@@ -1,6 +1,7 @@
 import { env } from '../config/env.js';
 import { auth, db } from '../lib/firebase.js';
 import { ApiError } from '../middleware/error.js';
+import { isPanelAccount } from './admin-access.js';
 import { AUTH_EMAIL_DOMAIN, sanitizeLogin } from './tenant.js';
 
 /**
@@ -164,6 +165,17 @@ async function ownerUidOf(tenantId: string): Promise<string> {
       409,
       'Bu biznes egasining hisobi tasdiqlanmadi. Amal bajarilmadi.',
       'owner_unverified',
+    );
+  }
+
+  // Panel xodimining hisobi biznes egasi sifatida tiklanmaydi: aks holda
+  // parolni tiklash vakolatiga ega admin shu yo'l bilan boshqa (ko'proq
+  // vakolatli) panel xodimining hisobini egallab olishi mumkin edi.
+  if (await isPanelAccount(uid)) {
+    throw new ApiError(
+      409,
+      'Bu hisob boshqaruv paneliga ham kiradi — uni bu yerdan o\'zgartirib bo\'lmaydi.',
+      'panel_account',
     );
   }
 

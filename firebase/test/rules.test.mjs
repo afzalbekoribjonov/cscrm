@@ -70,6 +70,8 @@ const SEED = {
   employee_secrets: { t1: { e1: { pinHash: 'YANGI_JOYDAGI_HASH' } } },
   tenant_archive: { t3: { archivedAt: 1, purgeAfter: 2, reason: 'x' } },
   admin_audit: { a1: { at: 1, action: 'tenant.update', tenantId: 't1', actor: { uid: 'admin', email: 'a@b.c' } } },
+  admin_roles: { r1: { name: 'Operator', permissions: ['tenants.read'], createdAt: 1, createdBy: 'admin' } },
+  admin_members: { panel1: { email: 'op@cscrm.uz', roleId: 'r1', addedAt: 1, addedBy: 'admin' } },
 };
 
 // --- Kim nomidan ---
@@ -226,6 +228,12 @@ const CASES = [
     (e) => read(owner(e, 't3', 'owner3'), 'tenant_archive/t3'), 'rad'],
   ['ega o\'z biznesini arxivdan chiqara olmaydi',
     (e) => owner(e, 't3', 'owner3').ref('tenant_archive/t3').remove(), 'rad'],
+  ['ega o\'zini panel xodimi qilib yoza olmaydi',
+    (e) => owner(e).ref('admin_members/owner1').set({ email: 'x@y.uz', roleId: 'r1', addedAt: 1, addedBy: 'owner1' }), 'rad'],
+  ['ega rolga vakolat qo\'sha olmaydi',
+    (e) => owner(e).ref('admin_roles/r1/permissions/1').set('tenants.delete'), 'rad'],
+  ['panel xodimi ham rollar ro\'yxatini to\'g\'ridan-to\'g\'ri o\'qiy olmaydi',
+    (e) => read(e.authenticatedContext('panel1').database(), 'admin_roles'), 'rad'],
   ['kirmagan foydalanuvchi buyurtmalarni o\'qiydi',
     (e) => read(anon(e), 'tenants/t1/orders'), 'rad'],
   ['xodim litsenziyani uzaytiradi',

@@ -1,4 +1,5 @@
 import { db } from '../lib/firebase.js';
+import { whereEquals } from '../lib/query.js';
 
 /**
  * Amallar jurnali — muhim admin harakatlari: KIM, NIMA, QACHON.
@@ -31,7 +32,14 @@ export type AuditAction =
   | 'plan.price_reset'
   | 'broadcast.create'
   | 'broadcast.delete'
-  | 'site.settings';
+  | 'site.settings'
+  | 'role.create'
+  | 'role.update'
+  | 'role.delete'
+  | 'admin.add'
+  | 'admin.role'
+  | 'admin.remove'
+  | 'user.signout';
 
 export interface Actor {
   uid: string;
@@ -138,22 +146,37 @@ export interface AuditRow extends AuditEntry {
   id: string;
 }
 
+/** Sahifalash kursori — oxirgi ko'rilgan yozuvning push-kaliti. */
+export const AUDIT_CURSOR = /^[-_A-Za-z0-9]{10,40}$/;
+
 /**
- * Jurnal — eng yangisi birinchi. `tenantId` berilsa — faqat shu biznes
- * (indeks orqali, butun jurnal o'qilmaydi).
+ * Jurnal — eng yangisi birinchi.
+ *
+ * Umumiy jurnal KALIT tartibida o'qiladi: push-kalit yaratilgan vaqtni
+ * o'z ichiga oladi, ya'ni kalit tartibi = vaqt tartibi, va bu uchun
+ * indeks kerak emas. `before` — oxirgi ko'rilgan yozuv kaliti ("ko'proq").
+ *
+ * `tenantId` berilsa — faqat shu biznes (`tenantId` indeksi orqali;
+ * indeks hali joylanmagan bo'lsa ham ishlaydi — qarang: `whereEquals`).
  */
 export async function listAudit(params: {
   tenantId?: string;
   limit?: number;
+  before?: string;
 }): Promise<AuditRow[]> {
   const limit = Math.min(Math.max(params.limit ?? 50, 1), 200);
   const ref = db().ref('admin_audit');
-  const snap = params.tenantId
-    ? await ref.orderByChild('tenantId').equalTo(params.tenantId).limitToLast(limit).get()
-    : await ref.orderByChild('at').limitToLast(limit).get();
 
-  if (!snap.exists()) return [];
-  return Object.entries(snap.val() as Record<string, AuditEntry>)
+  let raw: Record<string, AuditEntry>;
+  if (params.tenantId) {
+    raw = await whereEquals<AuditEntry>(ref, 'tenantId', params.tenantId, limit);
+  } else {
+    const byKey = ref.orderByKey();
+    const snap = await (params.before ? byKey.endBefore(params.before) : byKey).limitToLast(limit).get();
+    raw = (snap.val() ?? {}) as Record<string, AuditEntry>;
+  }
+
+  return Object.entries(raw)
     .map(([id, e]) => ({ id, ...e }))
-    .sort((a, b) => b.at - a.at);
+    .sort((a, b) => (a.id < b.id ? 1 : -1));
 }

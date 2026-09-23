@@ -68,6 +68,14 @@
         "tenantId"
       ]
     },
+    "admin_roles": {
+      ".read": false,
+      ".write": false
+    },
+    "admin_members": {
+      ".read": false,
+      ".write": false
+    },
     "plan_prices": {
       ".read": false,
       ".write": false

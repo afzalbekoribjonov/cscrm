@@ -3,9 +3,9 @@ import { z } from 'zod';
 
 import {
   actorOf,
+  requireAdmin,
   requireAuth,
   requirePermission,
-  requireSuperAdmin,
 } from '../middleware/auth.js';
 import { ApiError, asyncRoute } from '../middleware/error.js';
 import {
@@ -41,7 +41,7 @@ import {
   type OverviewRange,
 } from '../services/overview.js';
 import { getSiteSettings, setSiteSettings } from '../services/site-settings.js';
-import { listAudit, writeAudit } from '../services/audit.js';
+import { AUDIT_CURSOR, listAudit, writeAudit } from '../services/audit.js';
 import {
   archiveTenant,
   deleteTenantPermanently,
@@ -49,28 +49,37 @@ import {
   setLicenseManually,
   updateTenantProfile,
 } from '../services/tenant-admin.js';
+import { peopleRouter } from './admin-people.js';
 
 /**
- * Super-admin yo'llari — CSCRM egasining o'z mijozlarini boshqarish
- * paneli uchun.
+ * Boshqaruv paneli yo'llari — CSCRM egasining o'z mijozlarini
+ * boshqarish paneli uchun.
  *
- * BARCHA yo'llar ikki qatlamdan o'tadi: `requireAuth` (token haqiqiymi)
- * va `requireSuperAdmin` (UID ruxsat etilganlar ro'yxatidami). Ro'yxat
- * `SUPER_ADMIN_UIDS` sozlamasida — ya'ni bazadan emas, serverdan
- * boshqariladi va uni hech kim ilova orqali o'zgartira olmaydi.
+ * BARCHA yo'llar uch qatlamdan o'tadi: `requireAuth` (token haqiqiymi),
+ * `requireAdmin` (super-admin — `SUPER_ADMIN_UIDS` sozlamasida — yoki
+ * rolga ega panel xodimi) va har yo'lning o'z `requirePermission` i.
  */
 export const adminRouter: Router = Router();
 
-adminRouter.use(requireAuth, requireSuperAdmin);
+adminRouter.use(requireAuth, requireAdmin);
 
-/** Joriy foydalanuvchi super-admin ekanini tasdiqlaydi (panel kirishi). */
+/**
+ * Panelga kirish: kim va nimalarga vakolatli. Panel menyu va tugmalarni
+ * shunga qarab ko'rsatadi (haqiqiy tekshiruv baribir har yo'lda).
+ */
 adminRouter.get('/me', (req, res) => {
+  const access = req.user!.access!;
   res.json({
     ok: true,
     uid: req.user!.uid,
     email: req.user!.email ?? null,
+    isSuperAdmin: access.kind === 'super',
+    role: access.kind === 'super' ? null : access.role,
+    permissions: access.permissions,
   });
 });
+
+adminRouter.use(peopleRouter);
 
 /**
  * Menyudagi hisoblagichlar — har bir panel sahifasida ko'rinadi.
@@ -234,7 +243,11 @@ adminRouter.delete(
   }),
 );
 
-const auditQuery = z.object({ limit: z.coerce.number().int().min(1).max(200).default(50) });
+const auditQuery = z.object({
+  limit: z.coerce.number().int().min(1).max(200).default(50),
+  /** Sahifalash: shu yozuvdan OLDINGILARI (oxirgi ko'rilganining `id` si). */
+  before: z.string().regex(AUDIT_CURSOR).optional(),
+});
 
 /** Shu biznes bo'yicha amallar jurnali. */
 adminRouter.get(
@@ -251,8 +264,11 @@ adminRouter.get(
   '/audit',
   requirePermission('audit.read'),
   asyncRoute(async (req, res) => {
-    const limit = auditQuery.safeParse(req.query).data?.limit ?? 50;
-    res.json({ ok: true, entries: await listAudit({ limit }) });
+    const q = auditQuery.safeParse(req.query).data;
+    res.json({
+      ok: true,
+      entries: await listAudit({ limit: q?.limit ?? 50, ...(q?.before ? { before: q.before } : {}) }),
+    });
   }),
 );
 
