@@ -17,6 +17,10 @@ ko'rinmasligi.
   Cheklangan rol: `?rol=operator`.
 * **Kabinetni ko'rib chiqish:** <http://localhost:5173/cabinet-preview.html> —
   `?holat=bosh | xato | bloklangan | kutilmoqda`, `?yol=/kabinet/obuna`.
+* **Moslashuvchanlik va a11y tekshiruvi:** <http://localhost:5173/responsive-qa.html> —
+  29 sahifa × 6 kenglik (320–1920): gorizontal toshish, chetdan chiqqan
+  element, telefonda kichik bosish nuqtasi, asosiy a11y xatolari.
+  Faqat bir qism: `?q=kabinet`.
 * Sinovlar: `cd admin && npm test`
 
 ---

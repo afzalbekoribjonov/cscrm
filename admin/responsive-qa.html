@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="uz">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex" />
+    <title>CSCRM — moslashuvchanlik tekshiruvi</title>
+    <!--
+      FAQAT ISHLAB CHIQISH UCHUN. Har bir sahifani turli kenglikdagi
+      iframe'da ochib, gorizontal toshib chiqish va kichik bosish
+      nuqtalarini qidiradi. Prod yig'ilishiga kirmaydi.
+    -->
+    <style>
+      body { font: 14px system-ui, sans-serif; margin: 16px; }
+      table { border-collapse: collapse; width: 100%; }
+      td, th { border: 1px solid #ccc; padding: 4px 6px; text-align: left; vertical-align: top; }
+      .ok { color: #0a7a2f; } .bad { color: #b3261e; font-weight: 600; }
+      #stage { position: absolute; left: -99999px; top: 0; }
+    </style>
+  </head>
+  <body>
+    <h1>Moslashuvchanlik tekshiruvi</h1>
+    <p id="progress">Boshlanmoqda…</p>
+    <table><thead><tr><th>Sahifa</th><th>Kenglik</th><th>Natija</th></tr></thead><tbody id="out"></tbody></table>
+    <div id="stage"></div>
+    <script type="module" src="/src/dev/ResponsiveQa.ts"></script>
+  </body>
+</html>

@@ -565,6 +565,11 @@
   accent-color: var(--brand);
   height: 24px;
 }
+/* Telefonda barmoq bilan tortish oson bo'lsin — bosish maydoni 44px
+   (ko'rinadigan chiziq o'zgarmaydi, faqat atrofidagi maydon). */
+@media (max-width: 640px), (pointer: coarse) {
+  .calc input[type='range'] { height: 44px; }
+}
 .calc input[type='range']:focus-visible {
   outline: 2px solid var(--brand);
   outline-offset: 4px;

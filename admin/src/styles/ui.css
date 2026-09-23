@@ -865,7 +865,10 @@ a.ui-stat:focus-visible { outline: none; box-shadow: var(--focus-ring); }
   .ui-card .ui-table thead tr:first-child th { border-radius: 0; }
 }
 
-.ui-table-scroll { overflow-x: auto; }
+/* `position: relative` — ichidagi absolyut elementlar (ekran o'quvchi
+   yorliqlari) aylanuvchi konteynerga bog'lansin; aks holda ular undan
+   "qochib", butun sahifani gorizontal aylantirib yuboradi. */
+.ui-table-scroll { position: relative; overflow-x: auto; }
 
 .ui-table {
   width: 100%;
