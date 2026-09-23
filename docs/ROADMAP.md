@@ -235,4 +235,8 @@ butun bazani yuklashi — shu jumladan).
 
 - Blog / yordam markazi
 - Skrinshotlar, demo video
-- SEO, sitemap, Open Graph
+- ✅ SEO, sitemap, Open Graph — `robots.txt`, `sitemap.xml` (sinov bilan
+  App marshrutlariga bog'langan), `og.png` 1200×630, panel/kirish/404 da
+  `noindex`. Qoldi: sahifalarni oldindan render qilish (prerender) —
+  Telegram JS ishlatmaydi, shuning uchun hamma sahifa havolasi bosh sahifa
+  sarlavhasi bilan chiqadi.

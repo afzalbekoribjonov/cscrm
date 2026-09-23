@@ -1,6 +1,11 @@
 import { Link } from 'react-router-dom';
 
+import { useNoIndex } from '@/lib/seo';
+
 export function NotFoundPage() {
+  // Server mavjud bo'lmagan manzilga ham index.html qaytaradi (SPA) —
+  // bu sahifa qidiruv natijasiga "haqiqiy sahifa" bo'lib tushmasin.
+  useNoIndex();
   return (
     <section
       className="container"

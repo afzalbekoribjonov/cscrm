@@ -48,3 +48,20 @@ function setCanonical(href: string): void {
   // parametrlari (utm_source va h.k.) nusxa sahifa yasab qo'ymasin.
   el.href = href.split('?')[0]?.split('#')[0] ?? href;
 }
+
+/**
+ * Sahifa qidiruv natijasiga tushmasin (panel, kirish, 404).
+ *
+ * robots.txt faqat "kirma" deydi; tashqi havola orqali topilgan sahifa
+ * baribir indekslanishi mumkin. `noindex` buni aniq taqiqlaydi. Sahifadan
+ * chiqilganda teg olib tashlanadi — keyingi marketing sahifasi indekslansin.
+ */
+export function useNoIndex(): void {
+  useEffect(() => {
+    const el = document.createElement('meta');
+    el.name = 'robots';
+    el.content = 'noindex';
+    document.head.appendChild(el);
+    return () => el.remove();
+  }, []);
+}

@@ -429,3 +429,16 @@ yillik baza to'lovi sanasi qo'yiladi.
 
 Vaqt Toshkent bo'yicha (UTC+5): server Singapurda, lekin "bugun" va
 "bu oy" mijozlar uchun hisoblanadi.
+
+## Websayt: yuklash hajmi
+
+Sayt va panel bitta React ilovasi, lekin **alohida bo'laklarda**:
+
+| Bo'lak | Qachon yuklanadi | Tarkibi |
+|---|---|---|
+| asosiy (~234 KB, gzip ~76 KB) | har qanday sahifa | React, marshrutlar, bosh sahifa, soha sahifalari, sayt uslublari |
+| sahifa bo'laklari (1–10 KB) | shu sahifaga o'tganda | Narxlar, Imkoniyatlar, Yordam va h.k. |
+| `AdminArea` + `auth` + `AdminRoutes` | faqat `/kirish` va `/admin` | Firebase Auth SDK, panel komponentlari va uslublari (`ui.css`) |
+
+Ya'ni saytga reklamadan kelgan mijoz Firebase SDK'ni ham, panel kodini ham
+umuman yuklamaydi (ilgari hammasi bitta 558 KB faylda edi).

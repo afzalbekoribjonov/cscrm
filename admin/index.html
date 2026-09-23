@@ -21,13 +21,13 @@
       property="og:description"
       content="Buyurtma qabul qilishdan pul yig'ishgacha. Daftar o'rniga — aniq, tartibli va har doim qo'lingizda."
     />
-    <!-- og:image ATAYLAB YO'Q.
-         Mavjud rasm (favicon) 64x64 — Telegram va Facebook bunday
-         kichik rasmni umuman ko'rsatmaydi. Mavjud bo'lmagan faylga
-         ishora qilish esa undan ham yomon: tizim rasmni yuklab
-         olmoqchi bo'lib kutadi va havola kechroq ochiladi.
-         1200x630 li rasm tayyorlanganda `/og.png` deb qo'shiladi. -->
-    <meta name="twitter:card" content="summary" />
+    <!-- 1200x630 — Telegram, Facebook va X katta kartochka ko'rsatadi.
+         Manzil TO'LIQ bo'lishi shart: nisbiy yo'lni ular o'qimaydi. -->
+    <meta property="og:image" content="https://cscrm.uz/og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="CSCRM — xizmat biznesi uchun boshqaruv tizimi" />
+    <meta name="twitter:card" content="summary_large_image" />
 
     <!--
       REJIM SKRIPTI — React'dan OLDIN, bloklovchi holda yuklanadi.

@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 
 import { Logo } from '@/components/Logo';
@@ -14,6 +14,10 @@ export function AdminLoginPage() {
   const [busy, setBusy] = useState(false);
 
   const configured = isFirebaseConfigured();
+
+  useEffect(() => {
+    document.title = 'Panelga kirish — CSCRM';
+  }, []);
 
   // Allaqachon kirgan va ruxsati bor — panelga.
   if (ready && user && access) return <Navigate to="/admin" replace />;

@@ -1,91 +1,75 @@
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { lazy, Suspense, type ReactNode } from 'react';
+import { Route, Routes } from 'react-router-dom';
 
+import { RouteLoading } from './components/RouteLoading';
 import { SiteLayout } from './components/SiteLayout';
-import { ToastProvider } from './components/ui';
-import { AuthProvider, useAuth } from './lib/auth';
 import { NotFoundPage } from './pages/NotFoundPage';
-import { AdminLayout } from './pages/admin/AdminLayout';
-import { AdminLoginPage } from './pages/admin/AdminLoginPage';
-import { adminRoutes } from './pages/admin/nav';
-import { ContactPage } from './pages/marketing/ContactPage';
-import { DownloadPage } from './pages/marketing/DownloadPage';
-import { FeaturesPage } from './pages/marketing/FeaturesPage';
-import { HelpPage } from './pages/marketing/HelpPage';
 import { LandingPage } from './pages/marketing/LandingPage';
-import { OfferPage } from './pages/marketing/OfferPage';
-import { PricingPage } from './pages/marketing/PricingPage';
-import { PrivacyPage } from './pages/marketing/PrivacyPage';
 import { SOLUTIONS, SolutionPage } from './pages/marketing/SolutionPage';
 
-/**
- * Panelni himoyalaydi.
+/*
+ * Bo'laklar (code splitting).
  *
- * Ikki shart: tizimga kirilgan BO'LISHI va server uni panel xodimi
- * (super-admin yoki rolga ega) deb TASDIQLAGAN bo'lishi. Ikkinchisi
- * muhim — Firebase'ga har qanday hisob kira oladi, lekin panelga
- * faqat ruxsat etilganlar.
+ * Bosh sahifa va soha sahifalari — asosiy bo'lakda: reklamadan kelgan
+ * tashrifchi aynan ularni ochadi va ular darhol chiqishi kerak.
+ * Qolgan sahifalar birinchi o'tishda yuklanadi.
  *
- * Bu faqat ko'rinish darajasidagi himoya: haqiqiy cheklov backendda,
- * har bir `/admin` so'rovi `requireAdmin` va o'z vakolatidan o'tadi.
+ * Panel (`/kirish`, `/admin/*`) — Firebase Auth SDK bilan birga butunlay
+ * alohida: saytga kirgan mijoz uni umuman yuklab olmaydi.
  */
-function RequireAdmin() {
-  const { user, access, ready } = useAuth();
+const named = <K extends string>(load: () => Promise<Record<K, React.ComponentType>>, name: K) =>
+  lazy(() => load().then((m) => ({ default: m[name] })));
 
-  if (!ready) {
-    return (
-      <p className="muted" style={{ padding: 40, textAlign: 'center' }}>
-        Tekshirilmoqda…
-      </p>
-    );
-  }
-  if (!user || !access) return <Navigate to="/kirish" replace />;
+const FeaturesPage = named(() => import('./pages/marketing/FeaturesPage'), 'FeaturesPage');
+const PricingPage = named(() => import('./pages/marketing/PricingPage'), 'PricingPage');
+const DownloadPage = named(() => import('./pages/marketing/DownloadPage'), 'DownloadPage');
+const HelpPage = named(() => import('./pages/marketing/HelpPage'), 'HelpPage');
+const ContactPage = named(() => import('./pages/marketing/ContactPage'), 'ContactPage');
+const PrivacyPage = named(() => import('./pages/marketing/PrivacyPage'), 'PrivacyPage');
+const OfferPage = named(() => import('./pages/marketing/OfferPage'), 'OfferPage');
 
-  return <AdminLayout />;
+const AdminArea = lazy(() => import('./pages/admin/AdminArea'));
+const AdminRoutes = lazy(() => import('./pages/admin/AdminRoutes'));
+const AdminLoginPage = named(() => import('./pages/admin/AdminLoginPage'), 'AdminLoginPage');
+
+function Page({ children }: { children: ReactNode }) {
+  return <Suspense fallback={<RouteLoading />}>{children}</Suspense>;
 }
 
 /**
  * Yo'nalishlar uch guruhga bo'linadi:
  *  * marketing sahifalari — `SiteLayout` (header + footer) ichida
  *  * kirish — o'z karkasi bilan
- *  * `/admin/*` — faqat super-adminlar uchun
+ *  * `/admin/*` — faqat panel xodimlari uchun
  */
 export function App() {
   return (
-    <AuthProvider>
-      {/* Amal natijasi xabarlari ("Saqlandi") — butun ilova uchun bitta. */}
-      <ToastProvider>
-        <Routes>
-          <Route element={<SiteLayout />}>
-            <Route index element={<LandingPage />} />
-            <Route path="imkoniyatlar" element={<FeaturesPage />} />
-            <Route path="narxlar" element={<PricingPage />} />
-            <Route path="yuklab-olish" element={<DownloadPage />} />
-            <Route path="yordam" element={<HelpPage />} />
-            <Route path="aloqa" element={<ContactPage />} />
+    <Routes>
+      <Route element={<SiteLayout />}>
+        <Route index element={<LandingPage />} />
+        <Route path="imkoniyatlar" element={<Page><FeaturesPage /></Page>} />
+        <Route path="narxlar" element={<Page><PricingPage /></Page>} />
+        <Route path="yuklab-olish" element={<Page><DownloadPage /></Page>} />
+        <Route path="yordam" element={<Page><HelpPage /></Page>} />
+        <Route path="aloqa" element={<Page><ContactPage /></Page>} />
 
-            {/* Soha sahifalari bitta shablondan chiqadi — yangisini
-                qo'shish uchun faqat SOLUTIONS ro'yxatiga yozish kifoya. */}
-            {SOLUTIONS.map((s) => (
-              <Route
-                key={s.slug}
-                path={s.slug}
-                element={<SolutionPage content={s} />}
-              />
-            ))}
+        {/* Soha sahifalari bitta shablondan chiqadi — yangisini
+            qo'shish uchun faqat SOLUTIONS ro'yxatiga yozish kifoya. */}
+        {SOLUTIONS.map((s) => (
+          <Route key={s.slug} path={s.slug} element={<SolutionPage content={s} />} />
+        ))}
 
-            <Route path="maxfiylik" element={<PrivacyPage />} />
-            <Route path="oferta" element={<OfferPage />} />
+        <Route path="maxfiylik" element={<Page><PrivacyPage /></Page>} />
+        <Route path="oferta" element={<Page><OfferPage /></Page>} />
 
-            <Route path="*" element={<NotFoundPage />} />
-          </Route>
+        <Route path="*" element={<NotFoundPage />} />
+      </Route>
 
-          <Route path="/kirish" element={<AdminLoginPage />} />
-
-          <Route path="/admin" element={<RequireAdmin />}>
-            {adminRoutes()}
-          </Route>
-        </Routes>
-      </ToastProvider>
-    </AuthProvider>
+      {/* Kirish va panel — bitta `AuthProvider` ostida (AdminArea). */}
+      <Route element={<Page><AdminArea /></Page>}>
+        <Route path="/kirish" element={<AdminLoginPage />} />
+        <Route path="/admin/*" element={<AdminRoutes />} />
+      </Route>
+    </Routes>
   );
 }

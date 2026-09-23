@@ -1,0 +1,9 @@
+# CSCRM — qidiruv tizimlari uchun.
+# Boshqaruv paneli va kirish sahifasi indekslanmaydi: ular mijozlar uchun emas.
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /kirish
+Disallow: /api/
+
+Sitemap: https://cscrm.uz/sitemap.xml

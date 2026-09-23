@@ -1,4 +1,4 @@
-import type { CSSProperties, ElementType, ReactNode } from 'react';
+import { useEffect, type CSSProperties, type ElementType, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 
 import { Icon } from '../Icon';
@@ -76,6 +76,12 @@ export function PageHeader({
   actions?: ReactNode;
   back?: { to: string; label: string };
 }) {
+  // Brauzer yorlig'i sahifa nomini ko'rsatsin — bir nechta yorliq ochiq
+  // bo'lganda qaysi biri qaysi ekanini bilish uchun.
+  useEffect(() => {
+    if (typeof title === 'string') document.title = `${title} — CSCRM boshqaruv`;
+  }, [title]);
+
   return (
     <header className="ui-page-header">
       <div className="ui-page-header__main">
