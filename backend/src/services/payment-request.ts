@@ -139,6 +139,26 @@ export async function latestPaymentRequest(
   return rows[0] ?? null;
 }
 
+/**
+ * Egaga qaytariladigan ko'rinish — kim hal qilgani (admin UID) va kim
+ * yuborgani chiqarilmaydi: egaga faqat holat, sana va sabab kerak.
+ * Yangi ichki maydon qo'shilsa ham tashqariga o'z-o'zidan chiqmaydi.
+ */
+export function toOwnerPaymentRequest(r: PaymentRequestRecord & { id: string }) {
+  return {
+    id: r.id,
+    planId: r.planId,
+    planName: r.planName,
+    amount: r.amount,
+    ...(r.reference ? { reference: r.reference } : {}),
+    ...(r.note ? { note: r.note } : {}),
+    createdAt: r.createdAt,
+    status: r.status,
+    ...(r.resolvedAt ? { resolvedAt: r.resolvedAt } : {}),
+    ...(r.rejectReason ? { rejectReason: r.rejectReason } : {}),
+  };
+}
+
 /** Super-admin navbati — faqat hal qilinmaganlar. */
 export async function listPendingPayments(): Promise<PendingPayment[]> {
   const snap = await pendingRef().get();

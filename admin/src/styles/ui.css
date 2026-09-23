@@ -1541,3 +1541,52 @@ a.ui-stat:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 
 /* Karta ichidagi ro'yxat ostidagi izoh. */
 .ui-card-note { margin-top: var(--space-4); }
+
+/* ---------------------------------------------------------------- */
+/* Ega kabineti                                                      */
+/* ---------------------------------------------------------------- */
+
+.cab-auth {
+  display: grid;
+  place-items: center;
+  min-height: 100dvh;
+  padding: var(--space-5) var(--space-4);
+  background: var(--bg);
+}
+.cab-auth__card {
+  display: grid;
+  gap: var(--space-5);
+  width: 100%;
+  max-width: 400px;
+  padding: var(--space-8) var(--space-6);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+.cab-auth__head { display: grid; gap: var(--space-2); justify-items: center; text-align: center; }
+.cab-auth__head h1 { margin: var(--space-2) 0 0; font-size: var(--fs-24); }
+.cab-auth__help { text-align: center; }
+.cab-auth__back { justify-self: center; font-size: var(--fs-14); }
+@media (max-width: 420px) {
+  .cab-auth__card { padding: var(--space-6) var(--space-4); }
+}
+
+.cab-banner { margin-bottom: var(--space-5); }
+
+/* To'lov kartalari — raqam katta va teng enli: xato ko'chirilmasin. */
+.cab-cards { display: grid; gap: var(--space-3); }
+.cab-card {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 2px var(--space-3);
+  align-items: center;
+  padding: var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-muted);
+}
+.cab-card__type { font-size: var(--fs-12); font-weight: var(--fw-heavy); letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-muted); }
+.cab-card__number { grid-column: 1; font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; font-size: var(--fs-20); font-weight: var(--fw-bold); letter-spacing: 0.04em; overflow-wrap: anywhere; }
+.cab-card__holder { grid-column: 1; font-size: var(--fs-13); color: var(--text-muted); }
+.cab-card .ui-icon-btn { grid-column: 2; grid-row: 1 / span 3; }

@@ -69,7 +69,8 @@ export function AdminLoginPage() {
           <Notice tone="danger">
             <strong>Bu hisobga boshqaruv paneliga kirish ruxsati berilmagan.</strong>
             <p style={{ margin: '8px 0 12px' }}>
-              Biznesingizni boshqarish uchun CSCRM ilovasidan foydalaning.
+              Biznesingizni boshqarish uchun CSCRM ilovasidan yoki{' '}
+              <Link to="/kabinet">biznes kabinetidan</Link> foydalaning.
             </p>
             <button
               className="btn btn--ghost"

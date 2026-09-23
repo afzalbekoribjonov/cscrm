@@ -13,6 +13,7 @@ import { employeesRouter } from './routes/employees.js';
 import { healthRouter, pingRouter } from './routes/health.js';
 import { licenseRouter } from './routes/license.js';
 import { siteRouter } from './routes/site.js';
+import { cabinetRouter } from './routes/cabinet.js';
 import { purgeExpiredArchives } from './services/tenant-admin.js';
 import { FIREBASE_CONNECT_SRC, mountWeb, resolveWebDir } from './web.js';
 
@@ -118,6 +119,7 @@ app.use('/api/v1/auth', authRouter);
 app.use('/api/v1/employees', employeesRouter);
 app.use('/api/v1/license', licenseRouter);
 app.use('/api/v1/site', siteRouter);
+app.use('/api/v1/cabinet', cabinetRouter);
 
 // Websayt (agar yig'ilgan bo'lsa) - API yo'llaridan KEYIN, xatolik
 // ishlovchisidan OLDIN.

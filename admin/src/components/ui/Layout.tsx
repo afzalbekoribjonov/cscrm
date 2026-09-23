@@ -79,7 +79,7 @@ export function PageHeader({
   // Brauzer yorlig'i sahifa nomini ko'rsatsin — bir nechta yorliq ochiq
   // bo'lganda qaysi biri qaysi ekanini bilish uchun.
   useEffect(() => {
-    if (typeof title === 'string') document.title = `${title} — CSCRM boshqaruv`;
+    if (typeof title === 'string') document.title = `${title} — CSCRM`;
   }, [title]);
 
   return (

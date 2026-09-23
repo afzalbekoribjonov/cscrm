@@ -202,11 +202,19 @@ qoplangan).
 
 </details>
 
-## 5-bosqich — biznes egasi kabineti (websaytda)
+## 5-bosqich — biznes egasi kabineti (websaytda) — asosiy qismi bajarildi
 
-- O'z obunasini ko'rish va to'lash
-- Xodimlarni boshqarish
-- Hisobotlar
+`cscrm.uz/kabinet` — ilovadagi login va parol bilan.
+
+- ✅ Hisobot: tushum (naqd/karta/boshqa, qarz to'lovlari), chiqim, sof
+  foyda, qabul qilingan/topshirilgan buyurtmalar, ishda va tayyor
+  buyurtmalar, qarzdorlar, kunlik tushum grafigi — ilovadagi "Daromad"
+  hisoboti bilan bir xil qoidada
+- ✅ Obuna holati, to'lov rekvizitlari, "Men to'ladim" xabari, to'lovlar tarixi
+- ✅ Xodimlar ro'yxati (oxirgi faollik bilan), CSCRM xabarlari
+- Qoldi: xodimlarni kabinetdan boshqarish (hozir — faqat ilovada, ikki
+  joyda boshqarish zid o'zgarishlarga olib kelmasligi uchun ataylab),
+  buyurtmalar ro'yxati va hisobotni yuklab olish
 
 ## ✅ 6-bosqich — to'lovni rasmiylashtirish (bajarildi)
 

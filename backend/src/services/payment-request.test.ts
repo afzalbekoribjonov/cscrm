@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { resolveUpdates } from './payment-request.js';
+import { resolveUpdates, toOwnerPaymentRequest } from './payment-request.js';
 
 describe('to\'lov so\'rovini yopish', () => {
   const base = {
@@ -55,5 +55,26 @@ describe('to\'lov so\'rovini yopish', () => {
 
     assert.equal(u['tenants/biz1/payment_requests/req1/resolvedBy'], 'admin1');
     assert.equal(u['tenants/biz1/payment_requests/req1/resolvedAt'], base.now);
+  });
+});
+
+describe('egaga qaytariladigan so\'rov', () => {
+  it('admin UID va yuboruvchi UID chiqmaydi, sabab va holat qoladi', () => {
+    const out = toOwnerPaymentRequest({
+      id: 'r1',
+      planId: 'm1',
+      planName: '1 oylik',
+      amount: 199000,
+      createdAt: 1,
+      createdBy: 'owner-uid',
+      status: 'rejected',
+      resolvedAt: 2,
+      resolvedBy: 'SUPER_ADMIN_UID',
+      rejectReason: 'Pul tushmagan',
+    });
+    assert.equal(JSON.stringify(out).includes('SUPER_ADMIN_UID'), false);
+    assert.equal(JSON.stringify(out).includes('owner-uid'), false);
+    assert.equal(out.rejectReason, 'Pul tushmagan');
+    assert.equal(out.status, 'rejected');
   });
 });

@@ -31,6 +31,7 @@ const OfferPage = named(() => import('./pages/marketing/OfferPage'), 'OfferPage'
 const AdminArea = lazy(() => import('./pages/admin/AdminArea'));
 const AdminRoutes = lazy(() => import('./pages/admin/AdminRoutes'));
 const AdminLoginPage = named(() => import('./pages/admin/AdminLoginPage'), 'AdminLoginPage');
+const CabinetArea = lazy(() => import('./pages/cabinet/CabinetArea'));
 
 function Page({ children }: { children: ReactNode }) {
   return <Suspense fallback={<RouteLoading />}>{children}</Suspense>;
@@ -64,6 +65,9 @@ export function App() {
 
         <Route path="*" element={<NotFoundPage />} />
       </Route>
+
+      {/* Biznes egasining kabineti — o'z bo'lagi va o'z kirishi bilan. */}
+      <Route path="/kabinet/*" element={<Page><CabinetArea /></Page>} />
 
       {/* Kirish va panel — bitta `AuthProvider` ostida (AdminArea). */}
       <Route element={<Page><AdminArea /></Page>}>

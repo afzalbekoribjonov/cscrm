@@ -11,6 +11,7 @@ import { plansWithPrices } from '../services/plan-prices.js';
 import {
   latestPaymentRequest,
   submitPaymentRequest,
+  toOwnerPaymentRequest,
 } from '../services/payment-request.js';
 import { registerToken, removeToken } from '../services/push.js';
 
@@ -122,7 +123,7 @@ licenseRouter.post(
     res.status(201).json({
       ok: true,
       requestId: result.requestId,
-      request: result.request,
+      request: toOwnerPaymentRequest({ id: result.requestId, ...result.request }),
     });
   }),
 );
@@ -139,7 +140,8 @@ licenseRouter.get(
   requireAuth,
   asyncRoute(async (req, res) => {
     const { tenantId } = requireTenant(req);
-    res.json({ ok: true, request: await latestPaymentRequest(tenantId) });
+    const request = await latestPaymentRequest(tenantId);
+    res.json({ ok: true, request: request ? toOwnerPaymentRequest(request) : null });
   }),
 );
 

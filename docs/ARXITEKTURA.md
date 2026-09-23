@@ -158,6 +158,10 @@ Barcha yo'llar `/api/v1` ostida. Avtorizatsiya: `Authorization: Bearer <ID token
 | GET | `/admin/audit` | `audit.read` | umumiy amallar jurnali |
 | GET | `/admin/payment-requests` | `payments.manage` | to'lov so'rovlari navbati |
 | POST | `/admin/tenants/:id/payment-requests/:reqId/reject` | `payments.manage` | so'rovni rad etish |
+| GET | `/cabinet/me` | ega | kabinet: biznes, login, obuna holati |
+| GET | `/cabinet/summary?range=today\|7d\|30d\|month` | ega | hisobot (ilova qoidasi bilan, Toshkent kuni) |
+| GET | `/cabinet/employees` | ega | xodimlar (PINsiz) va oxirgi faollik |
+| GET | `/cabinet/payments` | ega | tasdiqlangan to'lovlar (admin UID'isiz) |
 | GET | `/admin/users` | `users.read` | egalar va xodimlar (hali kirmaganlari ham) |
 | POST | `/admin/users/:uid/signout` | `users.manage` | barcha qurilmalardan chiqarish |
 | GET | `/admin/access` | `admins.manage` | rollar, panel xodimlari, bosh administratorlar |
@@ -442,3 +446,21 @@ Sayt va panel bitta React ilovasi, lekin **alohida bo'laklarda**:
 
 Ya'ni saytga reklamadan kelgan mijoz Firebase SDK'ni ham, panel kodini ham
 umuman yuklamaydi (ilgari hammasi bitta 558 KB faylda edi).
+
+## Biznes egasining kabineti
+
+`/kabinet/*` — alohida bo'lak, o'z `OwnerAuthProvider` i bilan. Kirish
+ilovadagi login (`login@cscrm.local`) va parol bilan; server tokendagi
+`role: owner` da'vosini tekshiradi (`GET /cabinet/me`), biznes ID esa
+so'rovdan emas, tokendan olinadi.
+
+* Hamma raqam serverda hisoblanadi (`services/cabinet.ts`) — ilovadagi
+  `income_stats.dart` ning aynan nusxasi: pul qaysi kuni olingan bo'lsa,
+  o'sha kunga. Buyurtmadan faqat hisob maydonlari o'qiladi — mijoz ismi
+  va telefoni javobga tushmaydi.
+* Kerakli indekslar (`orders.createdAt/deliveredAt/active/debtAmount`,
+  `order_history.at`, `expenses.spentAt`) jonli qoidalarda allaqachon
+  bor — emulatorda jonli qoidalar nusxasi bilan tekshirilgan.
+* Kabinet faqat O'QIYDI; yagona yozuv — mavjud "Men to'ladim" so'rovi.
+* Egaga qaytariladigan to'lov so'rovi va to'lovlarda admin UID yo'q
+  (`toOwnerPaymentRequest`).

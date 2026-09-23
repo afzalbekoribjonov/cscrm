@@ -29,7 +29,8 @@ describe('sitemap.xml va robots.txt', () => {
   it('panel va kirish indekslanmaydi, xarita ko\'rsatilgan', () => {
     expect(robots).toMatch(/^Disallow: \/admin$/m);
     expect(robots).toMatch(/^Disallow: \/kirish$/m);
+    expect(robots).toMatch(/^Disallow: \/kabinet$/m);
     expect(robots).toContain(`Sitemap: ${branding.websiteUrl}/sitemap.xml`);
-    expect(sitemap).not.toMatch(/\/admin|\/kirish/);
+    expect(sitemap).not.toMatch(/\/admin|\/kirish|\/kabinet/);
   });
 });

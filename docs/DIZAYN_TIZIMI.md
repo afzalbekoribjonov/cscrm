@@ -15,6 +15,8 @@ ko'rinmasligi.
   `?yol=/admin/tenants/t2`. Amallar (to'lov, arxiv, o'chirish) xotiradagi
   namunaviy ro'yxatni o'zgartiradi — sahifa yangilansa asliga qaytadi.
   Cheklangan rol: `?rol=operator`.
+* **Kabinetni ko'rib chiqish:** <http://localhost:5173/cabinet-preview.html> —
+  `?holat=bosh | xato | bloklangan | kutilmoqda`, `?yol=/kabinet/obuna`.
 * Sinovlar: `cd admin && npm test`
 
 ---

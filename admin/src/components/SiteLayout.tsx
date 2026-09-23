@@ -96,6 +96,10 @@ export function SiteLayout() {
                 {item.label}
               </NavLink>
             ))}
+            {/* Biznes egalari uchun — ilovadagi login bilan. */}
+            <NavLink to="/kabinet" className={({ isActive }) => (isActive ? 'is-active' : '')}>
+              Kabinet
+            </NavLink>
             <Link className="btn btn--primary" to="/yuklab-olish">
               <Icon name="download" size={18} />
               Yuklab olish
@@ -191,6 +195,9 @@ export function SiteLayout() {
                     <Link to={item.to}>{item.label}</Link>
                   </li>
                 ))}
+                <li>
+                  <Link to="/kabinet">Biznes kabineti</Link>
+                </li>
                 <li>
                   <Link to="/kirish">Boshqaruv paneli</Link>
                 </li>
