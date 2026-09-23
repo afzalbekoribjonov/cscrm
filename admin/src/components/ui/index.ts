@@ -11,6 +11,7 @@ export { Badge, type Tone } from './Badge';
 export { Button, ButtonLink, type ButtonSize, type ButtonVariant } from './Button';
 export { Card, DescriptionList } from './Card';
 export { ChartCard, type ChartStatus } from './ChartCard';
+export { Checkbox } from './Checkbox';
 export { ConfirmDialog, PromptDialog } from './ConfirmDialog';
 export { FormDialog } from './FormDialog';
 export { DataTable, useTable, type Column, type SortState } from './DataTable';

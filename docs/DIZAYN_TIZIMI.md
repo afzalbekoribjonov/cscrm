@@ -14,6 +14,7 @@ ko'rinmasligi.
   Holatlar: `?holat=bosh`, `xato`, `sekin`, `faolliksiz`. Sahifa:
   `?yol=/admin/tenants/t2`. Amallar (to'lov, arxiv, o'chirish) xotiradagi
   namunaviy ro'yxatni o'zgartiradi — sahifa yangilansa asliga qaytadi.
+  Cheklangan rol: `?rol=operator`.
 * Sinovlar: `cd admin && npm test`
 
 ---
@@ -55,6 +56,7 @@ matn sifatida oq fonda 2–3:1 beradi, shuning uchun matnga `-ink` ishlatiladi.
 | `Dialog` | Oyna. Fokus ichida, orqa fon `inert`, Esc, fokus qaytadi; telefonda pastdan |
 | `ConfirmDialog` | Muhim / qaytarib bo'lmaydigan amal |
 | `PromptDialog` | Sabab so'rash (rad etish, to'xtatish) |
+| `Checkbox` | Belgilash (rol vakolatlari). Haqiqiy katakcha — klaviatura va ekran o'quvchi o'z-o'zidan ishlaydi |
 | `FormDialog` | Maydonli oyna (tahrirlash, to'lov qabul qilish). Enter bilan yuboriladi, `validate` maydon xatolarini ko'rsatadi, server xatosida oyna ochiq qoladi va kiritilgan ma'lumot saqlanadi |
 | `useToast` | Amal natijasi ("Saqlandi") |
 | `Alert` | Sahifadagi doimiy ogohlantirish |

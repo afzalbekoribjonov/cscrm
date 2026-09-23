@@ -22,6 +22,7 @@ import {
 import type { AuditEntry, PaymentRecord, PaymentRequestRecord, TenantDetail } from '@/lib/admin-types';
 import { formatDay, formatRelative, formatTime } from '@/lib/dates';
 import { formatNumber, formatPhone, formatSom } from '@/lib/format';
+import { useAuth } from '@/lib/auth';
 import type { Plan } from '@/lib/plans';
 import { useApi } from '@/lib/use-api';
 
@@ -48,6 +49,7 @@ interface DetailResponse {
 export function TenantDetailPage() {
   const { tenantId = '' } = useParams();
   const navigate = useNavigate();
+  const { can } = useAuth();
   const [params, setParams] = useSearchParams();
 
   const { data, error, loading, refreshing, reload } = useApi(
@@ -63,11 +65,12 @@ export function TenantDetailPage() {
     onDeleted: () => navigate('/admin/tenants', { replace: true }),
   });
 
+  // Bo'lim faqat vakolati bo'lsa: kirish ma'lumotlari va jurnal — alohida huquq.
   const tabs: TabItem<Section>[] = [
     { id: 'umumiy', label: 'Umumiy' },
     { id: 'tolovlar', label: 'To\'lovlar', ...(tenant ? { count: tenant.payments.length } : {}) },
-    { id: 'kirish', label: 'Kirish' },
-    { id: 'tarix', label: 'Tarix' },
+    ...(can('credentials.manage') ? [{ id: 'kirish' as const, label: 'Kirish' }] : []),
+    ...(can('audit.read') ? [{ id: 'tarix' as const, label: 'Tarix' }] : []),
   ];
   const section: Section = tabs.find((t) => t.id === params.get('bolim'))?.id ?? 'umumiy';
   const setSection = (id: Section) => {
@@ -104,6 +107,7 @@ export function TenantDetailPage() {
   const archived = tenant.archive !== null;
   const pending = tenant.paymentRequest?.status === 'pending' ? tenant.paymentRequest : null;
   const menu = actions.menuItems(ref, { detail: tenant }).filter((i) => i.id !== 'pay' && i.id !== 'restore');
+  const canPay = can('payments.manage');
 
   return (
     <>
@@ -114,16 +118,18 @@ export function TenantDetailPage() {
         description={`Reja: ${tenant.planName} · Qo'shilgan: ${formatDay(tenant.createdAt)}`}
         actions={
           <Cluster gap={2}>
-            {archived ? (
-              <Button variant="secondary" icon="restore" onClick={() => actions.openRestore(ref)}>
-                Arxivdan qaytarish
-              </Button>
-            ) : (
-              <Button icon="card" disabled={plans.length === 0} onClick={() => actions.openPayment(ref, pending)}>
-                To'lov qabul qilish
-              </Button>
-            )}
-            <DropdownMenu items={menu} label="Boshqa amallar" />
+            {archived
+              ? can('tenants.archive') && (
+                  <Button variant="secondary" icon="restore" onClick={() => actions.openRestore(ref)}>
+                    Arxivdan qaytarish
+                  </Button>
+                )
+              : canPay && (
+                  <Button icon="card" disabled={plans.length === 0} onClick={() => actions.openPayment(ref, pending)}>
+                    To'lov qabul qilish
+                  </Button>
+                )}
+            {menu.length > 0 && <DropdownMenu items={menu} label="Boshqa amallar" />}
           </Cluster>
         }
       />
@@ -141,15 +147,19 @@ export function TenantDetailPage() {
             {section === 'umumiy' && (
               <Overview
                 tenant={tenant}
-                onEdit={archived ? undefined : () => actions.openEdit(ref, tenant)}
-                onLicense={archived || plans.length === 0 ? undefined : () => actions.openLicense(ref, tenant)}
+                onEdit={archived || !can('tenants.edit') ? undefined : () => actions.openEdit(ref, tenant)}
+                onLicense={
+                  archived || plans.length === 0 || !can('subscriptions.manage')
+                    ? undefined
+                    : () => actions.openLicense(ref, tenant)
+                }
               />
             )}
             {section === 'tolovlar' && (
               <Payments
                 tenant={tenant}
-                onConfirm={archived ? undefined : (r) => actions.openPayment(ref, r)}
-                onReject={archived ? undefined : (r) => actions.openReject(ref, r)}
+                onConfirm={archived || !canPay ? undefined : (r) => actions.openPayment(ref, r)}
+                onReject={archived || !canPay ? undefined : (r) => actions.openReject(ref, r)}
               />
             )}
             {section === 'kirish' && <OwnerAccess tenantId={tenant.tenantId} archived={archived} />}
@@ -191,6 +201,7 @@ function StatusAlerts({
   tenantRef: TenantRef;
   actions: ReturnType<typeof useTenantActions>;
 }) {
+  const { can } = useAuth();
   const alerts = [];
 
   if (tenant.archive) {
@@ -200,9 +211,11 @@ function StatusAlerts({
         tone="warning"
         title={`Biznes arxivda — ${purgeText(tenant.archive)}`}
         action={
-          <Button variant="danger-outline" size="sm" icon="trash" onClick={() => actions.openDelete(ref)}>
-            Hozir o'chirish
-          </Button>
+          can('tenants.delete') && (
+            <Button variant="danger-outline" size="sm" icon="trash" onClick={() => actions.openDelete(ref)}>
+              Hozir o'chirish
+            </Button>
+          )
         }
       >
         {formatDay(tenant.archive.archivedAt)} kuni arxivlangan. Sabab: {tenant.archive.reason}
@@ -215,9 +228,11 @@ function StatusAlerts({
         tone="danger"
         title="Biznes to'xtatilgan"
         action={
-          <Button variant="outline" size="sm" icon="unlock" onClick={() => actions.openUnsuspend(ref)}>
-            Qayta ochish
-          </Button>
+          can('tenants.suspend') && (
+            <Button variant="outline" size="sm" icon="unlock" onClick={() => actions.openUnsuspend(ref)}>
+              Qayta ochish
+            </Button>
+          )
         }
       >
         {tenant.license.suspendedReason
@@ -235,14 +250,16 @@ function StatusAlerts({
         tone="info"
         title="Mijoz to'lov qilganini bildirdi"
         action={
-          <Cluster gap={2}>
-            <Button size="sm" icon="check" onClick={() => actions.openPayment(ref, request)}>
-              Tasdiqlash
-            </Button>
-            <Button variant="plain" size="sm" onClick={() => actions.openReject(ref, request)}>
-              Rad etish
-            </Button>
-          </Cluster>
+          can('payments.manage') && (
+            <Cluster gap={2}>
+              <Button size="sm" icon="check" onClick={() => actions.openPayment(ref, request)}>
+                Tasdiqlash
+              </Button>
+              <Button variant="plain" size="sm" onClick={() => actions.openReject(ref, request)}>
+                Rad etish
+              </Button>
+            </Cluster>
+          )
         }
       >
         {request.planName} · {formatSom(request.amount)} · {formatRelative(request.createdAt)}

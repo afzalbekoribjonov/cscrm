@@ -3,6 +3,7 @@
 import type { Tone } from '@/components/ui/Badge';
 
 import { formatDay, formatTime } from './dates';
+import type { Permission } from './permissions';
 
 export type LicenseState =
   | 'active'
@@ -112,7 +113,14 @@ export type AuditAction =
   | 'plan.price_reset'
   | 'broadcast.create'
   | 'broadcast.delete'
-  | 'site.settings';
+  | 'site.settings'
+  | 'role.create'
+  | 'role.update'
+  | 'role.delete'
+  | 'admin.add'
+  | 'admin.role'
+  | 'admin.remove'
+  | 'user.signout';
 
 /** Amallar jurnali yozuvi — backend/src/services/audit.ts bilan mos. */
 export interface AuditEntry {
@@ -124,6 +132,54 @@ export interface AuditEntry {
   tenantName?: string;
   note?: string;
   changes?: Record<string, { from: unknown; to: unknown }>;
+}
+
+/** Platforma foydalanuvchisi — backend/src/services/users.ts bilan mos. */
+export interface PlatformUser {
+  uid: string;
+  kind: 'owner' | 'staff';
+  tenantId: string;
+  tenantName: string;
+  tenantArchived: boolean;
+  name: string;
+  login?: string;
+  phone?: string;
+  /** Xodim ilovada faolmi (egasi o'chirib qo'ymaganmi). */
+  active: boolean;
+  /** Hech kirmagan xodimda hisob yo'q. */
+  hasAccount: boolean;
+  createdAt: number | null;
+  lastActiveAt: number | null;
+  disabled: boolean;
+}
+
+/** Panel roli — backend/src/services/admin-access.ts bilan mos. */
+export interface AdminRole {
+  id: string;
+  name: string;
+  description?: string;
+  permissions: Permission[];
+  createdAt: number;
+  createdBy: string;
+  updatedAt?: number;
+  memberCount: number;
+}
+
+export interface AdminMember {
+  uid: string;
+  email: string;
+  roleId: string;
+  roleName: string | null;
+  addedAt: number;
+  lastSignInAt: number | null;
+  disabled: boolean;
+}
+
+export interface AccessOverview {
+  roles: AdminRole[];
+  members: AdminMember[];
+  superAdmins: { uid: string; email: string | null; lastSignInAt: number | null }[];
+  permissions: { id: Permission; label: string; superOnly: boolean }[];
 }
 
 /** Biznes egasining kirish ma'lumotlari. Parol HECH QACHON kelmaydi. */

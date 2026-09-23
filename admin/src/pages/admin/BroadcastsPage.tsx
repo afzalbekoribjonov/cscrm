@@ -1,7 +1,26 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useState } from 'react';
 
+import {
+  Alert,
+  Badge,
+  Button,
+  Card,
+  ChipGroup,
+  ConfirmDialog,
+  EmptyState,
+  Field,
+  Input,
+  ListSkeleton,
+  PageHeader,
+  Select,
+  Stack,
+  Textarea,
+  useToast,
+  type Tone,
+} from '@/components/ui';
 import { api } from '@/lib/api';
-import { formatDateTime } from '@/lib/admin-types';
+import { formatDay, formatRelative } from '@/lib/dates';
+import { useApi } from '@/lib/use-api';
 
 type BroadcastKind = 'yangilik' | 'eslatma' | 'taklif';
 
@@ -14,270 +33,228 @@ interface Broadcast {
   expiresAt: number | null;
 }
 
-const KINDS: { id: BroadcastKind; label: string; color: string }[] = [
-  { id: 'yangilik', label: 'Yangilik', color: 'var(--brand)' },
-  { id: 'eslatma', label: 'Eslatma', color: 'var(--warning)' },
-  { id: 'taklif', label: 'Taklif', color: 'var(--success)' },
+const DAY = 86_400_000;
+const TITLE_MAX = 120;
+const BODY_MAX = 2000;
+
+const KINDS: { id: BroadcastKind; label: string; tone: Tone }[] = [
+  { id: 'yangilik', label: 'Yangilik', tone: 'brand' },
+  { id: 'eslatma', label: 'Eslatma', tone: 'info' },
+  { id: 'taklif', label: 'Taklif', tone: 'neutral' },
 ];
 
-const fieldStyle: React.CSSProperties = {
-  width: '100%',
-  marginTop: 4,
-  padding: '10px 12px',
-  borderRadius: 'var(--radius)',
-  border: '1px solid var(--border)',
-  background: 'var(--surface-muted)',
-  color: 'var(--text)',
-  font: 'inherit',
-};
+const DURATIONS: { days: number; label: string }[] = [
+  { days: 0, label: 'Muddatsiz' },
+  { days: 3, label: '3 kun' },
+  { days: 7, label: '1 hafta' },
+  { days: 14, label: '2 hafta' },
+  { days: 30, label: '1 oy' },
+];
+
+function kindOf(k: BroadcastKind) {
+  return KINDS.find((x) => x.id === k) ?? KINDS[0]!;
+}
 
 /**
  * Barcha bizneslarga xabar yuborish.
  *
- * Xabar BARCHA mijozlarning ilovasida darhol ko'rinadi — shuning uchun
- * yuborishdan oldin tasdiq so'raladi va oldindan ko'rish beriladi.
+ * Xabar BARCHA mijozlarning ilovasida darhol ko'rinadi va telefonlariga
+ * bildirishnoma boradi — shuning uchun yuborishdan oldin oldindan ko'rish
+ * va tasdiq bor. Yuborilgan xabarni o'chirish mumkin, tahrirlash — yo'q
+ * (bildirishnoma allaqachon ketgan).
  */
 export function BroadcastsPage() {
-  const [list, setList] = useState<Broadcast[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  const toast = useToast();
+  const { data: list, error, loading, refreshing, reload } = useApi(
+    '/api/v1/admin/broadcasts',
+    (json) => (json as { broadcasts: Broadcast[] }).broadcasts,
+  );
 
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
   const [kind, setKind] = useState<BroadcastKind>('yangilik');
-  const [days, setDays] = useState('');
+  const [days, setDays] = useState(0);
+  const [errors, setErrors] = useState<{ title?: string; body?: string }>({});
+  const [confirmSend, setConfirmSend] = useState(false);
+  const [removing, setRemoving] = useState<Broadcast | null>(null);
 
-  const load = useCallback(async () => {
-    try {
-      const r = await api.get<{ broadcasts: Broadcast[] }>(
-        '/api/v1/admin/broadcasts',
-      );
-      setList(r.broadcasts);
-      setError(null);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Xatolik');
-    }
-  }, []);
+  const now = Date.now();
+  const k = kindOf(kind);
 
-  useEffect(() => {
-    load();
-  }, [load]);
-
-  async function send() {
-    if (!title.trim() || !body.trim()) return;
-    if (
-      !window.confirm(
-        'Bu xabar BARCHA bizneslarning ilovasida ko\'rinadi.\n\n' +
-          `"${title.trim()}"\n\nYuborilsinmi?`,
-      )
-    ) {
-      return;
-    }
-
-    setBusy(true);
-    try {
-      const n = Number(days);
-      await api.post('/api/v1/admin/broadcasts', {
-        title: title.trim(),
-        body: body.trim(),
-        kind,
-        ...(n > 0
-          ? { expiresAt: Date.now() + n * 24 * 60 * 60 * 1000 }
-          : {}),
-      });
-      setTitle('');
-      setBody('');
-      setDays('');
-      await load();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Xatolik');
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function remove(b: Broadcast) {
-    if (!window.confirm(`"${b.title}" o'chirilsinmi?`)) return;
-    setBusy(true);
-    try {
-      await api.del(`/api/v1/admin/broadcasts/${b.id}`);
-      await load();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Xatolik');
-    } finally {
-      setBusy(false);
-    }
-  }
+  const trySend = () => {
+    const e: typeof errors = {};
+    if (!title.trim()) e.title = 'Sarlavhani kiriting.';
+    if (!body.trim()) e.body = 'Xabar matnini kiriting.';
+    setErrors(e);
+    if (Object.keys(e).length === 0) setConfirmSend(true);
+  };
 
   return (
     <>
-      <div className="page-title">
-        <h1>Xabarlar</h1>
-        <span className="muted">Barcha bizneslarga</span>
-      </div>
+      <PageHeader
+        title="Xabarlar"
+        description="Barcha bizneslar ilovasidagi «Xabarlar» bo'limiga — yangiliklar, eslatmalar, takliflar."
+        actions={
+          <Button variant="outline" size="sm" icon="refresh" loading={refreshing} onClick={reload}>
+            Yangilash
+          </Button>
+        }
+      />
 
-      {error && <p style={{ color: 'var(--danger)' }}>{error}</p>}
-
-      <div
-        style={{
-          display: 'grid',
-          gap: 18,
-          gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
-          alignItems: 'start',
-        }}
-      >
-        <section className="card">
-          <h3>Yangi xabar</h3>
-          <p className="muted" style={{ fontSize: 13.5 }}>
-            Xabar barcha mijozlarning ilovasida, qo'ng'iroq ostidagi
-            "Xabarlar" bo'limida ko'rinadi.
-          </p>
-
-          <label style={{ display: 'block', marginBottom: 10 }}>
-            <span className="muted" style={{ fontSize: 13 }}>Turi</span>
-            <div className="chips" style={{ marginTop: 6 }}>
-              {KINDS.map((k) => (
-                <button
-                  key={k.id}
-                  type="button"
-                  className={`chip${kind === k.id ? ' is-active' : ''}`}
-                  onClick={() => setKind(k.id)}
-                >
-                  {k.label}
-                </button>
-              ))}
-            </div>
-          </label>
-
-          <label style={{ display: 'block', marginBottom: 10 }}>
-            <span className="muted" style={{ fontSize: 13 }}>Sarlavha</span>
-            <input
-              type="text"
-              value={title}
-              maxLength={120}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="Masalan: Yangi imkoniyat qo'shildi"
-              style={fieldStyle}
-            />
-          </label>
-
-          <label style={{ display: 'block', marginBottom: 10 }}>
-            <span className="muted" style={{ fontSize: 13 }}>Matn</span>
-            <textarea
-              value={body}
-              maxLength={2000}
-              rows={5}
-              onChange={(e) => setBody(e.target.value)}
-              placeholder="Xabar matni…"
-              style={{ ...fieldStyle, resize: 'vertical' }}
-            />
-          </label>
-
-          <label style={{ display: 'block', marginBottom: 14 }}>
-            <span className="muted" style={{ fontSize: 13 }}>
-              Necha kun ko'rinsin (bo'sh — muddatsiz)
-            </span>
-            <input
-              type="number"
-              min={1}
-              value={days}
-              onChange={(e) => setDays(e.target.value)}
-              placeholder="masalan: 14"
-              style={fieldStyle}
-            />
-          </label>
-
-          <button
-            className="btn btn--primary"
-            style={{ width: '100%' }}
-            disabled={busy || !title.trim() || !body.trim()}
-            onClick={send}
+      <div className="ui-split">
+        <Card title="Yangi xabar">
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              trySend();
+            }}
           >
-            {busy ? 'Yuborilmoqda…' : 'Barchaga yuborish'}
-          </button>
-        </section>
+            <Stack gap={4}>
+              <ChipGroup
+                label="Xabar turi"
+                value={kind}
+                onChange={setKind}
+                options={KINDS.map((x) => ({ id: x.id, label: x.label }))}
+              />
+              <Field label="Sarlavha" required error={errors.title} hint={`${title.length} / ${TITLE_MAX}`}>
+                <Input
+                  value={title}
+                  maxLength={TITLE_MAX}
+                  onChange={(e) => {
+                    setTitle(e.target.value);
+                    setErrors((x) => ({ ...x, title: undefined }));
+                  }}
+                  placeholder="Masalan: Yangi imkoniyat qo'shildi"
+                />
+              </Field>
+              <Field label="Matn" required error={errors.body} hint={`${body.length} / ${BODY_MAX}`}>
+                <Textarea
+                  value={body}
+                  maxLength={BODY_MAX}
+                  rows={5}
+                  onChange={(e) => {
+                    setBody(e.target.value);
+                    setErrors((x) => ({ ...x, body: undefined }));
+                  }}
+                />
+              </Field>
+              <Field label="Ko'rinish muddati" hint="Muddat o'tgach xabar ilovada ko'rinmaydi, lekin shu ro'yxatda qoladi.">
+                <Select value={String(days)} onChange={(e) => setDays(Number(e.target.value))}>
+                  {DURATIONS.map((d) => (
+                    <option key={d.days} value={d.days}>
+                      {d.label}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
 
-        <section className="card">
-          <h3>Yuborilganlar</h3>
-          {list === null ? (
-            <p className="muted" style={{ margin: 0 }}>Yuklanmoqda…</p>
-          ) : list.length === 0 ? (
-            <p className="muted" style={{ margin: 0 }}>
-              Hali xabar yuborilmagan.
-            </p>
+              {(title.trim() || body.trim()) && (
+                <div className="ui-preview" aria-label="Ilovada shunday ko'rinadi">
+                  <p className="ui-preview__label">Ilovada shunday ko'rinadi</p>
+                  <Badge tone={k.tone}>{k.label}</Badge>
+                  <p className="ui-preview__title">{title.trim() || 'Sarlavha'}</p>
+                  <p className="ui-preview__body">{body.trim() || 'Xabar matni'}</p>
+                </div>
+              )}
+
+              <Button type="submit" icon="bell" block>
+                Barchaga yuborish
+              </Button>
+            </Stack>
+          </form>
+        </Card>
+
+        <Card title="Yuborilganlar" description={list ? `${list.length} ta xabar` : undefined}>
+          {loading ? (
+            <ListSkeleton rows={3} />
+          ) : error && !list ? (
+            <Alert
+              tone="danger"
+              action={
+                <Button variant="outline" size="sm" icon="refresh" onClick={reload}>
+                  Qayta urinish
+                </Button>
+              }
+            >
+              {error}
+            </Alert>
+          ) : !list || list.length === 0 ? (
+            <EmptyState icon="bell" title="Hali xabar yuborilmagan" compact />
           ) : (
-            <div style={{ display: 'grid', gap: 10 }}>
+            <ul className="ui-feed">
               {list.map((b) => {
-                const k = KINDS.find((x) => x.id === b.kind) ?? KINDS[0]!;
-                const expired =
-                  b.expiresAt !== null && b.expiresAt < Date.now();
+                const bk = kindOf(b.kind);
+                const expired = b.expiresAt !== null && b.expiresAt < now;
                 return (
-                  <div
-                    key={b.id}
-                    style={{
-                      border: '1px solid var(--border)',
-                      borderRadius: 'var(--radius)',
-                      padding: 12,
-                      opacity: expired ? 0.55 : 1,
-                    }}
-                  >
-                    <div
-                      style={{
-                        display: 'flex',
-                        gap: 8,
-                        alignItems: 'center',
-                        flexWrap: 'wrap',
-                      }}
-                    >
-                      <span
-                        className="badge"
-                        style={{
-                          color: k.color,
-                          background: `color-mix(in srgb, ${k.color} 15%, transparent)`,
-                        }}
-                      >
-                        {k.label}
-                      </span>
-                      {expired && (
-                        <span className="muted" style={{ fontSize: 12 }}>
-                          muddati o'tgan
-                        </span>
-                      )}
-                      <span
-                        className="muted"
-                        style={{ fontSize: 12, marginInlineStart: 'auto' }}
-                      >
-                        {formatDateTime(b.createdAt)}
-                      </span>
+                  <li key={b.id} className={expired ? 'is-muted' : undefined}>
+                    <div className="ui-feed__head">
+                      <Badge tone={bk.tone}>{bk.label}</Badge>
+                      {expired ? (
+                        <Badge tone="neutral">Muddati o'tgan</Badge>
+                      ) : b.expiresAt ? (
+                        <span className="ui-note">{formatDay(b.expiresAt)} gacha</span>
+                      ) : null}
+                      <span className="ui-feed__time">{formatRelative(b.createdAt)}</span>
                     </div>
-                    <strong style={{ display: 'block', marginTop: 6 }}>
-                      {b.title}
-                    </strong>
-                    <p
-                      className="muted"
-                      style={{ margin: '4px 0 8px', fontSize: 14 }}
-                    >
-                      {b.body}
-                    </p>
-                    <button
-                      className="btn btn--ghost"
-                      style={{
-                        padding: '6px 12px',
-                        fontSize: 13,
-                        color: 'var(--danger)',
-                      }}
-                      disabled={busy}
-                      onClick={() => remove(b)}
-                    >
+                    <p className="ui-feed__title">{b.title}</p>
+                    <p className="ui-feed__body">{b.body}</p>
+                    <Button variant="plain" size="sm" icon="trash" onClick={() => setRemoving(b)}>
                       O'chirish
-                    </button>
-                  </div>
+                    </Button>
+                  </li>
                 );
               })}
-            </div>
+            </ul>
           )}
-        </section>
+        </Card>
       </div>
+
+      <ConfirmDialog
+        open={confirmSend}
+        onClose={() => setConfirmSend(false)}
+        icon="bell"
+        title="Xabarni barchaga yuborish"
+        description={`«${title.trim()}»`}
+        consequences={[
+          'Xabar barcha bizneslarning ilovasida darhol ko\'rinadi.',
+          'Egalar va xodimlarning telefonlariga bildirishnoma boradi — uni qaytarib bo\'lmaydi.',
+          days > 0 ? `${DURATIONS.find((d) => d.days === days)?.label} ko'rinib turadi.` : 'Muddatsiz — o\'chirilguncha ko\'rinadi.',
+        ]}
+        confirmLabel="Yuborish"
+        onConfirm={async () => {
+          await api.post('/api/v1/admin/broadcasts', {
+            title: title.trim(),
+            body: body.trim(),
+            kind,
+            ...(days > 0 ? { expiresAt: Date.now() + days * DAY } : {}),
+          });
+          toast.success('Xabar yuborildi', title.trim());
+          setTitle('');
+          setBody('');
+          setDays(0);
+          reload();
+        }}
+      />
+
+      <ConfirmDialog
+        open={removing !== null}
+        onClose={() => setRemoving(null)}
+        tone="danger"
+        icon="trash"
+        title="Xabarni o'chirish"
+        description={removing ? `«${removing.title}»` : undefined}
+        consequences={[
+          'Xabar ilovalardagi «Xabarlar» bo\'limidan yo\'qoladi.',
+          'Yuborilgan bildirishnomalar telefonlarda qolishi mumkin.',
+        ]}
+        confirmLabel="O'chirish"
+        onConfirm={async () => {
+          if (!removing) return;
+          await api.del(`/api/v1/admin/broadcasts/${removing.id}`);
+          toast.success('Xabar o\'chirildi');
+          reload();
+        }}
+      />
     </>
   );
 }

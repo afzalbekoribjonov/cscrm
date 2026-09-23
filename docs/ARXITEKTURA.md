@@ -158,11 +158,15 @@ Barcha yo'llar `/api/v1` ostida. Avtorizatsiya: `Authorization: Bearer <ID token
 | GET | `/admin/audit` | `audit.read` | umumiy amallar jurnali |
 | GET | `/admin/payment-requests` | `payments.manage` | to'lov so'rovlari navbati |
 | POST | `/admin/tenants/:id/payment-requests/:reqId/reject` | `payments.manage` | so'rovni rad etish |
+| GET | `/admin/users` | `users.read` | egalar va xodimlar (hali kirmaganlari ham) |
+| POST | `/admin/users/:uid/signout` | `users.manage` | barcha qurilmalardan chiqarish |
+| GET | `/admin/access` | `admins.manage` | rollar, panel xodimlari, bosh administratorlar |
+| POST/PATCH/DELETE | `/admin/access/roles[/:id]` | `admins.manage` | rol yaratish / tahrirlash / o'chirish |
+| POST/PATCH/DELETE | `/admin/access/members[/:uid]` | `admins.manage` | xodim qo'shish / rolini almashtirish / chiqarish |
 
 Panel yo'llarida "Kim" ustunidagi nom — vakolat (`backend/src/lib/permissions.ts`).
-Hozir yagona rol — super-admin, unda hammasi bor. Yangi rol qo'shilganda
-yo'llar o'zgarmaydi: har biri o'z vakolatini `requirePermission` bilan
-tekshiradi.
+`/admin/me` hamma panel xodimiga ochiq — u kimligini va vakolatlarini
+qaytaradi, panel menyu va tugmalarni shunga qarab ko'rsatadi.
 
 `/license/status` **tenantId'ni so'rovdan olmaydi** — faqat tokendagi
 da'vodan. Aks holda istalgan foydalanuvchi boshqa biznesning obuna
@@ -289,15 +293,46 @@ O'z harakati hech qachon qaytmaydi — tarixdagi `byEmployeeId` tekshiriladi.
 
 ## Super-admin paneli
 
-Websaytda `/admin`. Ikki qatlamli himoya:
+Websaytda `/admin`. Uch qatlamli himoya:
 
-1. **Ko'rinish** — `RequireSuperAdmin` marshrutni yopadi
-2. **Haqiqiy** — har bir `/api/v1/admin/*` so'rovi `requireSuperAdmin`
-   dan o'tadi
+1. **Ko'rinish** — `RequireAdmin` marshrutni yopadi, menyu va tugmalar
+   vakolatga qarab ko'rsatiladi
+2. **Kirish** — har bir `/api/v1/admin/*` so'rovi `requireAdmin` dan
+   o'tadi: bosh administrator yoki rolga ega panel xodimi
+3. **Vakolat** — har yo'l o'z `requirePermission` ini tekshiradi
 
 Firebase'ga kirish o'zi yetarli emas: har qanday hisob kira oladi, lekin
-panelga faqat `SUPER_ADMIN_UIDS` sozlamasidagi UID'lar. Ro'yxat bazada
-emas, **serverda** — uni hech kim ilova orqali o'zgartira olmaydi.
+panelga faqat bosh administrator (`SUPER_ADMIN_UIDS` — bazada emas,
+**serverda**) va `admin_members` dagi xodimlar.
+
+### Rollar
+
+| | Bosh administrator | Panel xodimi |
+|---|---|---|
+| Qayerda | server sozlamasi `SUPER_ADMIN_UIDS` | `admin_members/{uid}` → `admin_roles/{roleId}` |
+| Vakolat | hammasi | roli bergan vakolatlar |
+| Panel xodimlari va rollar (`admins.manage`) | bor | **hech qachon** — rolga berib bo'lmaydi |
+| Panel orqali olib tashlash | mumkin emas | mumkin (seanslari yopiladi) |
+
+* Vakolatlar bazada **ro'yxat** sifatida saqlanadi — nuqtali nom
+  (`tenants.read`) bazada kalit bo'la olmaydi.
+* Huquq 30 soniya keshlanadi; shu server jarayonidagi o'zgarish darhol
+  kuchga kiradi.
+* Biznesga bog'langan hisob (ilova egasi/xodimi) panelga qo'shilmaydi,
+  panel xodimining hisobi esa biznes egasi sifatida tiklanmaydi — bir
+  admin boshqasining hisobini egallab olmasligi uchun.
+* Yangi xodimga hisob yaratilsa, vaqtinchalik parol faqat javobda bir
+  marta qaytadi (jurnalga ham, logga ham tushmaydi); xodim uni panelda
+  o'zi almashtiradi.
+
+### Qoidalar joylanmagan paytda
+
+Ba'zi so'rovlar `.indexOn` ga tayanadi (`admin_audit.tenantId`,
+`admin_logins.tenantId`, `push_tokens.tenantId`). Indeks jonli bazada
+hali yo'q bo'lsa, `whereEquals` tugunni to'liq o'qib saralaydi (logda
+ogohlantirish). Umumiy jurnal push-kalit tartibida o'qiladi — indeks
+kerak emas. Emulatorda jonli qoidalar nusxasi va yangi qoidalar bilan
+ikkala holat ham sinalgan.
 
 Ruxsati yo'q hisob bilan kirilsa, panel oddiy "ruxsat yo'q" deydi — UID
 va sozlama nomi ko'rsatilmaydi (ular hujumchiga ma'lumot beradi).

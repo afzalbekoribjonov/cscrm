@@ -4,6 +4,7 @@ import { ConfirmDialog, PromptDialog, useToast, type MenuItem } from '@/componen
 import { notifyBadgesChanged } from '@/lib/admin-events';
 import type { ArchiveInfo, PaymentRequestRecord, TenantDetail, TenantSummary } from '@/lib/admin-types';
 import { api } from '@/lib/api';
+import { useAuth } from '@/lib/auth';
 import { formatSom } from '@/lib/format';
 import type { Plan } from '@/lib/plans';
 
@@ -59,6 +60,7 @@ export function useTenantActions({
   onDeleted?: () => void;
 }) {
   const toast = useToast();
+  const { can } = useAuth();
   const [kind, setKind] = useState<Kind | null>(null);
   const [last, setLast] = useState<OpenState | null>(null);
 
@@ -73,7 +75,10 @@ export function useTenantActions({
     onChanged();
   };
 
-  /** Ro'yxat qatori va karta menyusidagi amallar. */
+  /**
+   * Ro'yxat qatori va karta menyusidagi amallar — faqat vakolati borlari
+   * (server baribir tekshiradi; bu yerda — ko'rinmaydigan tugma bosilmasin).
+   */
   function menuItems(tenant: TenantRef, opts: { detail?: TenantDetail; openLink?: () => void } = {}): MenuItem[] {
     const items: MenuItem[] = [];
     const archived = tenant.archive !== null;
@@ -81,19 +86,20 @@ export function useTenantActions({
     if (opts.openLink) items.push({ id: 'open', label: 'Ochish', icon: 'external', onSelect: opts.openLink });
 
     if (!archived) {
-      if (opts.detail) {
-        const detail = opts.detail;
+      const detail = opts.detail;
+      if (detail && can('tenants.edit')) {
         items.push({ id: 'edit', label: 'Tahrirlash', icon: 'edit', onSelect: () => open({ kind: 'edit', tenant, detail }) });
       }
-      items.push({
-        id: 'pay',
-        label: 'To\'lov qabul qilish',
-        icon: 'card',
-        disabled: plans.length === 0,
-        onSelect: () => open({ kind: 'pay', tenant, request: null }),
-      });
-      if (opts.detail) {
-        const detail = opts.detail;
+      if (can('payments.manage')) {
+        items.push({
+          id: 'pay',
+          label: 'To\'lov qabul qilish',
+          icon: 'card',
+          disabled: plans.length === 0,
+          onSelect: () => open({ kind: 'pay', tenant, request: null }),
+        });
+      }
+      if (detail && can('subscriptions.manage')) {
         items.push({
           id: 'license',
           label: 'Obunani o\'zgartirish',
@@ -102,15 +108,23 @@ export function useTenantActions({
           onSelect: () => open({ kind: 'license', tenant, detail }),
         });
       }
-      items.push(
-        tenant.suspended
-          ? { id: 'unsuspend', label: 'Qayta ochish', icon: 'unlock', onSelect: () => open({ kind: 'unsuspend', tenant }) }
-          : { id: 'suspend', label: 'To\'xtatish', icon: 'lock', onSelect: () => open({ kind: 'suspend', tenant }) },
-      );
-      items.push({ id: 'archive', label: 'Arxivlash', icon: 'archive', tone: 'danger', onSelect: () => open({ kind: 'archive', tenant }) });
+      if (can('tenants.suspend')) {
+        items.push(
+          tenant.suspended
+            ? { id: 'unsuspend', label: 'Qayta ochish', icon: 'unlock', onSelect: () => open({ kind: 'unsuspend', tenant }) }
+            : { id: 'suspend', label: 'To\'xtatish', icon: 'lock', onSelect: () => open({ kind: 'suspend', tenant }) },
+        );
+      }
+      if (can('tenants.archive')) {
+        items.push({ id: 'archive', label: 'Arxivlash', icon: 'archive', tone: 'danger', onSelect: () => open({ kind: 'archive', tenant }) });
+      }
     } else {
-      items.push({ id: 'restore', label: 'Arxivdan qaytarish', icon: 'restore', onSelect: () => open({ kind: 'restore', tenant }) });
-      items.push({ id: 'delete', label: 'Butunlay o\'chirish', icon: 'trash', tone: 'danger', onSelect: () => open({ kind: 'delete', tenant }) });
+      if (can('tenants.archive')) {
+        items.push({ id: 'restore', label: 'Arxivdan qaytarish', icon: 'restore', onSelect: () => open({ kind: 'restore', tenant }) });
+      }
+      if (can('tenants.delete')) {
+        items.push({ id: 'delete', label: 'Butunlay o\'chirish', icon: 'trash', tone: 'danger', onSelect: () => open({ kind: 'delete', tenant }) });
+      }
     }
     return items;
   }

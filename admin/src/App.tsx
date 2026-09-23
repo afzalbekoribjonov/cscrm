@@ -6,13 +6,7 @@ import { AuthProvider, useAuth } from './lib/auth';
 import { NotFoundPage } from './pages/NotFoundPage';
 import { AdminLayout } from './pages/admin/AdminLayout';
 import { AdminLoginPage } from './pages/admin/AdminLoginPage';
-import { BroadcastsPage } from './pages/admin/BroadcastsPage';
-import { DashboardPage } from './pages/admin/DashboardPage';
-import { PlansPage } from './pages/admin/PlansPage';
-import { SettingsPage } from './pages/admin/SettingsPage';
-import { PaymentRequestsPage } from './pages/admin/PaymentRequestsPage';
-import { TenantDetailPage } from './pages/admin/TenantDetailPage';
-import { TenantsPage } from './pages/admin/TenantsPage';
+import { adminRoutes } from './pages/admin/nav';
 import { ContactPage } from './pages/marketing/ContactPage';
 import { DownloadPage } from './pages/marketing/DownloadPage';
 import { FeaturesPage } from './pages/marketing/FeaturesPage';
@@ -26,15 +20,16 @@ import { SOLUTIONS, SolutionPage } from './pages/marketing/SolutionPage';
 /**
  * Panelni himoyalaydi.
  *
- * Ikki shart: tizimga kirilgan BO'LISHI va server uni super-admin deb
- * TASDIQLAGAN bo'lishi. Ikkinchisi muhim — Firebase'ga har qanday hisob
- * kira oladi, lekin panelga faqat ruxsat etilganlar.
+ * Ikki shart: tizimga kirilgan BO'LISHI va server uni panel xodimi
+ * (super-admin yoki rolga ega) deb TASDIQLAGAN bo'lishi. Ikkinchisi
+ * muhim — Firebase'ga har qanday hisob kira oladi, lekin panelga
+ * faqat ruxsat etilganlar.
  *
  * Bu faqat ko'rinish darajasidagi himoya: haqiqiy cheklov backendda,
- * har bir `/admin` so'rovi `requireSuperAdmin` dan o'tadi.
+ * har bir `/admin` so'rovi `requireAdmin` va o'z vakolatidan o'tadi.
  */
-function RequireSuperAdmin() {
-  const { user, isSuperAdmin, ready } = useAuth();
+function RequireAdmin() {
+  const { user, access, ready } = useAuth();
 
   if (!ready) {
     return (
@@ -43,7 +38,7 @@ function RequireSuperAdmin() {
       </p>
     );
   }
-  if (!user || !isSuperAdmin) return <Navigate to="/kirish" replace />;
+  if (!user || !access) return <Navigate to="/kirish" replace />;
 
   return <AdminLayout />;
 }
@@ -86,14 +81,8 @@ export function App() {
 
           <Route path="/kirish" element={<AdminLoginPage />} />
 
-          <Route path="/admin" element={<RequireSuperAdmin />}>
-            <Route index element={<DashboardPage />} />
-            <Route path="payment-requests" element={<PaymentRequestsPage />} />
-            <Route path="broadcasts" element={<BroadcastsPage />} />
-            <Route path="plans" element={<PlansPage />} />
-            <Route path="settings" element={<SettingsPage />} />
-            <Route path="tenants" element={<TenantsPage />} />
-            <Route path="tenants/:tenantId" element={<TenantDetailPage />} />
+          <Route path="/admin" element={<RequireAdmin />}>
+            {adminRoutes()}
           </Route>
         </Routes>
       </ToastProvider>

@@ -1,36 +1,17 @@
 import { useEffect, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 
-import { Icon, type IconName } from '@/components/Icon';
+import { Icon } from '@/components/Icon';
 import { Wordmark } from '@/components/Logo';
-import { Button, Cluster, Drawer, IconButton } from '@/components/ui';
+import { Button, Cluster, Drawer, IconButton, useToast } from '@/components/ui';
 import { cx } from '@/components/ui/logic';
 import { onBadgesChanged } from '@/lib/admin-events';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { useTheme } from '@/lib/theme';
 
-interface NavItem {
-  to: string;
-  label: string;
-  icon: IconName;
-  end?: boolean;
-  /** Yonida ko'rsatiladigan son (masalan, kutilayotgan to'lovlar). */
-  badge?: keyof Badges;
-}
-
-/**
- * Menyu — faqat HOZIR ishlaydigan bo'limlar. Yangi bo'lim (masalan,
- * "Foydalanuvchilar") u haqiqatan tayyor bo'lgandagina qo'shiladi.
- */
-const NAV: NavItem[] = [
-  { to: '/admin', label: 'Umumiy', icon: 'grid', end: true },
-  { to: '/admin/tenants', label: 'Bizneslar', icon: 'building' },
-  { to: '/admin/payment-requests', label: 'To\'lov so\'rovlari', icon: 'card', badge: 'pendingPayments' },
-  { to: '/admin/broadcasts', label: 'Xabarlar', icon: 'bell' },
-  { to: '/admin/plans', label: 'Tariflar', icon: 'money' },
-  { to: '/admin/settings', label: 'Sozlamalar', icon: 'settings' },
-];
+import { NAV } from './nav';
+import { OwnPasswordDialog } from './OwnPasswordDialog';
 
 interface Badges {
   pendingPayments: number;
@@ -47,10 +28,11 @@ const BADGE_REFRESH_MS = 60_000;
  * (orqa fondagi tab so'rov yubormaydi). So'rov juda yengil: tugunda
  * faqat hal qilinmagan so'rovlar turadi.
  */
-function useBadges(pathname: string): Badges | null {
+function useBadges(pathname: string, enabled: boolean): Badges | null {
   const [badges, setBadges] = useState<Badges | null>(null);
 
   useEffect(() => {
+    if (!enabled) return;
     let cancelled = false;
     const load = () => {
       if (document.visibilityState !== 'visible') return;
@@ -72,7 +54,7 @@ function useBadges(pathname: string): Badges | null {
       document.removeEventListener('visibilitychange', load);
       off();
     };
-  }, [pathname]);
+  }, [pathname, enabled]);
 
   return badges;
 }
@@ -97,50 +79,66 @@ function Brand() {
   );
 }
 
-/** Super-admin panelining karkasi: yon menyu (telefonda — ochiladigan panel). */
+/** Boshqaruv panelining karkasi: yon menyu (telefonda — ochiladigan panel). */
 export function AdminLayout() {
-  const { user, signOutNow } = useAuth();
+  const { user, access, can, signOutNow } = useAuth();
+  const toast = useToast();
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
-  const badges = useBadges(pathname);
+  const [passwordOpen, setPasswordOpen] = useState(false);
+  const badges = useBadges(pathname, can('tenants.read'));
 
   // Menyudan sahifa tanlanganda panel o'zi yopilsin.
   useEffect(() => setMenuOpen(false), [pathname]);
 
+  const groups = NAV.map((group) => group.filter((item) => can(item.permission))).filter((g) => g.length > 0);
+
   const nav = (
     <nav aria-label="Boshqaruv menyusi" className="ui-nav">
-      {NAV.map((item) => {
-        const count = item.badge ? badges?.[item.badge] ?? 0 : 0;
-        return (
-          <NavLink
-            key={item.to}
-            to={item.to}
-            end={item.end}
-            className={({ isActive }) => cx('ui-nav__link', isActive && 'is-active')}
-          >
-            <Icon name={item.icon} size={19} />
-            {item.label}
-            {count > 0 && (
-              <span className="ui-nav__count">
-                {count}
-                <span className="ui-sr-only"> ta kutilmoqda</span>
-              </span>
-            )}
-          </NavLink>
-        );
-      })}
+      {groups.map((group, i) => (
+        <div key={i} className="ui-nav__group">
+          {group.map((item) => {
+            const count = item.badge ? badges?.[item.badge] ?? 0 : 0;
+            return (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                end={item.end}
+                className={({ isActive }) => cx('ui-nav__link', isActive && 'is-active')}
+              >
+                <Icon name={item.icon} size={19} />
+                {item.label}
+                {count > 0 && (
+                  <span className="ui-nav__count">
+                    {count}
+                    <span className="ui-sr-only"> ta kutilmoqda</span>
+                  </span>
+                )}
+              </NavLink>
+            );
+          })}
+        </div>
+      ))}
     </nav>
   );
+
+  const roleName = access?.isSuperAdmin ? 'Bosh administrator' : (access?.role?.name ?? 'Rol berilmagan');
 
   const account = (
     <div className="ui-shell__foot">
       <div className="ui-shell__user" title={user?.email ?? undefined}>
         <Icon name="people" size={16} />
-        <span>{user?.email}</span>
+        <span className="ui-shell__user-text">
+          <span>{user?.email}</span>
+          <span className="ui-shell__role">{roleName}</span>
+        </span>
       </div>
       <Cluster justify="between">
-        <ThemeButton />
+        <Cluster gap={1}>
+          <ThemeButton />
+          <IconButton icon="lock" label="Parolni almashtirish" onClick={() => setPasswordOpen(true)} />
+        </Cluster>
         <Button
           variant="plain"
           size="sm"
@@ -199,6 +197,12 @@ export function AdminLayout() {
           <Outlet />
         </main>
       </div>
+
+      <OwnPasswordDialog
+        open={passwordOpen}
+        onClose={() => setPasswordOpen(false)}
+        onDone={() => toast.success('Parol almashtirildi', 'Keyingi kirishda yangi parolni ishlating.')}
+      />
     </div>
   );
 }

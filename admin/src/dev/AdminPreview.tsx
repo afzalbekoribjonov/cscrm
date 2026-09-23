@@ -9,6 +9,7 @@
  *
  * Holatlar (URL): ?holat=bosh | xato | sekin | faolliksiz
  * Boshlang'ich sahifa: ?yol=/admin/tenants/t2 (standart — /admin)
+ * Rol: ?rol=operator — cheklangan vakolatli panel xodimi ko'rinishi
  */
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
@@ -18,21 +19,23 @@ import type { User } from 'firebase/auth';
 import { ToastProvider } from '@/components/ui';
 import type { Overview, OverviewRange } from '@/lib/admin-types';
 import { ApiError, setDevTransport } from '@/lib/api';
-import { AuthContext, type AuthState } from '@/lib/auth';
+import { AuthContext, canFrom, type AdminAccess, type AuthState } from '@/lib/auth';
 import { AdminLayout } from '@/pages/admin/AdminLayout';
-import { DashboardPage } from '@/pages/admin/DashboardPage';
-import { PaymentRequestsPage } from '@/pages/admin/PaymentRequestsPage';
-import { TenantDetailPage } from '@/pages/admin/TenantDetailPage';
-import { TenantsPage } from '@/pages/admin/TenantsPage';
+import { adminRoutes } from '@/pages/admin/nav';
 import '@/styles/global.css';
 import '@/styles/ui.css';
 import '@/styles/marketing.css';
 
+import { plans as basePlans } from '@/lib/plans';
+
+import { createContentStore, createPeopleStore } from './people-fixtures';
 import { createTenantStore } from './tenant-fixtures';
 
 const scenario = new URLSearchParams(location.search).get('holat') ?? 'oddiy';
 const startPath = new URLSearchParams(location.search).get('yol') ?? '/admin';
 const tenantStore = createTenantStore(scenario === 'bosh');
+const peopleStore = createPeopleStore();
+const contentStore = createContentStore(basePlans);
 
 const DAY = 86_400_000;
 const TZ = 5 * 3_600_000;
@@ -133,7 +136,10 @@ setDevTransport(async (path, init) => {
   const url = new URL(path, location.origin);
   const method = init.method ?? 'GET';
   const body = typeof init.body === 'string' ? (JSON.parse(init.body) as Record<string, unknown>) : {};
-  const handled = tenantStore(method, url.pathname, body);
+  const handled =
+    contentStore(method, url.pathname, body) ??
+    tenantStore(method, url.pathname, body) ??
+    peopleStore(method, url.pathname, body);
   if (handled !== undefined) return handled;
   if (url.pathname === '/api/v1/admin/badges') {
     const queue = tenantStore('GET', '/api/v1/admin/payment-requests', {}) as { requests: unknown[] };
@@ -146,9 +152,19 @@ setDevTransport(async (path, init) => {
   throw new ApiError('Bu sahifa uchun namunaviy ma\'lumot yo\'q.');
 });
 
+const access: AdminAccess =
+  new URLSearchParams(location.search).get('rol') === 'operator'
+    ? {
+        isSuperAdmin: false,
+        role: { id: 'r1', name: 'Operator' },
+        permissions: ['tenants.read', 'payments.manage', 'users.read'],
+      }
+    : { isSuperAdmin: true, role: null, permissions: [] };
+
 const auth: AuthState = {
-  user: { email: 'admin@cscrm.uz', uid: 'preview' } as User,
-  isSuperAdmin: true,
+  user: { email: access.isSuperAdmin ? 'admin@cscrm.uz' : 'operator@cscrm.uz', uid: 'preview' } as User,
+  access,
+  can: canFrom(access),
   ready: true,
   signIn: async () => undefined,
   signOutNow: async () => undefined,
@@ -161,11 +177,7 @@ createRoot(document.getElementById('root')!).render(
         <ToastProvider>
           <Routes>
             <Route path="/admin" element={<AdminLayout />}>
-              <Route index element={<DashboardPage />} />
-              <Route path="tenants" element={<TenantsPage />} />
-              <Route path="tenants/:tenantId" element={<TenantDetailPage />} />
-              <Route path="payment-requests" element={<PaymentRequestsPage />} />
-              <Route path="*" element={<p className="muted">Bu sahifa keyingi bosqichda.</p>} />
+              {adminRoutes()}
             </Route>
             <Route path="*" element={<p className="muted">Ko'rib chiqishda faqat panel.</p>} />
           </Routes>

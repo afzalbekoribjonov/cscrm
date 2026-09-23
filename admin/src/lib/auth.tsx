@@ -16,19 +16,31 @@ import {
 import { api, ApiError } from './api';
 import { firebaseAuth } from './firebase';
 import { isFirebaseConfigured } from './env';
+import type { Permission } from './permissions';
+
+/** Server tasdiqlagan panel kirishi (`GET /admin/me`). */
+export interface AdminAccess {
+  isSuperAdmin: boolean;
+  /** Panel xodimining roli; super-admin uchun `null`. */
+  role: { id: string; name: string } | null;
+  permissions: Permission[];
+}
 
 export interface AuthState {
   /** Firebase foydalanuvchisi. Kirilmagan bo'lsa `null`. */
   user: User | null;
 
   /**
-   * Server bu foydalanuvchini super-admin deb tasdiqladimi.
+   * Panelga kirish — server tasdiqlagan bo'lsa.
    *
    * Firebase'ga kirish O'ZI YETARLI EMAS: har qanday hisob kira oladi,
-   * lekin panelga faqat `SUPER_ADMIN_UIDS` ro'yxatidagilar kiradi. Shu
-   * sabab kirishdan keyin serverdan tasdiq so'raladi.
+   * lekin panelga faqat super-admin va rolga ega xodimlar. Shu sabab
+   * kirishdan keyin serverdan tasdiq va vakolatlar so'raladi.
    */
-  isSuperAdmin: boolean;
+  access: AdminAccess | null;
+
+  /** Vakolat bormi — menyu va tugmalar uchun (himoya serverda). */
+  can: (permission: Permission) => boolean;
 
   /** Boshlang'ich tekshiruv tugadimi. */
   ready: boolean;
@@ -37,12 +49,18 @@ export interface AuthState {
   signOutNow: () => Promise<void>;
 }
 
+/** Vakolatlar ro'yxatidan `can` — kontekst va sinovlar uchun bitta joy. */
+export function canFrom(access: AdminAccess | null): (p: Permission) => boolean {
+  const set = new Set(access?.permissions ?? []);
+  return (p) => Boolean(access) && (access!.isSuperAdmin || set.has(p));
+}
+
 /** Eksport — faqat ko'rib chiqish sahifalari (src/dev/) soxta foydalanuvchi berishi uchun. */
 export const AuthContext = createContext<AuthState | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [access, setAccess] = useState<AdminAccess | null>(null);
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
@@ -55,21 +73,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(next);
 
       if (!next) {
-        setIsSuperAdmin(false);
+        setAccess(null);
         setReady(true);
         return;
       }
 
       try {
-        await api.get('/api/v1/admin/me');
-        setIsSuperAdmin(true);
+        const me = await api.get<Partial<AdminAccess>>('/api/v1/admin/me');
+        setAccess({
+          isSuperAdmin: me.isSuperAdmin === true,
+          role: me.role ?? null,
+          permissions: Array.isArray(me.permissions) ? me.permissions : [],
+        });
       } catch (err) {
-        // 403 - hisob haqiqiy, lekin super-admin emas. Bu xatolik emas,
-        // oddiy holat: kirish rad etiladi.
+        // 403 - hisob haqiqiy, lekin panelga ruxsati yo'q. Bu xatolik
+        // emas, oddiy holat: kirish rad etiladi.
         if (!(err instanceof ApiError) || err.status !== 403) {
-          console.error('Super-admin tekshiruvi bajarilmadi', err);
+          console.error('Panel kirishini tekshirib bo\'lmadi', err);
         }
-        setIsSuperAdmin(false);
+        setAccess(null);
       } finally {
         setReady(true);
       }
@@ -79,7 +101,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const value = useMemo<AuthState>(
     () => ({
       user,
-      isSuperAdmin,
+      access,
+      can: canFrom(access),
       ready,
       signIn: async (email, password) => {
         await signInWithEmailAndPassword(firebaseAuth(), email, password);
@@ -88,7 +111,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await signOut(firebaseAuth());
       },
     }),
-    [user, isSuperAdmin, ready],
+    [user, access, ready],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -5,9 +5,9 @@ import { Logo } from '@/components/Logo';
 import { authErrorMessage, useAuth } from '@/lib/auth';
 import { isFirebaseConfigured } from '@/lib/env';
 
-/** Super-admin kirish sahifasi. */
+/** Boshqaruv paneliga kirish sahifasi. */
 export function AdminLoginPage() {
-  const { user, isSuperAdmin, ready, signIn, signOutNow } = useAuth();
+  const { user, access, ready, signIn, signOutNow } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -16,7 +16,7 @@ export function AdminLoginPage() {
   const configured = isFirebaseConfigured();
 
   // Allaqachon kirgan va ruxsati bor — panelga.
-  if (ready && user && isSuperAdmin) return <Navigate to="/admin" replace />;
+  if (ready && user && access) return <Navigate to="/admin" replace />;
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -38,7 +38,7 @@ export function AdminLoginPage() {
           <Logo size={56} />
           <h1 style={{ margin: '14px 0 4px', fontSize: 22 }}>CSCRM boshqaruv</h1>
           <p className="muted" style={{ fontSize: 14, margin: 0 }}>
-            Faqat tizim egalari uchun
+            Faqat CSCRM jamoasi uchun
           </p>
         </div>
 
@@ -54,9 +54,9 @@ export function AdminLoginPage() {
               </p>
             )}
           </Notice>
-        ) : ready && user && !isSuperAdmin ? (
+        ) : ready && user && !access ? (
           // Hisob haqiqiy, lekin ruxsat yo'q. Bu xatolik emas - shunchaki
-          // bu hisob super-adminlar ro'yxatida yo'q.
+          // bu hisob panel xodimlari orasida yo'q.
           //
           // Ruxsat qanday berilishi (sozlama nomi, UID) bu yerda
           // ATAYLAB aytilmaydi: bu sahifaga har qanday biznes egasi o'z

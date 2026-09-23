@@ -5,6 +5,8 @@ import { Icon } from '@/components/Icon';
 import { Alert, Button, EmptyState, ListSkeleton } from '@/components/ui';
 import type { AuditAction, AuditEntry } from '@/lib/admin-types';
 import { formatDay, formatRelative, formatTime } from '@/lib/dates';
+import { formatPhone } from '@/lib/format';
+import { PERMISSION_LABELS, type Permission } from '@/lib/permissions';
 
 /** Amal nomi va belgisi — jurnal texnik kod emas, oddiy gap bilan o'qiladi. */
 const ACTIONS: Record<AuditAction, { label: string; icon: IconName; tone?: 'danger' | 'success' }> = {
@@ -25,6 +27,13 @@ const ACTIONS: Record<AuditAction, { label: string; icon: IconName; tone?: 'dang
   'broadcast.create': { label: 'Xabar yuborildi', icon: 'bell' },
   'broadcast.delete': { label: 'Xabar o\'chirildi', icon: 'bell' },
   'site.settings': { label: 'Sayt sozlamalari o\'zgartirildi', icon: 'settings' },
+  'role.create': { label: 'Rol yaratildi', icon: 'shield' },
+  'role.update': { label: 'Rol o\'zgartirildi', icon: 'shield' },
+  'role.delete': { label: 'Rol o\'chirildi', icon: 'shield', tone: 'danger' },
+  'admin.add': { label: 'Panelga xodim qo\'shildi', icon: 'people', tone: 'success' },
+  'admin.role': { label: 'Panel xodimining roli o\'zgartirildi', icon: 'people' },
+  'admin.remove': { label: 'Xodim paneldan chiqarildi', icon: 'people', tone: 'danger' },
+  'user.signout': { label: 'Barcha qurilmalardan chiqarildi', icon: 'logout' },
 };
 
 const FIELDS: Record<string, string> = {
@@ -36,6 +45,9 @@ const FIELDS: Record<string, string> = {
   nextAnnualFeeAt: 'Yillik to\'lov sanasi',
   suspended: 'To\'xtatilgan',
   price: 'Narx',
+  role: 'Rol',
+  description: 'Tavsif',
+  permissions: 'Vakolatlar',
 };
 
 /** O'zgarish qiymati: sana bo'lsa sana, reja bo'lsa nomi, bo'sh bo'lsa "—". */
@@ -44,6 +56,13 @@ function valueText(key: string, v: unknown, planNames: Record<string, string>): 
   if (typeof v === 'boolean') return v ? 'Ha' : 'Yo\'q';
   if (typeof v === 'number' && key.endsWith('At')) return formatDay(v);
   if (key === 'planId' && typeof v === 'string') return planNames[v] ?? v;
+  if (key === 'phone' && typeof v === 'string') return formatPhone(v);
+  if (key === 'permissions' && typeof v === 'string') {
+    return v
+      .split(', ')
+      .map((p) => PERMISSION_LABELS[p as Permission] ?? p)
+      .join('; ');
+  }
   return String(v);
 }
 

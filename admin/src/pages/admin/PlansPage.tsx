@@ -1,20 +1,30 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 
-import { api } from '@/lib/api';
 import { MoneyInput } from '@/components/MoneyInput';
-import { formatSom } from '@/lib/admin-types';
-import type { Plan } from '@/lib/plans';
+import {
+  Alert,
+  Badge,
+  Button,
+  Card,
+  Cluster,
+  ConfirmDialog,
+  Field,
+  Input,
+  PageHeader,
+  SkeletonText,
+  Stack,
+  useToast,
+} from '@/components/ui';
+import { api } from '@/lib/api';
+import { formatSom } from '@/lib/format';
+import { plans as basePlans, type Plan } from '@/lib/plans';
+import { useApi } from '@/lib/use-api';
 
-const fieldStyle: React.CSSProperties = {
-  width: '100%',
-  marginTop: 4,
-  padding: '10px 12px',
-  borderRadius: 'var(--radius)',
-  border: '1px solid var(--border)',
-  background: 'var(--surface-muted)',
-  color: 'var(--text)',
-  font: 'inherit',
-};
+interface PendingChange {
+  plan: Plan;
+  price: number;
+  feeUsd?: number;
+}
 
 /**
  * Tarif narxlarini boshqarish.
@@ -27,242 +37,192 @@ const fieldStyle: React.CSSProperties = {
  * muddat hisobi buzilardi.
  */
 export function PlansPage() {
-  const [plans, setPlans] = useState<Plan[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [done, setDone] = useState<string | null>(null);
-  const [busyId, setBusyId] = useState<string | null>(null);
+  const toast = useToast();
+  const { data: plans, error, loading, refreshing, reload } = useApi(
+    '/api/v1/admin/plans',
+    (json) => (json as { plans: Plan[] }).plans,
+  );
+  const [saving, setSaving] = useState<PendingChange | null>(null);
+  const [resetting, setResetting] = useState<Plan | null>(null);
 
-  const load = useCallback(async () => {
-    try {
-      const r = await api.get<{ plans: Plan[] }>('/api/v1/admin/plans');
-      setPlans(r.plans);
-      setError(null);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Xatolik');
-    }
-  }, []);
+  const header = (
+    <PageHeader
+      title="Tariflar"
+      description="Narx o'zgartirilishi bilan ilovada ham, saytda ham darhol ko'rinadi. Reja muddati va turi o'zgarmaydi — ular obuna hisobiga bog'liq."
+      actions={
+        <Button variant="outline" size="sm" icon="refresh" loading={refreshing} onClick={reload}>
+          Yangilash
+        </Button>
+      }
+    />
+  );
 
-  useEffect(() => {
-    load();
-  }, [load]);
-
-  async function save(plan: Plan, price: number, feeUsd?: number) {
-    if (
-      !window.confirm(
-        `"${plan.name}" narxi ${formatSom(price)} bo'lsinmi?\n\n` +
-          'Yangi narx ilovada ham, saytda ham darhol ko\'rinadi.',
-      )
-    ) {
-      return;
-    }
-
-    setBusyId(plan.id);
-    setDone(null);
-    try {
-      const r = await api.post<{ plans: Plan[] }>(
-        `/api/v1/admin/plans/${plan.id}/price`,
-        {
-          price,
-          ...(feeUsd !== undefined ? { lifetimeAnnualFeeUsd: feeUsd } : {}),
-        },
-      );
-      setPlans(r.plans);
-      setDone(`"${plan.name}" narxi yangilandi.`);
-      setError(null);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Xatolik');
-    } finally {
-      setBusyId(null);
-    }
+  if (error && !plans) {
+    return (
+      <>
+        {header}
+        <Alert
+          tone="danger"
+          title="Tariflarni yuklab bo'lmadi"
+          action={
+            <Button variant="outline" size="sm" icon="refresh" onClick={reload}>
+              Qayta urinish
+            </Button>
+          }
+        >
+          {error}
+        </Alert>
+      </>
+    );
   }
 
-  async function reset(plan: Plan) {
-    if (
-      !window.confirm(
-        `"${plan.name}" narxi dastlabki qiymatga qaytarilsinmi?`,
-      )
-    ) {
-      return;
-    }
-    setBusyId(plan.id);
-    try {
-      const r = await api.del<{ plans: Plan[] }>(
-        `/api/v1/admin/plans/${plan.id}/price`,
-      );
-      setPlans(r.plans);
-      setDone(`"${plan.name}" dastlabki narxga qaytarildi.`);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Xatolik');
-    } finally {
-      setBusyId(null);
-    }
-  }
-
-  if (error && !plans) return <p style={{ color: 'var(--danger)' }}>{error}</p>;
-  if (!plans) return <p className="muted">Yuklanmoqda…</p>;
-
-  const paid = plans.filter((p) => p.kind !== 'trial');
-  const trial = plans.find((p) => p.kind === 'trial');
+  const paid = plans?.filter((p) => p.kind !== 'trial') ?? [];
+  const trial = plans?.find((p) => p.kind === 'trial');
 
   return (
     <>
-      <div className="page-title">
-        <h1>Tariflar</h1>
-        <span className="muted">{paid.length} ta reja</span>
-      </div>
+      {header}
+      <Stack gap={4}>
+        {trial && (
+          <Alert tone="info" title={trial.name}>
+            {trial.days ?? 0} kun, bepul — narx qo'yilmaydi.
+          </Alert>
+        )}
 
-      <p className="muted" style={{ maxWidth: 620, marginTop: -6 }}>
-        Narx o'zgartirilishi bilan mijozlarning ilovasida va websaytda
-        darhol ko'rinadi — qayta joylash shart emas. Reja muddati va
-        turi o'zgartirilmaydi: ular obuna hisobiga bog'liq.
-      </p>
-
-      {error && <p style={{ color: 'var(--danger)' }}>{error}</p>}
-      {done && <p style={{ color: 'var(--success)' }}>{done}</p>}
-
-      {trial && (
-        <div className="card" style={{ marginBottom: 16 }}>
-          <strong>{trial.name}</strong>{' '}
-          <span className="muted">
-            — {trial.days ?? 0} kun, bepul. Narx qo'yilmaydi.
-          </span>
+        <div className="ui-grid" style={{ ['--min' as string]: '300px' }}>
+          {loading || !plans
+            ? [0, 1, 2, 3].map((i) => (
+                <Card key={i}>
+                  <SkeletonText lines={4} />
+                </Card>
+              ))
+            : paid.map((plan) => (
+                <PlanCard
+                  key={plan.id}
+                  plan={plan}
+                  onSave={(price, feeUsd) => setSaving({ plan, price, ...(feeUsd !== undefined ? { feeUsd } : {}) })}
+                  onReset={() => setResetting(plan)}
+                />
+              ))}
         </div>
-      )}
+      </Stack>
 
-      <div className="grid grid--2">
-        {paid.map((plan) => (
-          <PlanCard
-            key={plan.id}
-            plan={plan}
-            busy={busyId === plan.id}
-            onSave={save}
-            onReset={reset}
-          />
-        ))}
-      </div>
+      <ConfirmDialog
+        open={saving !== null}
+        onClose={() => setSaving(null)}
+        icon="money"
+        title="Narxni o'zgartirish"
+        description={saving ? `${saving.plan.name}: ${formatSom(saving.plan.price)} → ${formatSom(saving.price)}` : undefined}
+        consequences={[
+          'Yangi narx ilovadagi to\'lov ekranida va saytda darhol ko\'rinadi.',
+          'Mavjud obunalar o\'zgarmaydi — narx keyingi to\'lovlarga qo\'llanadi.',
+        ]}
+        confirmLabel="Saqlash"
+        onConfirm={async () => {
+          if (!saving) return;
+          await api.post(`/api/v1/admin/plans/${saving.plan.id}/price`, {
+            price: saving.price,
+            ...(saving.feeUsd !== undefined ? { lifetimeAnnualFeeUsd: saving.feeUsd } : {}),
+          });
+          toast.success('Narx yangilandi', saving.plan.name);
+          reload();
+        }}
+      />
+
+      <ConfirmDialog
+        open={resetting !== null}
+        onClose={() => setResetting(null)}
+        icon="restore"
+        title="Dastlabki narxga qaytarish"
+        description={
+          resetting
+            ? `${resetting.name}: ${formatSom(basePlans.find((p) => p.id === resetting.id)?.price ?? 0)}`
+            : undefined
+        }
+        consequences={['Panelda qo\'yilgan narx bekor qilinadi, ilova va sayt dastlabki narxni ko\'rsatadi.']}
+        confirmLabel="Qaytarish"
+        onConfirm={async () => {
+          if (!resetting) return;
+          await api.del(`/api/v1/admin/plans/${resetting.id}/price`);
+          toast.success('Dastlabki narx tiklandi', resetting.name);
+          reload();
+        }}
+      />
     </>
   );
 }
 
 function PlanCard({
   plan,
-  busy,
   onSave,
   onReset,
 }: {
   plan: Plan;
-  busy: boolean;
-  onSave: (plan: Plan, price: number, feeUsd?: number) => void;
-  onReset: (plan: Plan) => void;
+  onSave: (price: number, feeUsd?: number) => void;
+  onReset: () => void;
 }) {
+  const base = basePlans.find((p) => p.id === plan.id);
   const [price, setPrice] = useState(String(plan.price));
-  const [fee, setFee] = useState(
-    plan.lifetimeAnnualFeeUsd !== undefined
-      ? String(plan.lifetimeAnnualFeeUsd)
-      : '',
-  );
+  const [fee, setFee] = useState(plan.lifetimeAnnualFeeUsd !== undefined ? String(plan.lifetimeAnnualFeeUsd) : '');
 
   // Narx serverdan yangilangach maydon ham yangilansin.
   useEffect(() => {
     setPrice(String(plan.price));
-    if (plan.lifetimeAnnualFeeUsd !== undefined) {
-      setFee(String(plan.lifetimeAnnualFeeUsd));
-    }
+    if (plan.lifetimeAnnualFeeUsd !== undefined) setFee(String(plan.lifetimeAnnualFeeUsd));
   }, [plan.price, plan.lifetimeAnnualFeeUsd]);
 
   const parsed = Number(price);
-  const valid = Number.isFinite(parsed) && parsed >= 0;
+  const valid = price !== '' && Number.isFinite(parsed) && parsed >= 0;
+  const feeParsed = fee === '' ? undefined : Number(fee);
   const changed =
-    parsed !== plan.price ||
-    (plan.kind === 'lifetime' && Number(fee) !== plan.lifetimeAnnualFeeUsd);
-
-  const perMonth =
-    plan.months && parsed > 0 ? Math.round(parsed / plan.months) : null;
+    parsed !== plan.price || (plan.kind === 'lifetime' && feeParsed !== plan.lifetimeAnnualFeeUsd);
+  const overridden =
+    base !== undefined &&
+    (base.price !== plan.price || (plan.kind === 'lifetime' && base.lifetimeAnnualFeeUsd !== plan.lifetimeAnnualFeeUsd));
+  const perMonth = plan.months && plan.months > 1 && parsed > 0 ? Math.round(parsed / plan.months) : null;
 
   return (
-    <section className="card">
-      <div
-        style={{
-          display: 'flex',
-          gap: 10,
-          alignItems: 'baseline',
-          flexWrap: 'wrap',
+    <Card
+      title={plan.name}
+      description={plan.kind === 'lifetime' ? 'Muddatsiz' : `${plan.months} oy`}
+      actions={
+        <Cluster gap={1}>
+          {plan.highlight && <Badge tone="brand">Ommabop</Badge>}
+          {overridden && <Badge tone="neutral">O'zgartirilgan</Badge>}
+        </Cluster>
+      }
+    >
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (valid && changed) onSave(parsed, plan.kind === 'lifetime' ? feeParsed : undefined);
         }}
       >
-        <h3 style={{ margin: 0 }}>{plan.name}</h3>
-        {plan.highlight && (
-          <span
-            className="badge"
-            style={{
-              color: 'var(--brand)',
-              background: 'color-mix(in srgb, var(--brand) 14%, transparent)',
-            }}
+        <Stack gap={3}>
+          <Field
+            label="Narx (so'm)"
+            error={!valid ? 'Narxni kiriting.' : undefined}
+            hint={perMonth !== null ? `Oyiga ${formatSom(perMonth)}` : undefined}
           >
-            Ommabop
-          </span>
-        )}
-        <span className="muted" style={{ marginInlineStart: 'auto', fontSize: 13 }}>
-          {plan.kind === 'lifetime' ? 'Cheksiz' : `${plan.months} oy`}
-        </span>
-      </div>
-
-      <p className="muted" style={{ fontSize: 13.5, margin: '6px 0 12px' }}>
-        Hozirgi narx: <strong>{formatSom(plan.price)}</strong>
-        {perMonth !== null && plan.months && plan.months > 1 && (
-          <> · oyiga {formatSom(perMonth)}</>
-        )}
-      </p>
-
-      <label style={{ display: 'block', marginBottom: 10 }}>
-        <span className="muted" style={{ fontSize: 13 }}>Narx (so'm)</span>
-        <MoneyInput
-          value={price}
-          onChange={setPrice}
-          style={fieldStyle}
-        />
-      </label>
-
-      {plan.kind === 'lifetime' && (
-        <label style={{ display: 'block', marginBottom: 10 }}>
-          <span className="muted" style={{ fontSize: 13 }}>
-            Yillik baza to'lovi ($)
-          </span>
-          <input
-            type="number"
-            min={0}
-            value={fee}
-            onChange={(e) => setFee(e.target.value)}
-            style={fieldStyle}
-          />
-        </label>
-      )}
-
-      <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
-        <button
-          className="btn btn--primary"
-          style={{ flex: 1 }}
-          disabled={busy || !valid || !changed}
-          onClick={() =>
-            onSave(
-              plan,
-              parsed,
-              plan.kind === 'lifetime' && fee !== ''
-                ? Number(fee)
-                : undefined,
-            )
-          }
-        >
-          {busy ? 'Saqlanmoqda…' : 'Saqlash'}
-        </button>
-        <button
-          className="btn btn--ghost"
-          disabled={busy}
-          onClick={() => onReset(plan)}
-          title="Dastlabki narxga qaytarish"
-        >
-          Qaytarish
-        </button>
-      </div>
-    </section>
+            <MoneyInput value={price} onChange={setPrice} />
+          </Field>
+          {plan.kind === 'lifetime' && (
+            <Field label="Yillik baza to'lovi ($)" hint="Bir umrlik obuna uchun har yili olinadigan to'lov.">
+              <Input type="number" inputMode="decimal" min={0} value={fee} onChange={(e) => setFee(e.target.value)} />
+            </Field>
+          )}
+          <Cluster gap={2}>
+            <Button type="submit" disabled={!valid || !changed}>
+              Saqlash
+            </Button>
+            {overridden && (
+              <Button variant="plain" icon="restore" onClick={onReset}>
+                Dastlabki narx
+              </Button>
+            )}
+          </Cluster>
+        </Stack>
+      </form>
+    </Card>
   );
 }

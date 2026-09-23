@@ -1,17 +1,20 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 
+import {
+  Alert,
+  Button,
+  Card,
+  Cluster,
+  Field,
+  Input,
+  PageHeader,
+  SkeletonText,
+  Stack,
+  useToast,
+} from '@/components/ui';
 import { api } from '@/lib/api';
-
-const fieldStyle: React.CSSProperties = {
-  width: '100%',
-  marginTop: 4,
-  padding: '10px 12px',
-  borderRadius: 'var(--radius)',
-  border: '1px solid var(--border)',
-  background: 'var(--surface-muted)',
-  color: 'var(--text)',
-  font: 'inherit',
-};
+import { formatDateTime } from '@/lib/admin-types';
+import { useApi } from '@/lib/use-api';
 
 interface SiteSettings {
   downloadUrl: string;
@@ -30,158 +33,163 @@ interface SiteSettings {
  * yangisini beradi.
  */
 export function SettingsPage() {
-  const [saved, setSaved] = useState<SiteSettings | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [done, setDone] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  const toast = useToast();
+  const { data: saved, error, loading, reload } = useApi(
+    '/api/v1/admin/site-settings',
+    (json) => (json as { settings: SiteSettings }).settings,
+    { staleMs: Number.POSITIVE_INFINITY },
+  );
 
   const [url, setUrl] = useState('');
   const [version, setVersion] = useState('');
   const [sizeMb, setSizeMb] = useState('');
   const [note, setNote] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [urlError, setUrlError] = useState<string>();
 
   /** Serverdagi qiymatlarni maydonlarga ko'chiradi. */
-  const apply = useCallback((s: SiteSettings) => {
-    setSaved(s);
-    setUrl(s.downloadUrl);
-    setVersion(s.version);
-    setSizeMb(s.sizeMb > 0 ? String(s.sizeMb) : '');
-    setNote(s.note);
-  }, []);
-
-  const load = useCallback(async () => {
-    try {
-      const r = await api.get<{ settings: SiteSettings }>(
-        '/api/v1/admin/site-settings',
-      );
-      apply(r.settings);
-      setError(null);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Xatolik');
-    }
-  }, [apply]);
-
   useEffect(() => {
-    load();
-  }, [load]);
+    if (!saved) return;
+    setUrl(saved.downloadUrl);
+    setVersion(saved.version);
+    setSizeMb(saved.sizeMb > 0 ? String(saved.sizeMb) : '');
+    setNote(saved.note);
+  }, [saved]);
 
-  async function save() {
+  if (error && !saved) {
+    return (
+      <>
+        <PageHeader title="Sozlamalar" />
+        <Alert
+          tone="danger"
+          title="Sozlamalarni yuklab bo'lmadi"
+          action={
+            <Button variant="outline" size="sm" icon="refresh" onClick={reload}>
+              Qayta urinish
+            </Button>
+          }
+        >
+          {error}
+        </Alert>
+      </>
+    );
+  }
+
+  const changed =
+    saved !== null &&
+    (url.trim() !== saved.downloadUrl ||
+      version.trim() !== saved.version ||
+      (Number(sizeMb) || 0) !== saved.sizeMb ||
+      note.trim() !== saved.note);
+
+  const save = async () => {
+    const u = url.trim();
+    // Server qoidasi bilan bir xil: faqat http(s) manzil.
+    if (u && !/^https?:\/\/\S+$/i.test(u)) {
+      setUrlError('Havola https:// bilan boshlansin.');
+      return;
+    }
+    setUrlError(undefined);
     setBusy(true);
-    setDone(null);
+    setSaveError(null);
     try {
-      const r = await api.put<{ settings: SiteSettings }>(
-        '/api/v1/admin/site-settings',
-        {
-          downloadUrl: url.trim(),
-          version: version.trim(),
-          sizeMb: Number(sizeMb) || 0,
-          note: note.trim(),
-        },
-      );
-      apply(r.settings);
-      setDone('Saqlandi. Saytda darhol ko\'rinadi.');
-      setError(null);
+      await api.put('/api/v1/admin/site-settings', {
+        downloadUrl: u,
+        version: version.trim(),
+        sizeMb: Number(sizeMb) || 0,
+        note: note.trim(),
+      });
+      toast.success('Saqlandi', 'Saytda darhol ko\'rinadi.');
+      reload();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Xatolik');
+      setSaveError(e instanceof Error ? e.message : 'Saqlab bo\'lmadi.');
     } finally {
       setBusy(false);
     }
-  }
-
-  if (error && !saved) return <p style={{ color: 'var(--danger)' }}>{error}</p>;
-  if (!saved) return <p className="muted">Yuklanmoqda…</p>;
-
-  const changed =
-    url.trim() !== saved.downloadUrl ||
-    version.trim() !== saved.version ||
-    (Number(sizeMb) || 0) !== saved.sizeMb ||
-    note.trim() !== saved.note;
+  };
 
   return (
     <>
-      <div className="page-title">
-        <h1>Sozlamalar</h1>
-      </div>
+      <PageHeader title="Sozlamalar" description="Websaytning panel orqali boshqariladigan qismlari." />
 
-      {error && <p style={{ color: 'var(--danger)' }}>{error}</p>}
-      {done && <p style={{ color: 'var(--success)' }}>{done}</p>}
-
-      <section className="card" style={{ maxWidth: 640 }}>
-        <h3 style={{ marginTop: 0 }}>Ilovani yuklab olish</h3>
-        <p className="muted" style={{ fontSize: '0.94rem' }}>
-          Yangi APK chiqqanda shu havolani almashtiring — sayt darhol
-          yangisini beradi, qayta joylash shart emas.
-        </p>
-
-        <label style={{ display: 'block', marginBottom: 14 }}>
-          <strong>Havola</strong>
-          <input
-            style={fieldStyle}
-            type="url"
-            inputMode="url"
-            placeholder="https://…"
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-          />
-          <span
-            className="muted"
-            style={{ fontSize: '0.82rem', display: 'block', marginTop: 4 }}
-          >
-            Google Drive, Telegram kanali yoki Play Store — to&apos;g&apos;ridan-to&apos;g&apos;ri
-            yuklanadigan havola bo&apos;lsin. Bo&apos;sh qoldirilsa, saytda
-            tugma o&apos;rniga aloqa taklifi chiqadi.
-          </span>
-        </label>
-
-        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-          <label style={{ flex: '1 1 140px' }}>
-            <strong>Versiya</strong>
-            <input
-              style={fieldStyle}
-              placeholder="1.4.0"
-              value={version}
-              onChange={(e) => setVersion(e.target.value)}
-            />
-          </label>
-
-          <label style={{ flex: '1 1 140px' }}>
-            <strong>Hajmi (MB)</strong>
-            <input
-              style={fieldStyle}
-              inputMode="decimal"
-              placeholder="54.5"
-              value={sizeMb}
-              onChange={(e) => setSizeMb(e.target.value)}
-            />
-          </label>
-        </div>
-
-        <label style={{ display: 'block', margin: '14px 0 18px' }}>
-          <strong>Izoh</strong>
-          <input
-            style={fieldStyle}
-            placeholder="Nima yangilandi — ixtiyoriy"
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-          />
-        </label>
-
-        <button
-          type="button"
-          className="btn btn--primary"
-          disabled={busy || !changed}
-          onClick={save}
+      <div style={{ maxWidth: 680 }}>
+        <Card
+          title="Ilovani yuklab olish"
+          description="Yangi APK chiqqanda shu havolani almashtiring — sayt darhol yangisini beradi, qayta joylash shart emas."
+          footer={
+            saved && saved.updatedAt > 0 ? (
+              <span className="ui-note">Oxirgi o'zgarish: {formatDateTime(saved.updatedAt)}</span>
+            ) : undefined
+          }
         >
-          {busy ? 'Saqlanmoqda…' : 'Saqlash'}
-        </button>
-
-        {saved.updatedAt > 0 && (
-          <p className="muted" style={{ fontSize: '0.82rem', marginTop: 12 }}>
-            Oxirgi o&apos;zgarish:{' '}
-            {new Date(saved.updatedAt).toLocaleString('uz-UZ')}
-          </p>
-        )}
-      </section>
+          {loading || !saved ? (
+            <SkeletonText lines={5} />
+          ) : (
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (changed && !busy) void save();
+              }}
+            >
+              <Stack gap={4}>
+                <Field
+                  label="Havola"
+                  optional
+                  error={urlError}
+                  hint="To'g'ridan-to'g'ri yuklanadigan havola (Google Drive, Telegram, Play Store). Bo'sh bo'lsa, saytda tugma o'rniga aloqa taklifi chiqadi."
+                >
+                  <Input
+                    type="url"
+                    inputMode="url"
+                    placeholder="https://…"
+                    value={url}
+                    onChange={(e) => {
+                      setUrl(e.target.value);
+                      setUrlError(undefined);
+                    }}
+                  />
+                </Field>
+                <div className="ui-grid" style={{ ['--min' as string]: '180px' }}>
+                  <Field label="Versiya" optional>
+                    <Input placeholder="1.4.0" value={version} onChange={(e) => setVersion(e.target.value)} />
+                  </Field>
+                  <Field label="Hajmi (MB)" optional>
+                    <Input inputMode="decimal" placeholder="54.5" value={sizeMb} onChange={(e) => setSizeMb(e.target.value)} />
+                  </Field>
+                </div>
+                <Field label="Izoh" optional hint="Nima yangilandi — saytda versiya yonida ko'rinadi.">
+                  <Input value={note} onChange={(e) => setNote(e.target.value)} maxLength={200} />
+                </Field>
+                {saveError && (
+                  <Alert tone="danger" live>
+                    {saveError}
+                  </Alert>
+                )}
+                <Cluster gap={2}>
+                  <Button type="submit" loading={busy} disabled={!changed}>
+                    Saqlash
+                  </Button>
+                  {changed && (
+                    <Button
+                      variant="plain"
+                      onClick={() => {
+                        setUrl(saved.downloadUrl);
+                        setVersion(saved.version);
+                        setSizeMb(saved.sizeMb > 0 ? String(saved.sizeMb) : '');
+                        setNote(saved.note);
+                        setUrlError(undefined);
+                      }}
+                    >
+                      Bekor qilish
+                    </Button>
+                  )}
+                </Cluster>
+              </Stack>
+            </form>
+          )}
+        </Card>
+      </div>
     </>
   );
 }
