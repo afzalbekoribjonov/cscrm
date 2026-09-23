@@ -8,6 +8,7 @@
  * esa soxta foydalanuvchi bilan. Prod yig'ilishiga kirmaydi.
  *
  * Holatlar (URL): ?holat=bosh | xato | sekin | faolliksiz
+ * Boshlang'ich sahifa: ?yol=/admin/tenants/t2 (standart — /admin)
  */
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
@@ -20,11 +21,18 @@ import { ApiError, setDevTransport } from '@/lib/api';
 import { AuthContext, type AuthState } from '@/lib/auth';
 import { AdminLayout } from '@/pages/admin/AdminLayout';
 import { DashboardPage } from '@/pages/admin/DashboardPage';
+import { PaymentRequestsPage } from '@/pages/admin/PaymentRequestsPage';
+import { TenantDetailPage } from '@/pages/admin/TenantDetailPage';
+import { TenantsPage } from '@/pages/admin/TenantsPage';
 import '@/styles/global.css';
 import '@/styles/ui.css';
 import '@/styles/marketing.css';
 
+import { createTenantStore } from './tenant-fixtures';
+
 const scenario = new URLSearchParams(location.search).get('holat') ?? 'oddiy';
+const startPath = new URLSearchParams(location.search).get('yol') ?? '/admin';
+const tenantStore = createTenantStore(scenario === 'bosh');
 
 const DAY = 86_400_000;
 const TZ = 5 * 3_600_000;
@@ -117,14 +125,19 @@ function overview(range: OverviewRange): Overview {
   };
 }
 
-setDevTransport(async (path) => {
+setDevTransport(async (path, init) => {
   await new Promise((r) => setTimeout(r, scenario === 'sekin' ? 2500 : 250));
   if (scenario === 'xato') {
     throw new ApiError('Aloqa o\'rnatilmadi. Internetni tekshirib, qayta urinib ko\'ring.');
   }
   const url = new URL(path, location.origin);
+  const method = init.method ?? 'GET';
+  const body = typeof init.body === 'string' ? (JSON.parse(init.body) as Record<string, unknown>) : {};
+  const handled = tenantStore(method, url.pathname, body);
+  if (handled !== undefined) return handled;
   if (url.pathname === '/api/v1/admin/badges') {
-    return { ok: true, badges: { pendingPayments: scenario === 'bosh' ? 0 : 2 } };
+    const queue = tenantStore('GET', '/api/v1/admin/payment-requests', {}) as { requests: unknown[] };
+    return { ok: true, badges: { pendingPayments: queue.requests.length } };
   }
   if (url.pathname === '/api/v1/admin/overview') {
     const range = (url.searchParams.get('range') ?? '30d') as OverviewRange;
@@ -144,11 +157,14 @@ const auth: AuthState = {
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <AuthContext.Provider value={auth}>
-      <MemoryRouter initialEntries={['/admin']}>
+      <MemoryRouter initialEntries={[startPath]}>
         <ToastProvider>
           <Routes>
             <Route path="/admin" element={<AdminLayout />}>
               <Route index element={<DashboardPage />} />
+              <Route path="tenants" element={<TenantsPage />} />
+              <Route path="tenants/:tenantId" element={<TenantDetailPage />} />
+              <Route path="payment-requests" element={<PaymentRequestsPage />} />
               <Route path="*" element={<p className="muted">Bu sahifa keyingi bosqichda.</p>} />
             </Route>
             <Route path="*" element={<p className="muted">Ko'rib chiqishda faqat panel.</p>} />

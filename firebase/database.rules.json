@@ -29,6 +29,9 @@
       }
     },
     "admin_logins": {
+      ".indexOn": [
+        "tenantId"
+      ],
       "$login": {
         ".read": false,
         ".write": false
@@ -74,7 +77,24 @@
     "push_tokens": {
       "//": "Qurilma FCM tokenlari.",
       ".read": false,
+      ".write": false,
+      ".indexOn": [
+        "tenantId"
+      ]
+    },
+    "tenant_archive": {
+      "//": "Arxivdagi bizneslar: qachon, kim, nega, qachon o'chiriladi. Mijozga BUTUNLAY berk — arxivlangan biznes buni 'to'xtatilgan' holat orqali ko'radi.",
+      ".read": false,
       ".write": false
+    },
+    "admin_audit": {
+      "//": "Admin amallari jurnali (kim, nima, qachon). Mijozga BUTUNLAY berk; parol va tokenlar bu yerga hech qachon yozilmaydi.",
+      ".read": false,
+      ".write": false,
+      ".indexOn": [
+        "at",
+        "tenantId"
+      ]
     },
     "plan_prices": {
       "//": "Reja narxlari. Ilova ularni `/license/plans` orqali oladi.",

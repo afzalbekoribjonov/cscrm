@@ -1,6 +1,16 @@
 import { describe, expect, it } from 'vitest';
 
-import { dayOfMonth, formatDay, formatMonth, formatRelative, formatTime, monthShort } from './dates';
+import {
+  dayOfMonth,
+  daysUntil,
+  formatDay,
+  formatMonth,
+  formatRelative,
+  formatTime,
+  fromDateInput,
+  monthShort,
+  toDateInput,
+} from './dates';
 
 const HOUR = 3_600_000;
 /** Toshkent vaqti bo'yicha sana → UTC ms. */
@@ -45,5 +55,32 @@ describe('formatRelative', () => {
   it('bir hafta ichida — kun, undan keyin — sana', () => {
     expect(formatRelative(tash(2026, 9, 20, 10), NOW)).toBe('3 kun oldin');
     expect(formatRelative(tash(2026, 9, 1, 10), NOW)).toBe('1-sentabr');
+  });
+});
+
+describe('sana maydoni', () => {
+  it('ms → maydon qiymati Toshkent bo\'yicha', () => {
+    // 22-sentabr 20:00 UTC = 23-sentabr 01:00 Toshkent.
+    expect(toDateInput(Date.UTC(2026, 8, 22, 20))).toBe('2026-09-23');
+  });
+
+  it('maydon → o\'sha kunning oxiri (Toshkent)', () => {
+    expect(fromDateInput('2026-09-23')).toBe(tash(2026, 9, 23, 23, 59) + 59_999);
+  });
+
+  it('borib-qaytish bir xil sana beradi', () => {
+    expect(toDateInput(fromDateInput('2026-12-31'))).toBe('2026-12-31');
+  });
+
+  it('mavjud bo\'lmagan sana rad etiladi', () => {
+    expect(fromDateInput('2026-02-31')).toBeNull();
+    expect(fromDateInput('')).toBeNull();
+    expect(fromDateInput('23.09.2026')).toBeNull();
+  });
+
+  it('necha kun qoldi', () => {
+    expect(daysUntil(tash(2026, 9, 23, 22), NOW)).toBe(0);
+    expect(daysUntil(tash(2026, 9, 30, 1), NOW)).toBe(7);
+    expect(daysUntil(tash(2026, 9, 20, 1), NOW)).toBe(-3);
   });
 });

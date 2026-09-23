@@ -2,6 +2,7 @@ import type { NextFunction, Request, Response } from 'express';
 
 import { env } from '../config/env.js';
 import { auth } from '../lib/firebase.js';
+import { hasPermission, type Permission } from '../lib/permissions.js';
 import type { AppClaims, Role } from '../types/tenant.js';
 import { ApiError } from './error.js';
 
@@ -20,6 +21,11 @@ declare global {
          * bog'lanmagan bo'lsa `undefined`.
          */
         claims?: AppClaims | undefined;
+        /**
+         * Rol orqali berilgan vakolatlar (super-admin uchun kerak emas —
+         * u hammasiga ega). Rollar kiritilganda shu yerda to'ldiriladi.
+         */
+        permissions?: Set<Permission> | undefined;
       };
     }
   }
@@ -89,6 +95,28 @@ export function requireSuperAdmin(
     return next(ApiError.forbidden());
   }
   next();
+}
+
+/**
+ * Aniq vakolatni talab qiladi (`requireAuth` dan keyin).
+ *
+ * Hozir super-admin hammasiga ega; rollar kiritilganda shu tekshiruv
+ * har bir yo'lda o'zi ishlaydi.
+ */
+export function requirePermission(permission: Permission) {
+  return (req: Request, _res: Response, next: NextFunction) => {
+    if (!req.user) return next(ApiError.unauthorized());
+    if (!hasPermission(req.user, permission)) {
+      req.log?.warn({ uid: req.user.uid, permission }, 'vakolat yo\'q');
+      return next(ApiError.forbidden('Bu amal uchun vakolatingiz yo\'q.'));
+    }
+    next();
+  };
+}
+
+/** So'rovni bajarayotgan admin — jurnal uchun. */
+export function actorOf(req: Request): { uid: string; email: string | null } {
+  return { uid: req.user?.uid ?? 'unknown', email: req.user?.email ?? null };
 }
 
 /**

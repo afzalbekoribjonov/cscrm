@@ -13,6 +13,7 @@ import { employeesRouter } from './routes/employees.js';
 import { healthRouter, pingRouter } from './routes/health.js';
 import { licenseRouter } from './routes/license.js';
 import { siteRouter } from './routes/site.js';
+import { purgeExpiredArchives } from './services/tenant-admin.js';
 import { FIREBASE_CONNECT_SRC, mountWeb, resolveWebDir } from './web.js';
 
 const app = express();
@@ -130,6 +131,32 @@ const server = app.listen(env.PORT, () => {
   // eslint-disable-next-line no-console
   console.log(`[cscrm-api] ${env.NODE_ENV} — http://localhost:${env.PORT}`);
 });
+
+/**
+ * Arxivda 30 kundan ortiq turgan bizneslarni o'chirish.
+ *
+ * FAQAT PROD SERVERDA. Ishlab chiquvchi kompyuterida backend jonli
+ * baza kaliti bilan ishga tushirilsa ham, u hech narsani o'chirmasligi
+ * kerak — o'chirish qaytarib bo'lmaydi.
+ *
+ * Ishga tushgandan 1 daqiqa keyin (bepul tarifda server tez-tez qayta
+ * ishga tushadi) va har 6 soatda. Qayta chaqirish xavfsiz.
+ */
+if (env.isProd) {
+  const runPurge = () => {
+    purgeExpiredArchives(Date.now())
+      .then((ids) => {
+        // eslint-disable-next-line no-console
+        if (ids.length > 0) console.log(`[cscrm] arxivdan o'chirildi: ${ids.length} ta biznes`);
+      })
+      .catch((err: unknown) => {
+        // eslint-disable-next-line no-console
+        console.error('[cscrm] arxivni tozalab bo\'lmadi', err);
+      });
+  };
+  setTimeout(runPurge, 60_000).unref();
+  setInterval(runPurge, 6 * 60 * 60 * 1000).unref();
+}
 
 // Render deploy paytida SIGTERM yuboradi: joriy so'rovlarni tugatib,
 // keyin chiqamiz (aks holda foydalanuvchi uzilib qolgan javob oladi).

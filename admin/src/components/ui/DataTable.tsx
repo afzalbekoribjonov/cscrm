@@ -134,7 +134,8 @@ export function DataTable<T>({
 
   return (
     <div className={cx('ui-table-wrap', refreshing && 'is-refreshing')} aria-busy={refreshing || rows === null}>
-      {onSortChange && sortable.length > 0 && (
+      {/* Bo'sh ro'yxatni saralashning ma'nosi yo'q. */}
+      {onSortChange && sortable.length > 0 && rows?.length !== 0 && (
         <div className="ui-table-mobile-sort">
           <Select
             aria-label="Saralash"

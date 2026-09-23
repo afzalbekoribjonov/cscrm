@@ -5,6 +5,7 @@ import { Icon, type IconName } from '@/components/Icon';
 import { Wordmark } from '@/components/Logo';
 import { Button, Cluster, Drawer, IconButton } from '@/components/ui';
 import { cx } from '@/components/ui/logic';
+import { onBadgesChanged } from '@/lib/admin-events';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { useTheme } from '@/lib/theme';
@@ -64,10 +65,12 @@ function useBadges(pathname: string): Badges | null {
     load();
     const timer = window.setInterval(load, BADGE_REFRESH_MS);
     document.addEventListener('visibilitychange', load);
+    const off = onBadgesChanged(load);
     return () => {
       cancelled = true;
       window.clearInterval(timer);
       document.removeEventListener('visibilitychange', load);
+      off();
     };
   }, [pathname]);
 

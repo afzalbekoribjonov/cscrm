@@ -66,7 +66,11 @@ export const rules = {
       $uid: { '.read': 'auth != null && auth.uid === $uid', '.write': false },
     },
 
-    admin_logins: { $login: { '.read': false, '.write': false } },
+    admin_logins: {
+      // Biznes o'chirilganda uning loginini topish uchun (faqat backend).
+      '.indexOn': ['tenantId'],
+      $login: { '.read': false, '.write': false },
+    },
 
     employee_phone_index: backendOnly(
       "Telefon -> tenant xaritasi. Ochiq bo'lsa, barcha xodim raqamlarini yig'ib olish mumkin bo'lardi.",
@@ -91,7 +95,16 @@ export const rules = {
       { '.indexOn': ['createdAt'] },
     ),
 
-    push_tokens: backendOnly('Qurilma FCM tokenlari.'),
+    push_tokens: backendOnly('Qurilma FCM tokenlari.', { '.indexOn': ['tenantId'] }),
+
+    tenant_archive: backendOnly(
+      "Arxivdagi bizneslar: qachon, kim, nega, qachon o'chiriladi. Mijozga BUTUNLAY berk — arxivlangan biznes buni 'to'xtatilgan' holat orqali ko'radi.",
+    ),
+
+    admin_audit: backendOnly(
+      "Admin amallari jurnali (kim, nima, qachon). Mijozga BUTUNLAY berk; parol va tokenlar bu yerga hech qachon yozilmaydi.",
+      { '.indexOn': ['at', 'tenantId'] },
+    ),
     plan_prices: backendOnly('Reja narxlari. Ilova ularni `/license/plans` orqali oladi.'),
     site_settings: backendOnly('Websayt sozlamalari.'),
     payments_log: backendOnly("Tasdiqlangan to'lovlar — daromad statistikasi.", {

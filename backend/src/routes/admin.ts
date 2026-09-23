@@ -1,7 +1,12 @@
 import { Router } from 'express';
 import { z } from 'zod';
 
-import { requireAuth, requireSuperAdmin } from '../middleware/auth.js';
+import {
+  actorOf,
+  requireAuth,
+  requirePermission,
+  requireSuperAdmin,
+} from '../middleware/auth.js';
 import { ApiError, asyncRoute } from '../middleware/error.js';
 import {
   IDEMPOTENCY_KEY,
@@ -36,6 +41,14 @@ import {
   type OverviewRange,
 } from '../services/overview.js';
 import { getSiteSettings, setSiteSettings } from '../services/site-settings.js';
+import { listAudit, writeAudit } from '../services/audit.js';
+import {
+  archiveTenant,
+  deleteTenantPermanently,
+  restoreTenant,
+  setLicenseManually,
+  updateTenantProfile,
+} from '../services/tenant-admin.js';
 
 /**
  * Super-admin yo'llari — CSCRM egasining o'z mijozlarini boshqarish
@@ -68,6 +81,7 @@ adminRouter.get('/me', (req, res) => {
  */
 adminRouter.get(
   '/badges',
+  requirePermission('tenants.read'),
   asyncRoute(async (_req, res) => {
     const pending = await listPendingPayments();
     res.json({ ok: true, badges: { pendingPayments: pending.length } });
@@ -84,6 +98,7 @@ const overviewQuery = z.object({
  */
 adminRouter.get(
   '/overview',
+  requirePermission('tenants.read'),
   asyncRoute(async (req, res) => {
     const parsed = overviewQuery.safeParse(req.query);
     if (!parsed.success) throw ApiError.badRequest('Davr noto\'g\'ri tanlangan.');
@@ -93,6 +108,7 @@ adminRouter.get(
 
 adminRouter.get(
   '/tenants',
+  requirePermission('tenants.read'),
   asyncRoute(async (_req, res) => {
     res.json({ ok: true, tenants: await listTenants(Date.now()) });
   }),
@@ -100,9 +116,143 @@ adminRouter.get(
 
 adminRouter.get(
   '/tenants/:tenantId',
+  requirePermission('tenants.read'),
   asyncRoute(async (req, res) => {
     const tenant = await getTenant(req.params.tenantId!, Date.now());
     res.json({ ok: true, tenant, plans: await plansWithPrices() });
+  }),
+);
+
+const profileBody = z
+  .object({
+    name: z.string().max(200).optional(),
+    phone: z.string().max(32).nullable().optional(),
+    address: z.string().max(400).nullable().optional(),
+  })
+  .strict();
+
+/** Biznes ma'lumotini tahrirlash (nom, telefon, manzil). */
+adminRouter.patch(
+  '/tenants/:tenantId/profile',
+  requirePermission('tenants.edit'),
+  asyncRoute(async (req, res) => {
+    const parsed = profileBody.safeParse(req.body);
+    if (!parsed.success) throw ApiError.badRequest('Ma\'lumotlarni to\'g\'ri kiriting.');
+    const result = await updateTenantProfile({
+      tenantId: req.params.tenantId!,
+      input: parsed.data,
+      actor: actorOf(req),
+      now: Date.now(),
+    });
+    res.json({ ok: true, ...result });
+  }),
+);
+
+const licenseBody = z.object({
+  planId: z.string().min(1).max(40),
+  expiresAt: z.number().int().positive().nullable().optional(),
+  nextAnnualFeeAt: z.number().int().positive().nullable().optional(),
+  reason: z.string().min(3).max(300),
+});
+
+/**
+ * Obunani TO'LOVSIZ o'zgartirish — reja va muddat.
+ *
+ * Tushumga yozilmaydi (bu to'lov emas); sabab majburiy va jurnalga
+ * tushadi. Pul olingan bo'lsa — `confirm-payment` ishlatiladi.
+ */
+adminRouter.put(
+  '/tenants/:tenantId/license',
+  requirePermission('subscriptions.manage'),
+  asyncRoute(async (req, res) => {
+    const parsed = licenseBody.safeParse(req.body);
+    if (!parsed.success) throw ApiError.badRequest('Reja, sana va sababni to\'g\'ri kiriting.');
+    const result = await setLicenseManually({
+      tenantId: req.params.tenantId!,
+      input: parsed.data,
+      actor: actorOf(req),
+      now: Date.now(),
+    });
+    res.json({ ok: true, ...result });
+  }),
+);
+
+const archiveBody = z.object({ reason: z.string().min(3).max(300) });
+
+/** Arxivlash: ilova bloklanadi, ma'lumot 30 kun saqlanadi. */
+adminRouter.post(
+  '/tenants/:tenantId/archive',
+  requirePermission('tenants.archive'),
+  asyncRoute(async (req, res) => {
+    const parsed = archiveBody.safeParse(req.body);
+    if (!parsed.success) throw ApiError.badRequest('Arxivlash sababini yozing.');
+    const result = await archiveTenant({
+      tenantId: req.params.tenantId!,
+      reason: parsed.data.reason,
+      actor: actorOf(req),
+      now: Date.now(),
+    });
+    res.json({ ok: true, ...result });
+  }),
+);
+
+/** Arxivdan qaytarish. */
+adminRouter.post(
+  '/tenants/:tenantId/restore',
+  requirePermission('tenants.archive'),
+  asyncRoute(async (req, res) => {
+    await restoreTenant({ tenantId: req.params.tenantId!, actor: actorOf(req), now: Date.now() });
+    res.json({ ok: true });
+  }),
+);
+
+const deleteBody = z.object({ confirmName: z.string().min(1).max(200) });
+
+/**
+ * Butunlay o'chirish — QAYTARIB BO'LMAYDI.
+ *
+ * Faqat arxivdagi biznes; biznes nomi so'rovda qo'lda yozilgan bo'lishi
+ * shart (server ham tekshiradi — to'g'ridan-to'g'ri API chaqiruvi ham
+ * nomsiz o'tmaydi).
+ */
+adminRouter.delete(
+  '/tenants/:tenantId',
+  requirePermission('tenants.delete'),
+  asyncRoute(async (req, res) => {
+    const parsed = deleteBody.safeParse(req.body);
+    if (!parsed.success) throw ApiError.badRequest('Tasdiqlash uchun biznes nomini yozing.');
+    const tenantId = req.params.tenantId!;
+    const result = await deleteTenantPermanently({
+      tenantId,
+      confirmName: parsed.data.confirmName,
+      actor: actorOf(req),
+      now: Date.now(),
+      mode: 'manual',
+    });
+    req.log?.info({ tenantId, ...result, by: req.user!.uid }, 'biznes butunlay o\'chirildi');
+    res.json({ ok: true, ...result });
+  }),
+);
+
+const auditQuery = z.object({ limit: z.coerce.number().int().min(1).max(200).default(50) });
+
+/** Shu biznes bo'yicha amallar jurnali. */
+adminRouter.get(
+  '/tenants/:tenantId/audit',
+  requirePermission('audit.read'),
+  asyncRoute(async (req, res) => {
+    const limit = auditQuery.safeParse(req.query).data?.limit ?? 50;
+    res.json({ ok: true, entries: await listAudit({ tenantId: req.params.tenantId!, limit }) });
+  }),
+);
+
+/** Umumiy amallar jurnali. */
+adminRouter.get(
+  '/audit',
+  requirePermission('audit.read'),
+  asyncRoute(async (req, res) => {
+    const limit = auditQuery.safeParse(req.query).data?.limit ?? 50;
+    res.json({ ok: true, entries: await listAudit({ limit }) });
   }),
 );
 
@@ -114,6 +264,7 @@ adminRouter.get(
  */
 adminRouter.get(
   '/payment-requests',
+  requirePermission('payments.manage'),
   asyncRoute(async (_req, res) => {
     res.json({
       ok: true,
@@ -144,6 +295,7 @@ const confirmBody = z.object({
  */
 adminRouter.post(
   '/tenants/:tenantId/confirm-payment',
+  requirePermission('payments.manage'),
   asyncRoute(async (req, res) => {
     const parsed = confirmBody.safeParse(req.body);
     if (!parsed.success) {
@@ -162,7 +314,7 @@ adminRouter.post(
       ...(parsed.data.idempotencyKey
         ? { idempotencyKey: parsed.data.idempotencyKey }
         : {}),
-      byUid: req.user!.uid,
+      actor: actorOf(req),
       now: Date.now(),
     });
 
@@ -177,15 +329,21 @@ const suspendBody = z.object({
 
 adminRouter.post(
   '/tenants/:tenantId/suspend',
+  requirePermission('tenants.suspend'),
   asyncRoute(async (req, res) => {
     const parsed = suspendBody.safeParse(req.body);
     if (!parsed.success) throw ApiError.badRequest('So\'rov noto\'g\'ri.');
+    if (parsed.data.suspended && !parsed.data.reason?.trim()) {
+      throw ApiError.badRequest('To\'xtatish sababini yozing — u mijozga ko\'rsatiladi.');
+    }
 
-    await setSuspended(
-      req.params.tenantId!,
-      parsed.data.suspended,
-      parsed.data.reason ?? null,
-    );
+    await setSuspended({
+      tenantId: req.params.tenantId!,
+      suspended: parsed.data.suspended,
+      reason: parsed.data.reason?.trim() ?? null,
+      actor: actorOf(req),
+      now: Date.now(),
+    });
     res.json({ ok: true });
   }),
 );
@@ -202,6 +360,7 @@ const rejectBody = z.object({
  */
 adminRouter.post(
   '/tenants/:tenantId/payment-requests/:requestId/reject',
+  requirePermission('payments.manage'),
   asyncRoute(async (req, res) => {
     const parsed = rejectBody.safeParse(req.body);
     if (!parsed.success) throw ApiError.badRequest('Rad etish sababini yozing.');
@@ -212,6 +371,13 @@ adminRouter.post(
       reason: parsed.data.reason,
       byUid: req.user!.uid,
       now: Date.now(),
+    });
+    await writeAudit({
+      at: Date.now(),
+      action: 'payment.reject',
+      actor: actorOf(req),
+      tenantId: req.params.tenantId!,
+      note: parsed.data.reason,
     });
 
     res.json({ ok: true });
@@ -227,6 +393,7 @@ adminRouter.post(
  */
 adminRouter.get(
   '/tenants/:tenantId/credentials',
+  requirePermission('credentials.manage'),
   asyncRoute(async (req, res) => {
     res.json({
       ok: true,
@@ -256,6 +423,7 @@ const credentialsBody = z
  */
 adminRouter.post(
   '/tenants/:tenantId/credentials',
+  requirePermission('credentials.manage'),
   asyncRoute(async (req, res) => {
     const parsed = credentialsBody.safeParse(req.body);
     if (!parsed.success) {
@@ -279,6 +447,19 @@ adminRouter.post(
 
     req.log?.info({ tenantId, changed, by: req.user!.uid },
       'egasining kirish ma\'lumotlari o\'zgartirildi');
+    // Parolning O'ZI hech qayerga yozilmaydi — faqat o'zgargani.
+    if (parsed.data.login !== undefined) {
+      await writeAudit({
+        at: Date.now(),
+        action: 'credentials.login',
+        actor: actorOf(req),
+        tenantId,
+        note: `Yangi login: ${parsed.data.login.trim()}`,
+      });
+    }
+    if (parsed.data.password !== undefined) {
+      await writeAudit({ at: Date.now(), action: 'credentials.password', actor: actorOf(req), tenantId });
+    }
 
     res.json({
       ok: true,
@@ -299,6 +480,7 @@ const broadcastBody = z.object({
 /** Barcha bizneslarga yuboriladigan xabarlar ro'yxati (muddati o'tgani ham). */
 adminRouter.get(
   '/broadcasts',
+  requirePermission('broadcasts.manage'),
   asyncRoute(async (_req, res) => {
     res.json({
       ok: true,
@@ -310,6 +492,7 @@ adminRouter.get(
 /** Yangi xabar yuboradi — u barcha bizneslarning ilovasida ko'rinadi. */
 adminRouter.post(
   '/broadcasts',
+  requirePermission('broadcasts.manage'),
   asyncRoute(async (req, res) => {
     const parsed = broadcastBody.safeParse(req.body);
     if (!parsed.success) {
@@ -339,6 +522,12 @@ adminRouter.post(
       data: { type: 'broadcast', id: result.id },
     });
     req.log?.info({ broadcastId: result.id, push }, 'xabar yuborildi');
+    await writeAudit({
+      at: Date.now(),
+      action: 'broadcast.create',
+      actor: actorOf(req),
+      note: result.broadcast.title,
+    });
 
     res.status(201).json({ ok: true, ...result, push });
   }),
@@ -346,8 +535,10 @@ adminRouter.post(
 
 adminRouter.delete(
   '/broadcasts/:id',
+  requirePermission('broadcasts.manage'),
   asyncRoute(async (req, res) => {
     await deleteBroadcast(req.params.id!);
+    await writeAudit({ at: Date.now(), action: 'broadcast.delete', actor: actorOf(req), note: req.params.id! });
     res.json({ ok: true });
   }),
 );
@@ -355,6 +546,7 @@ adminRouter.delete(
 /** Rejalar joriy narxlari bilan. */
 adminRouter.get(
   '/plans',
+  requirePermission('tenants.read'),
   asyncRoute(async (_req, res) => {
     res.json({ ok: true, plans: await plansWithPrices() });
   }),
@@ -377,6 +569,7 @@ const priceBody = z.object({
  */
 adminRouter.post(
   '/plans/:planId/price',
+  requirePermission('plans.manage'),
   asyncRoute(async (req, res) => {
     const parsed = priceBody.safeParse(req.body);
     if (!parsed.success) {
@@ -397,6 +590,12 @@ adminRouter.post(
       { planId: plan.id, price: plan.price, by: req.user!.uid },
       'reja narxi o\'zgartirildi',
     );
+    await writeAudit({
+      at: Date.now(),
+      action: 'plan.price',
+      actor: actorOf(req),
+      note: `${plan.name}: ${plan.price} so'm`,
+    });
 
     res.json({ ok: true, plan, plans: await plansWithPrices() });
   }),
@@ -405,8 +604,10 @@ adminRouter.post(
 /** Narxni fayldagi boshlang'ich qiymatga qaytaradi. */
 adminRouter.delete(
   '/plans/:planId/price',
+  requirePermission('plans.manage'),
   asyncRoute(async (req, res) => {
     await resetPlanPrice(req.params.planId!);
+    await writeAudit({ at: Date.now(), action: 'plan.price_reset', actor: actorOf(req), note: req.params.planId! });
     res.json({ ok: true, plans: await plansWithPrices() });
   }),
 );
@@ -417,6 +618,7 @@ adminRouter.delete(
 
 adminRouter.get(
   '/site-settings',
+  requirePermission('settings.manage'),
   asyncRoute(async (_req, res) => {
     res.json({ ok: true, settings: await getSiteSettings() });
   }),
@@ -437,6 +639,7 @@ const siteBody = z.object({
  */
 adminRouter.put(
   '/site-settings',
+  requirePermission('settings.manage'),
   asyncRoute(async (req, res) => {
     const parsed = siteBody.safeParse(req.body);
     if (!parsed.success) {
@@ -453,6 +656,12 @@ adminRouter.put(
       { url: settings.downloadUrl, by: req.user!.uid },
       'sayt sozlamalari o\'zgartirildi',
     );
+    await writeAudit({
+      at: Date.now(),
+      action: 'site.settings',
+      actor: actorOf(req),
+      note: `Yuklab olish: ${settings.version || '—'}`,
+    });
 
     res.json({ ok: true, settings });
   }),

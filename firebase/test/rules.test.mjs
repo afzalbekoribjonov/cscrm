@@ -68,6 +68,8 @@ const SEED = {
   },
   broadcasts: { b1: { title: 'Yangilik', body: 'x', createdAt: 1, createdBy: 'SUPER_ADMIN_UID' } },
   employee_secrets: { t1: { e1: { pinHash: 'YANGI_JOYDAGI_HASH' } } },
+  tenant_archive: { t3: { archivedAt: 1, purgeAfter: 2, reason: 'x' } },
+  admin_audit: { a1: { at: 1, action: 'tenant.update', tenantId: 't1', actor: { uid: 'admin', email: 'a@b.c' } } },
 };
 
 // --- Kim nomidan ---
@@ -214,6 +216,16 @@ const CASES = [
     (e) => read(owner(e, 't2', 'owner2'), 'tenants/t1/orders'), 'rad'],
   ['boshqa biznes egasi t1 ga buyurtma yozadi',
     (e) => owner(e, 't2', 'owner2').ref('tenants/t1/orders/9').set({ id: 9 }), 'rad'],
+  ['ega amallar jurnalini o\'qiy olmaydi',
+    (e) => read(owner(e), 'admin_audit'), 'rad'],
+  ['ega o\'z biznesining jurnal yozuvini ham o\'qiy olmaydi',
+    (e) => read(owner(e), 'admin_audit/a1'), 'rad'],
+  ['ega jurnalga soxta yozuv qo\'sha olmaydi',
+    (e) => owner(e).ref('admin_audit').push({ at: 1, action: 'x' }), 'rad'],
+  ['arxiv ma\'lumotini hech kim o\'qiy olmaydi',
+    (e) => read(owner(e, 't3', 'owner3'), 'tenant_archive/t3'), 'rad'],
+  ['ega o\'z biznesini arxivdan chiqara olmaydi',
+    (e) => owner(e, 't3', 'owner3').ref('tenant_archive/t3').remove(), 'rad'],
   ['kirmagan foydalanuvchi buyurtmalarni o\'qiydi',
     (e) => read(anon(e), 'tenants/t1/orders'), 'rad'],
   ['xodim litsenziyani uzaytiradi',

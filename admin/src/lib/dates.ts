@@ -78,3 +78,31 @@ export function formatRelative(ms: number, now = Date.now()): string {
   if (days < 7) return `${days} kun oldin`;
   return formatDay(ms, now);
 }
+
+/** Sana maydoni (`<input type="date">`) uchun: ms → "2026-09-23" (Toshkent). */
+export function toDateInput(ms: number | null | undefined): string {
+  if (!ms) return '';
+  const p = parts(ms);
+  return `${p.year}-${pad(p.month + 1)}-${pad(p.day)}`;
+}
+
+/**
+ * Sana maydonidan: "2026-09-23" → o'sha kunning OXIRI (23:59:59.999,
+ * Toshkent). Obuna "shu sanagacha" — tanlangan kun to'liq kiradi.
+ * Noto'g'ri qiymat — `null`.
+ */
+export function fromDateInput(value: string): number | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!m) return null;
+  const [, y, mo, d] = m.map(Number) as [number, number, number, number];
+  const endOfDay = Date.UTC(y, mo - 1, d, 23, 59, 59, 999) - TZ_OFFSET;
+  const check = parts(endOfDay);
+  // 31-fevral kabi mavjud bo'lmagan sanani rad etamiz.
+  return check.year === y && check.month === mo - 1 && check.day === d ? endOfDay : null;
+}
+
+/** Tanlangan sanagacha nechta kun (bugun tugashi — 0). */
+export function daysUntil(ms: number, now = Date.now()): number {
+  const dayOf = (t: number) => Math.floor((t + TZ_OFFSET) / DAY);
+  return dayOf(ms) - dayOf(now);
+}

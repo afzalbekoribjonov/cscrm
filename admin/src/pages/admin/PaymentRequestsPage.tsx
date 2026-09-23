@@ -1,201 +1,149 @@
-import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 
-import { api } from '@/lib/api';
 import {
-  formatDateTime,
-  formatSom,
-  type PendingPayment,
-} from '@/lib/admin-types';
+  Alert,
+  Button,
+  Card,
+  Cluster,
+  DescriptionList,
+  EmptyState,
+  PageHeader,
+  SkeletonText,
+  Stack,
+} from '@/components/ui';
+import type { PendingPayment } from '@/lib/admin-types';
+import { formatDay, formatRelative, formatTime } from '@/lib/dates';
+import { formatSom } from '@/lib/format';
 import type { Plan } from '@/lib/plans';
+import { useApi } from '@/lib/use-api';
+
+import { useTenantActions, type TenantRef } from './tenant/actions';
+
+interface QueueResponse {
+  requests: PendingPayment[];
+  plans: Plan[];
+}
+
+function refOf(r: PendingPayment): TenantRef {
+  // Navbatda faqat faol bizneslarning so'rovlari turadi; arxivdagisi
+  // bo'lsa ham server tasdiqni rad etadi va sababini aytadi.
+  return { tenantId: r.tenantId, name: r.tenantName, archive: null, suspended: false };
+}
 
 /**
  * To'lov so'rovlari navbati — panelning asosiy kundalik ishi.
  *
  * To'lov usuli qo'lda karta o'tkazma: mijoz pulni o'tkazgach ilovadan
  * "to'lov qildim" deb xabar beradi, biz esa bank ko'chirmasi bilan
- * solishtirib tasdiqlaymiz yoki rad etamiz.
+ * solishtirib tasdiqlaymiz yoki sababini yozib rad etamiz.
+ *
+ * Eng eski so'rov birinchi — kim ko'proq kutgan bo'lsa, o'sha oldin.
  */
 export function PaymentRequestsPage() {
-  const [requests, setRequests] = useState<PendingPayment[] | null>(null);
-  const [plans, setPlans] = useState<Plan[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [busyId, setBusyId] = useState<string | null>(null);
+  const { data, error, loading, refreshing, reload } = useApi(
+    '/api/v1/admin/payment-requests',
+    (json) => json as QueueResponse,
+    { staleMs: 30_000 },
+  );
+  const actions = useTenantActions({ plans: data?.plans ?? [], onChanged: reload });
 
-  const load = useCallback(async () => {
-    try {
-      const r = await api.get<{ requests: PendingPayment[]; plans: Plan[] }>(
-        '/api/v1/admin/payment-requests',
-      );
-      setRequests(r.requests);
-      setPlans(r.plans.filter((p) => p.kind !== 'trial'));
-      setError(null);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Xatolik');
-    }
-  }, []);
+  const requests = data ? [...data.requests].sort((a, b) => a.createdAt - b.createdAt) : null;
 
-  useEffect(() => {
-    load();
-  }, [load]);
-
-  async function act(
-    request: PendingPayment,
-    action: 'confirm' | 'reject',
-  ): Promise<void> {
-    if (action === 'confirm') {
-      const ok = window.confirm(
-        `${request.tenantName} — ${request.planName} rejasi tasdiqlansinmi?\n` +
-          `Summa: ${formatSom(request.amount)}\n\n` +
-          'Obuna darhol uzayadi.',
-      );
-      if (!ok) return;
-    }
-
-    const reason =
-      action === 'reject'
-        ? window.prompt('Rad etish sababi (mijozga ko\'rinadi):') ?? ''
-        : '';
-    if (action === 'reject' && !reason.trim()) return;
-
-    setBusyId(request.id);
-    try {
-      if (action === 'confirm') {
-        await api.post(
-          `/api/v1/admin/tenants/${request.tenantId}/confirm-payment`,
-          {
-            planId: request.planId,
-            amount: request.amount,
-            requestId: request.id,
-            ...(request.reference ? { note: `O'tkazma: ${request.reference}` } : {}),
-          },
-        );
-      } else {
-        await api.post(
-          `/api/v1/admin/tenants/${request.tenantId}/payment-requests/${request.id}/reject`,
-          { reason: reason.trim() },
-        );
+  const header = (
+    <PageHeader
+      title="To'lov so'rovlari"
+      description="Mijozlar ilovadan yuborgan to'lov xabarlari. Bank ko'chirmasi bilan solishtirib, tasdiqlang yoki rad eting."
+      actions={
+        <Button variant="outline" size="sm" icon="refresh" loading={refreshing} onClick={reload}>
+          Yangilash
+        </Button>
       }
-      await load();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Xatolik');
-    } finally {
-      setBusyId(null);
-    }
-  }
+    />
+  );
 
-  if (error) return <p style={{ color: 'var(--danger)' }}>{error}</p>;
-  if (!requests) return <p className="muted">Yuklanmoqda…</p>;
+  if (error && !data) {
+    return (
+      <>
+        {header}
+        <Alert
+          tone="danger"
+          title="So'rovlarni yuklab bo'lmadi"
+          action={
+            <Button variant="outline" size="sm" icon="refresh" onClick={reload}>
+              Qayta urinish
+            </Button>
+          }
+        >
+          {error}
+        </Alert>
+      </>
+    );
+  }
 
   return (
     <>
-      <h1 style={{ fontSize: 26, marginBottom: 6 }}>To'lov so'rovlari</h1>
-      <p className="muted" style={{ marginTop: 0, marginBottom: 20 }}>
-        Mijozlar "to'lov qildim" deb yuborgan xabarlar. Bank ko'chirmasi
-        bilan solishtiring, keyin tasdiqlang.
-      </p>
+      {header}
 
-      {requests.length === 0 ? (
-        <div className="card">
-          <p style={{ margin: 0 }}>Ko'rib chiqilmagan so'rov yo'q.</p>
-        </div>
-      ) : (
-        <div style={{ display: 'grid', gap: 14 }}>
-          {requests.map((r) => (
-            <section key={r.id} className="card">
-              <div
-                style={{
-                  display: 'flex',
-                  gap: 14,
-                  flexWrap: 'wrap',
-                  alignItems: 'baseline',
-                  justifyContent: 'space-between',
-                }}
+      <Stack gap={4}>
+        {error && data && (
+          <Alert tone="warning" live>
+            Yangilab bo'lmadi — oxirgi olingan ro'yxat ko'rsatilmoqda. {error}
+          </Alert>
+        )}
+
+        {loading || !requests ? (
+          <div className="ui-grid ui-grid--fill" aria-busy="true">
+            {[0, 1].map((i) => (
+              <Card key={i}>
+                <SkeletonText lines={4} />
+              </Card>
+            ))}
+          </div>
+        ) : requests.length === 0 ? (
+          <Card>
+            <EmptyState
+              icon="check"
+              title="Hammasi ko'rib chiqilgan"
+              description="Yangi to'lov so'rovi kelsa, u shu yerda va menyudagi hisoblagichda ko'rinadi."
+            />
+          </Card>
+        ) : (
+          <div className="ui-grid ui-grid--fill" aria-busy={refreshing}>
+            {requests.map((r) => (
+              <Card
+                key={`${r.tenantId}/${r.id}`}
+                title={<Link to={`/admin/tenants/${r.tenantId}?bolim=tolovlar`}>{r.tenantName}</Link>}
+                description={
+                  <time dateTime={new Date(r.createdAt).toISOString()} title={`${formatDay(r.createdAt)} ${formatTime(r.createdAt)}`}>
+                    {formatRelative(r.createdAt)}
+                  </time>
+                }
+                footer={
+                  <Cluster gap={2}>
+                    <Button icon="check" onClick={() => actions.openPayment(refOf(r), r)}>
+                      Tasdiqlash
+                    </Button>
+                    <Button variant="plain" onClick={() => actions.openReject(refOf(r), r)}>
+                      Rad etish
+                    </Button>
+                  </Cluster>
+                }
               >
-                <h3 style={{ margin: 0 }}>
-                  <Link to={`/admin/tenants/${r.tenantId}`}>{r.tenantName}</Link>
-                </h3>
-                <span className="muted" style={{ fontSize: 13 }}>
-                  {formatDateTime(r.createdAt)}
-                </span>
-              </div>
+                <DescriptionList
+                  items={[
+                    { label: 'Reja', value: data?.plans.find((p) => p.id === r.planId)?.name ?? r.planName },
+                    { label: 'Summa', value: <strong>{formatSom(r.amount)}</strong> },
+                    ...(r.reference ? [{ label: 'O\'tkazma raqami', value: r.reference }] : []),
+                    ...(r.note ? [{ label: 'Mijoz izohi', value: r.note }] : []),
+                  ]}
+                />
+              </Card>
+            ))}
+          </div>
+        )}
+      </Stack>
 
-              <div
-                style={{
-                  display: 'flex',
-                  gap: 20,
-                  flexWrap: 'wrap',
-                  margin: '12px 0',
-                  fontSize: 14,
-                }}
-              >
-                <Field label="Reja" value={planName(plans, r)} />
-                <Field label="Summa" value={formatSom(r.amount)} strong />
-                {r.reference && (
-                  <Field label="O'tkazma raqami" value={r.reference} />
-                )}
-              </div>
-
-              {r.note && (
-                <p
-                  className="muted"
-                  style={{
-                    margin: '0 0 12px',
-                    padding: 10,
-                    borderRadius: 'var(--radius)',
-                    background: 'var(--surface-muted)',
-                    fontSize: 14,
-                  }}
-                >
-                  {r.note}
-                </p>
-              )}
-
-              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                <button
-                  className="btn btn--primary"
-                  disabled={busyId !== null}
-                  onClick={() => act(r, 'confirm')}
-                >
-                  {busyId === r.id ? 'Bajarilmoqda…' : 'Tasdiqlash'}
-                </button>
-                <button
-                  className="btn btn--ghost"
-                  disabled={busyId !== null}
-                  style={{ color: 'var(--danger)' }}
-                  onClick={() => act(r, 'reject')}
-                >
-                  Rad etish
-                </button>
-              </div>
-            </section>
-          ))}
-        </div>
-      )}
+      {actions.dialogs}
     </>
-  );
-}
-
-/** Reja nomi so'rov bilan birga keladi; ro'yxatdan topilsa yangisi olinadi. */
-function planName(plans: Plan[], request: PendingPayment): string {
-  return plans.find((p) => p.id === request.planId)?.name ?? request.planName;
-}
-
-function Field({
-  label,
-  value,
-  strong,
-}: {
-  label: string;
-  value: string;
-  strong?: boolean;
-}) {
-  return (
-    <div>
-      <div className="muted" style={{ fontSize: 12.5 }}>
-        {label}
-      </div>
-      <div style={{ fontWeight: strong ? 700 : 500 }}>{value}</div>
-    </div>
   );
 }

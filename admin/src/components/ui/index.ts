@@ -12,6 +12,7 @@ export { Button, ButtonLink, type ButtonSize, type ButtonVariant } from './Butto
 export { Card, DescriptionList } from './Card';
 export { ChartCard, type ChartStatus } from './ChartCard';
 export { ConfirmDialog, PromptDialog } from './ConfirmDialog';
+export { FormDialog } from './FormDialog';
 export { DataTable, useTable, type Column, type SortState } from './DataTable';
 export { Dialog } from './Dialog';
 export { Drawer } from './Drawer';

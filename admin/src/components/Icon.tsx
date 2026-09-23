@@ -64,7 +64,9 @@ export type IconName =
   | 'settings'
   | 'grid'
   | 'lock'
-  | 'external';
+  | 'external'
+  | 'copy'
+  | 'unlock';
 
 /** Har bir ikonka — 24x24 to'rda, faqat chiziqlar (stroke). */
 const PATHS: Record<IconName, React.ReactNode> = {
@@ -303,6 +305,18 @@ const PATHS: Record<IconName, React.ReactNode> = {
     <>
       <path d="M14 4h6v6M20 4l-8.5 8.5" />
       <path d="M18 14v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4" />
+    </>
+  ),
+  copy: (
+    <>
+      <rect x="9" y="9" width="11" height="11" rx="2.5" />
+      <path d="M15 5.5A1.5 1.5 0 0 0 13.5 4h-7A2.5 2.5 0 0 0 4 6.5v7A1.5 1.5 0 0 0 5.5 15" />
+    </>
+  ),
+  unlock: (
+    <>
+      <rect x="4.5" y="10.5" width="15" height="10" rx="2.5" />
+      <path d="M8 10.5V7.5a4 4 0 0 1 7.6-1.7" />
     </>
   ),
 };

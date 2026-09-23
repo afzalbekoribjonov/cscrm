@@ -1,535 +1,473 @@
-import { useCallback, useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 
-import { api } from '@/lib/api';
-import { MoneyInput } from '@/components/MoneyInput';
 import {
-  formatDate,
-  formatDateTime,
-  formatSom,
-  stateVisual,
-  type PaymentRequestRecord,
-  type TenantDetail,
-} from '@/lib/admin-types';
-import { formatNumber } from '@/lib/format';
+  Alert,
+  Badge,
+  Button,
+  Card,
+  Cluster,
+  DataTable,
+  DescriptionList,
+  DropdownMenu,
+  EmptyState,
+  PageHeader,
+  Skeleton,
+  SkeletonText,
+  Stack,
+  Tabs,
+  useTable,
+  type Column,
+  type TabItem,
+} from '@/components/ui';
+import type { AuditEntry, PaymentRecord, PaymentRequestRecord, TenantDetail } from '@/lib/admin-types';
+import { formatDay, formatRelative, formatTime } from '@/lib/dates';
+import { formatNumber, formatPhone, formatSom } from '@/lib/format';
 import type { Plan } from '@/lib/plans';
+import { useApi } from '@/lib/use-api';
 
-import { Badge } from '@/components/ui';
+import { AuditList } from './tenant/AuditList';
+import { OwnerAccess } from './tenant/OwnerAccess';
+import { tenantRef, useTenantActions, type TenantRef } from './tenant/actions';
+import { purgeText, TenantBadge, termText } from './tenant/status';
 
-import { OwnerCredentialsCard } from './OwnerCredentialsCard';
+type Section = 'umumiy' | 'tolovlar' | 'kirish' | 'tarix';
 
+interface DetailResponse {
+  tenant: TenantDetail;
+  plans: Plan[];
+}
+
+/**
+ * Biznes kartasi.
+ *
+ * Tepada — holat va asosiy amallar; diqqat talab qiladigan narsa
+ * (arxiv, to'xtatilgan, mijoz to'lov qilgani) sarlavha ostida alohida
+ * ogohlantirishda. Bo'limlar URL'da (`?bolim=tolovlar`) — sahifa
+ * yangilanganda yoki havola yuborilganda o'sha bo'lim ochiladi.
+ */
 export function TenantDetailPage() {
   const { tenantId = '' } = useParams();
+  const navigate = useNavigate();
+  const [params, setParams] = useSearchParams();
 
-  const [tenant, setTenant] = useState<TenantDetail | null>(null);
-  const [plans, setPlans] = useState<Plan[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  /**
-   * Amal (tasdiqlash, rad etish, to'xtatish) xatosi — sahifa ustida
-   * alohida ko'rsatiladi. Yuklash xatosidan farqli ravishda u sahifani
-   * ALMASHTIRMAYDI: aks holda kiritilgan forma yo'qolib, qayta urinish
-   * yangi kalit bilan ketardi va takroriy to'lovdan himoya ishlamasdi.
-   */
-  const [actionError, setActionError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  const { data, error, loading, refreshing, reload } = useApi(
+    `/api/v1/admin/tenants/${tenantId}`,
+    (json) => json as DetailResponse,
+  );
+  const tenant = data?.tenant ?? null;
+  const plans = data?.plans ?? [];
 
-  const load = useCallback(async () => {
-    try {
-      const r = await api.get<{ tenant: TenantDetail; plans: Plan[] }>(
-        `/api/v1/admin/tenants/${tenantId}`,
-      );
-      setTenant(r.tenant);
-      // Sinov rejasini qo'lda berib bo'lmaydi - ro'yxatda ko'rsatmaymiz.
-      setPlans(r.plans.filter((p) => p.kind !== 'trial'));
-      setError(null);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Xatolik');
-    }
-  }, [tenantId]);
+  const actions = useTenantActions({
+    plans,
+    onChanged: reload,
+    onDeleted: () => navigate('/admin/tenants', { replace: true }),
+  });
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  const tabs: TabItem<Section>[] = [
+    { id: 'umumiy', label: 'Umumiy' },
+    { id: 'tolovlar', label: 'To\'lovlar', ...(tenant ? { count: tenant.payments.length } : {}) },
+    { id: 'kirish', label: 'Kirish' },
+    { id: 'tarix', label: 'Tarix' },
+  ];
+  const section: Section = tabs.find((t) => t.id === params.get('bolim'))?.id ?? 'umumiy';
+  const setSection = (id: Section) => {
+    const next = new URLSearchParams(params);
+    if (id === 'umumiy') next.delete('bolim');
+    else next.set('bolim', id);
+    setParams(next, { replace: true });
+  };
 
-  if (error) return <p style={{ color: 'var(--danger)' }}>{error}</p>;
-  if (!tenant) return <p className="muted">Yuklanmoqda…</p>;
+  const back = { to: '/admin/tenants', label: 'Bizneslar' };
 
-  const visual = stateVisual(tenant.status.state);
-  const suspended = tenant.license.suspended === true;
-
-  /** Muvaffaqiyatli bo'lsa `true` — forma shundagina tozalanadi. */
-  async function confirmPayment(
-    planId: string,
-    amount: number,
-    note: string,
-    requestId?: string,
-    idempotencyKey?: string,
-  ): Promise<boolean> {
-    setBusy(true);
-    setActionError(null);
-    try {
-      await api.post(`/api/v1/admin/tenants/${tenantId}/confirm-payment`, {
-        planId,
-        amount,
-        ...(note.trim() ? { note: note.trim() } : {}),
-        // So'rov asosida tasdiqlansa - o'sha so'rov navbatdan yopiladi.
-        ...(requestId ? { requestId } : {}),
-        // Qo'lda tasdiqlashda: javob yo'qolib qayta bosilsa ham ikkinchi
-        // to'lov yozilmaydi.
-        ...(idempotencyKey ? { idempotencyKey } : {}),
-      });
-      await load();
-      return true;
-    } catch (e) {
-      setActionError(e instanceof Error ? e.message : 'Amalni bajarib bo\'lmadi.');
-      return false;
-    } finally {
-      setBusy(false);
-    }
+  if (error && !tenant) {
+    return (
+      <>
+        <PageHeader title="Biznes" back={back} />
+        <Alert
+          tone="danger"
+          title="Biznes ma'lumotini yuklab bo'lmadi"
+          action={
+            <Button variant="outline" size="sm" icon="refresh" onClick={reload}>
+              Qayta urinish
+            </Button>
+          }
+        >
+          {error}
+        </Alert>
+      </>
+    );
   }
 
-  async function rejectRequest(requestId: string) {
-    const reason =
-      window.prompt('Rad etish sababi (mijozga ko\'rinadi):') ?? '';
-    if (!reason.trim()) return;
+  if (loading || !tenant) return <DetailSkeleton back={back} />;
 
-    setBusy(true);
-    try {
-      await api.post(
-        `/api/v1/admin/tenants/${tenantId}/payment-requests/${requestId}/reject`,
-        { reason: reason.trim() },
-      );
-      await load();
-    } catch (e) {
-      setActionError(e instanceof Error ? e.message : 'Amalni bajarib bo\'lmadi.');
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function toggleSuspend() {
-    const next = !suspended;
-    const reason = next
-      ? window.prompt('To\'xtatish sababi (mijozga ko\'rinadi):') ?? ''
-      : '';
-    if (next && !reason.trim()) return;
-
-    setBusy(true);
-    try {
-      await api.post(`/api/v1/admin/tenants/${tenantId}/suspend`, {
-        suspended: next,
-        ...(next ? { reason: reason.trim() } : {}),
-      });
-      await load();
-    } catch (e) {
-      setActionError(e instanceof Error ? e.message : 'Amalni bajarib bo\'lmadi.');
-    } finally {
-      setBusy(false);
-    }
-  }
+  const ref = tenantRef(tenant);
+  const archived = tenant.archive !== null;
+  const pending = tenant.paymentRequest?.status === 'pending' ? tenant.paymentRequest : null;
+  const menu = actions.menuItems(ref, { detail: tenant }).filter((i) => i.id !== 'pay' && i.id !== 'restore');
 
   return (
     <>
-      <Link to="/admin/tenants" style={{ fontSize: 14 }}>
-        ← Bizneslar
-      </Link>
+      <PageHeader
+        back={back}
+        title={tenant.name}
+        meta={<TenantBadge tenant={tenant} />}
+        description={`Reja: ${tenant.planName} · Qo'shilgan: ${formatDay(tenant.createdAt)}`}
+        actions={
+          <Cluster gap={2}>
+            {archived ? (
+              <Button variant="secondary" icon="restore" onClick={() => actions.openRestore(ref)}>
+                Arxivdan qaytarish
+              </Button>
+            ) : (
+              <Button icon="card" disabled={plans.length === 0} onClick={() => actions.openPayment(ref, pending)}>
+                To'lov qabul qilish
+              </Button>
+            )}
+            <DropdownMenu items={menu} label="Boshqa amallar" />
+          </Cluster>
+        }
+      />
 
-      {actionError && (
-        <div
-          role="alert"
-          className="card"
-          style={{
-            marginTop: 12,
-            display: 'flex',
-            gap: 12,
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            borderColor: 'color-mix(in srgb, var(--danger) 45%, transparent)',
-            background: 'color-mix(in srgb, var(--danger) 8%, transparent)',
-          }}
-        >
-          <span>{actionError}</span>
-          <button
-            type="button"
-            className="btn btn--ghost"
-            style={{ padding: '6px 12px', fontSize: 14 }}
-            onClick={() => setActionError(null)}
-          >
-            Yopish
-          </button>
-        </div>
-      )}
-
-      <div
-        style={{
-          display: 'flex',
-          gap: 14,
-          alignItems: 'center',
-          flexWrap: 'wrap',
-          margin: '12px 0 22px',
-        }}
-      >
-        <h1 style={{ fontSize: 26, margin: 0 }}>{tenant.name}</h1>
-        <Badge tone={visual.tone} dot>
-          {visual.label}
-        </Badge>
-      </div>
-
-      <div
-        style={{
-          display: 'grid',
-          gap: 18,
-          gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
-          alignItems: 'start',
-        }}
-      >
-        {/* --- Ma'lumot --- */}
-        <section className="card">
-          <h3>Ma'lumot</h3>
-          <Row label="ID" value={<code style={{ fontSize: 12 }}>{tenant.tenantId}</code>} />
-          <Row label="Telefon" value={tenant.phone ?? '—'} />
-          <Row label="Ro'yxatdan o'tgan" value={formatDate(tenant.createdAt)} />
-          <Row label="Xodimlar" value={String(tenant.employeeCount)} />
-          <Row label="Buyurtmalar" value={String(tenant.orderCount)} />
-        </section>
-
-        {/* --- Obuna --- */}
-        <section className="card">
-          <h3>Obuna</h3>
-          <Row label="Reja" value={tenant.license.planId} />
-          <Row label="Tur" value={tenant.license.kind} />
-          <Row
-            label="Muddat"
-            value={
-              tenant.license.kind === 'lifetime'
-                ? 'Cheksiz'
-                : formatDate(tenant.license.expiresAt)
-            }
-          />
-          {tenant.license.kind === 'lifetime' && (
-            <Row
-              label="Yillik baza to'lovi"
-              value={formatDate(tenant.license.nextAnnualFeeAt)}
-            />
-          )}
-          <Row label="Server xabari" value={tenant.status.message} />
-
-          <button
-            className="btn btn--ghost"
-            disabled={busy}
-            onClick={toggleSuspend}
-            style={{
-              marginTop: 14,
-              width: '100%',
-              color: suspended ? 'var(--success)' : 'var(--danger)',
-            }}
-          >
-            {suspended ? 'To\'xtatishni bekor qilish' : 'Hisobni to\'xtatish'}
-          </button>
-        </section>
-
-        {/* --- Mijozning to'lov so'rovi --- */}
-        {tenant.paymentRequest && (
-          <RequestCard
-            request={tenant.paymentRequest}
-            busy={busy}
-            onConfirm={() =>
-              confirmPayment(
-                tenant.paymentRequest!.planId,
-                tenant.paymentRequest!.amount,
-                tenant.paymentRequest!.reference
-                  ? `O'tkazma: ${tenant.paymentRequest!.reference}`
-                  : '',
-                tenant.paymentRequest!.id,
-              )
-            }
-            onReject={() => rejectRequest(tenant.paymentRequest!.id)}
-          />
+      <Stack gap={5}>
+        {error && (
+          <Alert tone="warning" live>
+            Yangilab bo'lmadi — oxirgi olingan ma'lumot ko'rsatilmoqda. {error}
+          </Alert>
         )}
+        <StatusAlerts tenant={tenant} tenantRef={ref} actions={actions} />
 
-        {/* --- Kirish ma'lumotlari --- */}
-        <OwnerCredentialsCard tenantId={tenantId} />
-
-        {/* --- To'lovni tasdiqlash --- */}
-        <ConfirmPaymentCard
-          plans={plans}
-          busy={busy}
-          onConfirm={confirmPayment}
-        />
-      </div>
-
-      {/* --- To'lovlar tarixi --- */}
-      <section className="card" style={{ marginTop: 18 }}>
-        <h3>To'lovlar tarixi</h3>
-        {tenant.payments.length === 0 ? (
-          <p className="muted" style={{ margin: 0 }}>
-            Hali to'lov tasdiqlanmagan.
-          </p>
-        ) : (
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 520 }}>
-              <tbody>
-                {tenant.payments.map((p) => (
-                  <tr key={p.id}>
-                    <td style={cellStyle}>{formatDate(p.confirmedAt)}</td>
-                    <td style={cellStyle}>{p.planName}</td>
-                    <td style={{ ...cellStyle, fontWeight: 600 }}>
-                      {formatSom(p.amount)}
-                    </td>
-                    <td style={{ ...cellStyle, color: 'var(--text-muted)' }}>
-                      {p.newExpiresAt
-                        ? `→ ${formatDate(p.newExpiresAt)}`
-                        : '→ cheksiz'}
-                    </td>
-                    <td style={{ ...cellStyle, color: 'var(--text-muted)' }}>
-                      {p.note ?? ''}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        <Tabs label="Biznes bo'limlari" items={tabs} value={section} onChange={setSection}>
+          <div aria-busy={refreshing}>
+            {section === 'umumiy' && (
+              <Overview
+                tenant={tenant}
+                onEdit={archived ? undefined : () => actions.openEdit(ref, tenant)}
+                onLicense={archived || plans.length === 0 ? undefined : () => actions.openLicense(ref, tenant)}
+              />
+            )}
+            {section === 'tolovlar' && (
+              <Payments
+                tenant={tenant}
+                onConfirm={archived ? undefined : (r) => actions.openPayment(ref, r)}
+                onReject={archived ? undefined : (r) => actions.openReject(ref, r)}
+              />
+            )}
+            {section === 'kirish' && <OwnerAccess tenantId={tenant.tenantId} archived={archived} />}
+            {section === 'tarix' && <History tenantId={tenant.tenantId} plans={plans} />}
           </div>
-        )}
-      </section>
+        </Tabs>
+      </Stack>
+
+      {actions.dialogs}
     </>
   );
 }
 
-/**
- * Mijozning "men to'ladim" so'rovi.
- *
- * Tasdiqlash tugmasi reja va summani so'rovdan oladi — super-admin
- * qo'lda qayta kiritmasligi kerak, aks holda xato qilish oson.
- */
-function RequestCard({
-  request,
-  busy,
-  onConfirm,
-  onReject,
-}: {
-  request: PaymentRequestRecord;
-  busy: boolean;
-  onConfirm: () => void;
-  onReject: () => void;
-}) {
-  const pending = request.status === 'pending';
-  const color = pending
-    ? 'var(--warning)'
-    : request.status === 'approved'
-      ? 'var(--success)'
-      : 'var(--danger)';
-  const label = pending
-    ? 'Ko\'rib chiqilmagan'
-    : request.status === 'approved'
-      ? 'Tasdiqlangan'
-      : 'Rad etilgan';
+/* ------------------------------------------------------------------ */
 
+function DetailSkeleton({ back }: { back: { to: string; label: string } }) {
   return (
-    <section
-      className="card"
-      style={{
-        borderColor: `color-mix(in srgb, ${color} 45%, transparent)`,
-      }}
-    >
-      <div
-        style={{
-          display: 'flex',
-          gap: 10,
-          alignItems: 'baseline',
-          justifyContent: 'space-between',
-          flexWrap: 'wrap',
-        }}
-      >
-        <h3 style={{ margin: 0 }}>Mijozning so'rovi</h3>
-        <span style={{ color, fontSize: 13, fontWeight: 700 }}>{label}</span>
+    <>
+      <PageHeader back={back} title={<Skeleton width={220} height={28} />} />
+      <div className="ui-split" aria-busy="true">
+        <Card>
+          <SkeletonText lines={6} />
+        </Card>
+        <Card>
+          <SkeletonText lines={4} />
+        </Card>
       </div>
-
-      <Row label="Yuborilgan" value={formatDateTime(request.createdAt)} />
-      <Row label="Reja" value={request.planName} />
-      <Row label="Summa" value={formatSom(request.amount)} />
-      {request.reference && (
-        <Row label="O'tkazma raqami" value={request.reference} />
-      )}
-      {request.note && <Row label="Izoh" value={request.note} />}
-      {request.rejectReason && (
-        <Row label="Rad etish sababi" value={request.rejectReason} />
-      )}
-
-      {pending && (
-        <div style={{ display: 'flex', gap: 10, marginTop: 14 }}>
-          <button
-            className="btn btn--primary"
-            style={{ flex: 1 }}
-            disabled={busy}
-            onClick={onConfirm}
-          >
-            {busy ? 'Bajarilmoqda…' : 'Tasdiqlash'}
-          </button>
-          <button
-            className="btn btn--ghost"
-            style={{ color: 'var(--danger)' }}
-            disabled={busy}
-            onClick={onReject}
-          >
-            Rad etish
-          </button>
-        </div>
-      )}
-    </section>
+    </>
   );
 }
 
-function ConfirmPaymentCard({
-  plans,
-  busy,
-  onConfirm,
+/** Sarlavha ostidagi ogohlantirishlar — faqat haqiqatan diqqat kerak bo'lganda. */
+function StatusAlerts({
+  tenant,
+  tenantRef: ref,
+  actions,
 }: {
-  plans: Plan[];
-  busy: boolean;
-  onConfirm: (
-    planId: string,
-    amount: number,
-    note: string,
-    requestId: undefined,
-    idempotencyKey: string,
-  ) => Promise<boolean>;
+  tenant: TenantDetail;
+  tenantRef: TenantRef;
+  actions: ReturnType<typeof useTenantActions>;
 }) {
-  const [planId, setPlanId] = useState('');
-  const [amount, setAmount] = useState('');
-  const [note, setNote] = useState('');
+  const alerts = [];
 
-  /**
-   * Shu formaning takrorlanmas kaliti.
-   *
-   * Muvaffaqiyatsiz urinishda O'ZGARMAYDI: javob yo'lda yo'qolgan-u,
-   * to'lov aslida yozilgan bo'lsa, qayta bosish o'sha kalit bilan
-   * ketadi va server ikkinchi to'lovni yozmaydi. Faqat muvaffaqiyatdan
-   * keyin yangilanadi — keyingi to'lov boshqa to'lov.
-   */
-  const [key, setKey] = useState(newIdempotencyKey);
-
-  const plan = plans.find((p) => p.id === planId);
-
-  return (
-    <section className="card">
-      <h3>To'lovni tasdiqlash</h3>
-      <p className="muted" style={{ fontSize: 14 }}>
-        Karta o'tkazmasi kelganini tekshirgach, rejani tanlab tasdiqlang.
-        Obuna darhol uzayadi va ilova ochiladi.
-      </p>
-
-      <label style={{ display: 'block', marginBottom: 10 }}>
-        <span className="muted" style={{ fontSize: 13 }}>Reja</span>
-        <select
-          value={planId}
-          onChange={(e) => {
-            setPlanId(e.target.value);
-            const p = plans.find((x) => x.id === e.target.value);
-            setAmount(p && p.price > 0 ? String(p.price) : '');
-          }}
-          style={fieldStyle}
-        >
-          <option value="">— tanlang —</option>
-          {plans.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.name}
-            </option>
-          ))}
-        </select>
-      </label>
-
-      <label style={{ display: 'block', marginBottom: 10 }}>
-        <span className="muted" style={{ fontSize: 13 }}>
-          Olingan summa (so'm)
-        </span>
-        <MoneyInput
-          value={amount}
-          onChange={setAmount}
-          placeholder={plan && plan.price > 0 ? formatNumber(plan.price) : '0'}
-          style={fieldStyle}
-        />
-      </label>
-
-      <label style={{ display: 'block', marginBottom: 14 }}>
-        <span className="muted" style={{ fontSize: 13 }}>Izoh (ixtiyoriy)</span>
-        <input
-          type="text"
-          value={note}
-          onChange={(e) => setNote(e.target.value)}
-          placeholder="masalan: chek raqami"
-          style={fieldStyle}
-        />
-      </label>
-
-      <button
-        className="btn btn--primary"
-        style={{ width: '100%' }}
-        disabled={busy || !planId}
-        onClick={async () => {
-          if (!planId) return;
-          const ok = await onConfirm(
-            planId,
-            Number(amount) || 0,
-            note,
-            undefined,
-            key,
-          );
-          // Xato bo'lsa forma SAQLANADI — qayta urinish uchun.
-          if (!ok) return;
-          setPlanId('');
-          setAmount('');
-          setNote('');
-          setKey(newIdempotencyKey());
-        }}
+  if (tenant.archive) {
+    alerts.push(
+      <Alert
+        key="archive"
+        tone="warning"
+        title={`Biznes arxivda — ${purgeText(tenant.archive)}`}
+        action={
+          <Button variant="danger-outline" size="sm" icon="trash" onClick={() => actions.openDelete(ref)}>
+            Hozir o'chirish
+          </Button>
+        }
       >
-        {busy ? 'Bajarilmoqda…' : 'To\'lovni tasdiqlash'}
-      </button>
-    </section>
-  );
-}
-
-/**
- * Takrorlanmas kalit. `crypto.randomUUID` faqat xavfsiz (https yoki
- * localhost) sahifada bor — boshqa holatda vaqt + tasodifiy son.
- */
-function newIdempotencyKey(): string {
-  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
-    return crypto.randomUUID();
+        {formatDay(tenant.archive.archivedAt)} kuni arxivlangan. Sabab: {tenant.archive.reason}
+      </Alert>,
+    );
+  } else if (tenant.license.suspended) {
+    alerts.push(
+      <Alert
+        key="suspended"
+        tone="danger"
+        title="Biznes to'xtatilgan"
+        action={
+          <Button variant="outline" size="sm" icon="unlock" onClick={() => actions.openUnsuspend(ref)}>
+            Qayta ochish
+          </Button>
+        }
+      >
+        {tenant.license.suspendedReason
+          ? `Mijozga ko'rsatilayotgan sabab: ${tenant.license.suspendedReason}`
+          : 'Egasi va xodimlari ilovada ishlay olmaydi.'}
+      </Alert>,
+    );
   }
-  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+
+  const request = tenant.paymentRequest;
+  if (request?.status === 'pending' && !tenant.archive) {
+    alerts.push(
+      <Alert
+        key="request"
+        tone="info"
+        title="Mijoz to'lov qilganini bildirdi"
+        action={
+          <Cluster gap={2}>
+            <Button size="sm" icon="check" onClick={() => actions.openPayment(ref, request)}>
+              Tasdiqlash
+            </Button>
+            <Button variant="plain" size="sm" onClick={() => actions.openReject(ref, request)}>
+              Rad etish
+            </Button>
+          </Cluster>
+        }
+      >
+        {request.planName} · {formatSom(request.amount)} · {formatRelative(request.createdAt)}
+        {request.reference ? ` · o'tkazma: ${request.reference}` : ''}
+      </Alert>,
+    );
+  }
+
+  return alerts.length > 0 ? <Stack gap={3}>{alerts}</Stack> : null;
 }
 
-function Row({ label, value }: { label: string; value: React.ReactNode }) {
+/* ------------------------------------------------------------------ */
+
+function Overview({
+  tenant,
+  onEdit,
+  onLicense,
+}: {
+  tenant: TenantDetail;
+  onEdit?: () => void;
+  onLicense?: () => void;
+}) {
+  const term = termText(tenant.status);
+  const lifetime = tenant.license.kind === 'lifetime';
+
   return (
-    <div
-      style={{
-        display: 'flex',
-        gap: 12,
-        justifyContent: 'space-between',
-        padding: '7px 0',
-        borderBottom: '1px solid var(--border)',
-        fontSize: 14,
-      }}
-    >
-      <span className="muted">{label}</span>
-      <span style={{ textAlign: 'end' }}>{value}</span>
+    <div className="ui-split">
+      <Card
+        title="Biznes ma'lumoti"
+        actions={
+          onEdit && (
+            <Button variant="plain" size="sm" icon="edit" onClick={onEdit}>
+              Tahrirlash
+            </Button>
+          )
+        }
+      >
+        <DescriptionList
+          items={[
+            { label: 'Nomi', value: tenant.name },
+            { label: 'Telefon', value: tenant.phone ? formatPhone(tenant.phone) : <Missing /> },
+            { label: 'Manzil', value: tenant.address || <Missing /> },
+            { label: 'Ro\'yxatdan o\'tgan', value: formatDay(tenant.createdAt) },
+            {
+              label: 'Oxirgi faollik',
+              value: tenant.lastActiveAt ? formatRelative(tenant.lastActiveAt) : <span className="ui-muted">Ma'lumot yo'q</span>,
+            },
+            { label: 'Xodimlar', value: `${formatNumber(tenant.employeeCount)} ta` },
+            { label: 'Buyurtmalar', value: `${formatNumber(tenant.orderCount)} ta` },
+            { label: 'Biznes ID', value: <code className="ui-code">{tenant.tenantId}</code> },
+          ]}
+        />
+      </Card>
+
+      <Card
+        title="Obuna"
+        actions={
+          onLicense && (
+            <Button variant="plain" size="sm" icon="calendar" onClick={onLicense}>
+              O'zgartirish
+            </Button>
+          )
+        }
+      >
+        <DescriptionList
+          items={[
+            { label: 'Holat', value: <TenantBadge tenant={tenant} /> },
+            { label: 'Reja', value: tenant.planName },
+            {
+              label: lifetime ? 'Muddat' : 'Tugash sanasi',
+              value: (
+                <>
+                  {term.main}
+                  {term.sub && <span className="ui-table__sub">{term.sub}</span>}
+                </>
+              ),
+            },
+            ...(lifetime && tenant.license.nextAnnualFeeAt
+              ? [{ label: 'Yillik to\'lov', value: formatDay(tenant.license.nextAnnualFeeAt) }]
+              : []),
+            { label: 'Boshlangan', value: formatDay(tenant.license.startedAt) },
+            // Ilova mijozga ko'rsatayotgan ogohlantirish (bo'lsa).
+            ...(tenant.status.message ? [{ label: 'Ilovadagi xabar', value: tenant.status.message }] : []),
+          ]}
+        />
+      </Card>
     </div>
   );
 }
 
-const fieldStyle: React.CSSProperties = {
-  width: '100%',
-  marginTop: 4,
-  padding: '10px 12px',
-  borderRadius: 'var(--radius)',
-  border: '1px solid var(--border)',
-  background: 'var(--surface-muted)',
-  color: 'var(--text)',
-  font: 'inherit',
+function Missing() {
+  return <span className="ui-muted">Kiritilmagan</span>;
+}
+
+/* ------------------------------------------------------------------ */
+
+const PAYMENT_COLUMNS: Column<PaymentRecord>[] = [
+  {
+    key: 'date',
+    header: 'Sana',
+    primary: true,
+    sortValue: (p) => p.confirmedAt,
+    cell: (p) => (
+      <>
+        <span className="ui-table__primary">{formatDay(p.confirmedAt)}</span>
+        <span className="ui-table__sub">{formatTime(p.confirmedAt)}</span>
+      </>
+    ),
+  },
+  { key: 'plan', header: 'Reja', cell: (p) => p.planName },
+  { key: 'amount', header: 'Summa', align: 'end', numeric: true, sortValue: (p) => p.amount, cell: (p) => formatSom(p.amount) },
+  {
+    key: 'until',
+    header: 'Yangi muddat',
+    cell: (p) => (p.newExpiresAt ? formatDay(p.newExpiresAt) : 'Cheksiz'),
+  },
+  { key: 'note', header: 'Izoh', hideOnMobile: true, cell: (p) => p.note || <span className="ui-muted">—</span> },
+];
+
+const REQUEST_STATUS: Record<PaymentRequestRecord['status'], { label: string; tone: 'warning' | 'success' | 'danger' }> = {
+  pending: { label: 'Ko\'rib chiqilmagan', tone: 'warning' },
+  approved: { label: 'Tasdiqlangan', tone: 'success' },
+  rejected: { label: 'Rad etilgan', tone: 'danger' },
 };
 
-const cellStyle: React.CSSProperties = {
-  padding: '9px 10px',
-  borderBottom: '1px solid var(--border)',
-  fontSize: 14,
-};
+function Payments({
+  tenant,
+  onConfirm,
+  onReject,
+}: {
+  tenant: TenantDetail;
+  onConfirm?: (r: PaymentRequestRecord) => void;
+  onReject?: (r: PaymentRequestRecord) => void;
+}) {
+  const table = useTable({
+    rows: tenant.payments,
+    columns: PAYMENT_COLUMNS,
+    pageSize: 10,
+    initialSort: { key: 'date', dir: 'desc' },
+  });
+  const total = tenant.payments.reduce((sum, p) => sum + p.amount, 0);
+  const request = tenant.paymentRequest;
+
+  return (
+    <Stack gap={4}>
+      {request && (
+        <Card
+          title="Mijozning so'nggi so'rovi"
+          actions={<Badge tone={REQUEST_STATUS[request.status].tone}>{REQUEST_STATUS[request.status].label}</Badge>}
+          footer={
+            request.status === 'pending' && onConfirm && onReject ? (
+              <Cluster gap={2}>
+                <Button icon="check" onClick={() => onConfirm(request)}>
+                  Tasdiqlash
+                </Button>
+                <Button variant="plain" onClick={() => onReject(request)}>
+                  Rad etish
+                </Button>
+              </Cluster>
+            ) : undefined
+          }
+        >
+          <DescriptionList
+            items={[
+              { label: 'Yuborilgan', value: `${formatDay(request.createdAt)} ${formatTime(request.createdAt)}` },
+              { label: 'Reja', value: request.planName },
+              { label: 'Summa', value: formatSom(request.amount) },
+              ...(request.reference ? [{ label: 'O\'tkazma raqami', value: request.reference }] : []),
+              ...(request.note ? [{ label: 'Mijoz izohi', value: request.note }] : []),
+              ...(request.rejectReason ? [{ label: 'Rad etish sababi', value: request.rejectReason }] : []),
+            ]}
+          />
+        </Card>
+      )}
+
+      <Card
+        title="To'lovlar tarixi"
+        description={
+          tenant.payments.length > 0
+            ? `${tenant.payments.length} ta to'lov · jami ${formatSom(total)}`
+            : undefined
+        }
+        padded={false}
+      >
+        <DataTable
+          caption="To'lovlar tarixi"
+          columns={PAYMENT_COLUMNS}
+          rows={table.slice?.rows ?? []}
+          rowKey={(p) => p.id}
+          sort={table.sort}
+          onSortChange={table.setSort}
+          pagination={table.slice ? { slice: table.slice, onPageChange: table.setPage } : undefined}
+          empty={
+            <EmptyState
+              icon="card"
+              title="Hali to'lov yo'q"
+              description="Tasdiqlangan to'lovlar shu yerda ko'rinadi."
+              compact
+            />
+          }
+        />
+      </Card>
+    </Stack>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+
+function History({ tenantId, plans }: { tenantId: string; plans: Plan[] }) {
+  const { data, error, loading, reload } = useApi(
+    `/api/v1/admin/tenants/${tenantId}/audit?limit=100`,
+    (json) => (json as { entries: AuditEntry[] }).entries,
+  );
+  const planNames = Object.fromEntries(plans.map((p) => [p.id, p.name]));
+
+  return (
+    <Card title="Amallar tarixi" description="Panel orqali shu biznes ustida bajarilgan amallar.">
+      <AuditList
+        entries={data}
+        error={error}
+        loading={loading}
+        onRetry={reload}
+        planNames={planNames}
+        emptyText="Bu biznes ustida hali panel orqali amal bajarilmagan."
+      />
+    </Card>
+  );
+}

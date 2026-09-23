@@ -1,8 +1,13 @@
-import { db } from '../lib/firebase.js';
+import { env } from '../config/env.js';
+import { auth, db } from '../lib/firebase.js';
+import { groupDigits } from '../lib/format.js';
+import { staffUid } from '../lib/staff.js';
 import { ApiError } from '../middleware/error.js';
 import type { License, LicenseStatusPayload, Plan } from '../types/license.js';
 import type { TenantProfile } from '../types/tenant.js';
-import { computeExpiry, evaluate } from './license.js';
+import { lastActiveOf, loadUserActivity, summarizeActivity } from './activity.js';
+import { auditUpdate, type Actor } from './audit.js';
+import { computeExpiry, evaluate, findPlan } from './license.js';
 import { findPlanWithPrice } from './plan-prices.js';
 import {
   findPendingFor,
@@ -10,6 +15,7 @@ import {
   resolveUpdates,
   type PaymentRequestRecord,
 } from './payment-request.js';
+import { assertNotArchived } from './tenant-admin.js';
 
 /**
  * Super-admin paneli uchun ma'lumot.
@@ -23,6 +29,13 @@ import {
  * har bir biznesdan aynan kerakli kichik tugunlar o'qiladi.
  */
 
+/** Arxiv holati — ro'yxat va kartada ko'rsatiladigan qismi. */
+export interface ArchiveInfo {
+  archivedAt: number;
+  purgeAfter: number;
+  reason: string;
+}
+
 /** Ro'yxatdagi bitta biznes. */
 export interface TenantSummary {
   tenantId: string;
@@ -30,6 +43,12 @@ export interface TenantSummary {
   phone?: string;
   createdAt: number;
   status: LicenseStatusPayload;
+  /** Reja nomi ("3 oylik") — panelda ID ("m3") ko'rsatilmaydi. */
+  planName: string;
+  /** Arxivda bo'lsa — qachon va qachon o'chiriladi. */
+  archive: ArchiveInfo | null;
+  /** Egasi yoki xodimining oxirgi faolligi; noma'lum bo'lsa `null`. */
+  lastActiveAt: number | null;
 }
 
 export interface PaymentRecord {
@@ -44,6 +63,7 @@ export interface PaymentRecord {
 }
 
 export interface TenantDetail extends TenantSummary {
+  address?: string;
   license: License;
   payments: (PaymentRecord & { id: string })[];
   employeeCount: number;
@@ -92,9 +112,38 @@ async function readSummary(
       ...(profile.phone ? { phone: profile.phone } : {}),
       createdAt: profile.createdAt,
       status: evaluate({ tenantId, ...license }, now),
+      planName: findPlan(license.planId)?.name ?? license.planId,
+      archive: null,
+      lastActiveAt: null,
     },
     license,
   };
+}
+
+/** Arxivdagi bizneslar — bitta kichik tugun (faqat arxivdagilar). */
+export async function loadArchives(): Promise<Map<string, ArchiveInfo>> {
+  const snap = await db().ref('tenant_archive').get();
+  const out = new Map<string, ArchiveInfo>();
+  for (const [id, a] of Object.entries((snap.val() ?? {}) as Record<string, ArchiveInfo>)) {
+    out.set(id, { archivedAt: a.archivedAt, purgeAfter: a.purgeAfter, reason: a.reason });
+  }
+  return out;
+}
+
+/**
+ * Bitta biznesning oxirgi faolligi — egalar va xodimlar hisoblaridan.
+ * Butun Auth ro'yxati emas, faqat shu biznesning hisoblari o'qiladi.
+ */
+async function tenantLastActive(tenantId: string, memberUids: string[], employeeIds: string[]): Promise<number | null> {
+  const uids = [...memberUids, ...employeeIds.map((id) => staffUid(tenantId, id))].slice(0, 100);
+  if (uids.length === 0) return null;
+  try {
+    const res = await auth().getUsers(uids.map((uid) => ({ uid })));
+    const times = res.users.map((u) => lastActiveOf(u.metadata)).filter((t): t is number => t !== null);
+    return times.length > 0 ? Math.max(...times) : null;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -110,9 +159,26 @@ export async function loadTenantRows(
   return rows.filter((r): r is NonNullable<typeof r> => r !== null);
 }
 
-/** Barcha bizneslar va ularning obuna holati. */
+/**
+ * Barcha bizneslar — obuna holati, arxiv va oxirgi faollik bilan.
+ *
+ * Faollik Auth'dan (qarang: activity.ts); olinmasa `null` — ro'yxat
+ * baribir ochiladi.
+ */
 export async function listTenants(now: number): Promise<TenantSummary[]> {
-  const result = (await loadTenantRows(now)).map((r) => r.summary);
+  const [rows, archives, activity] = await Promise.all([
+    loadTenantRows(now),
+    loadArchives(),
+    loadUserActivity(env.superAdminUids)
+      .then((users) => summarizeActivity(users, now, 7 * 86_400_000))
+      .catch(() => null),
+  ]);
+
+  const result = rows.map((r) => ({
+    ...r.summary,
+    archive: archives.get(r.summary.tenantId) ?? null,
+    lastActiveAt: activity?.lastActiveByTenant.get(r.summary.tenantId) ?? null,
+  }));
 
   // Diqqat talab qiladiganlar tepada: bloklanganlar, keyin muddati
   // yaqinlar, keyin qolganlari.
@@ -141,6 +207,8 @@ export async function getTenant(
     paymentsSnap,
     employeesSnap,
     counterSnap,
+    membersSnap,
+    archiveSnap,
     paymentRequest,
   ] = await Promise.all([
     db().ref(`tenants/${tenantId}/profile`).get(),
@@ -148,6 +216,8 @@ export async function getTenant(
     db().ref(`tenants/${tenantId}/payments`).get(),
     db().ref(`tenants/${tenantId}/employees`).get(),
     db().ref(`tenants/${tenantId}/counters/orderId`).get(),
+    db().ref(`tenants/${tenantId}/members`).get(),
+    db().ref(`tenant_archive/${tenantId}`).get(),
     latestPaymentRequest(tenantId),
   ]);
 
@@ -167,17 +237,25 @@ export async function getTenant(
         .sort((a, b) => b.confirmedAt - a.confirmedAt)
     : [];
 
+  const employeeIds = Object.keys((employeesSnap.val() ?? {}) as Record<string, unknown>);
+  const memberUids = Object.keys((membersSnap.val() ?? {}) as Record<string, unknown>);
+  const archive = archiveSnap.val() as ArchiveInfo | null;
+
   return {
     tenantId,
     name: profile.name,
     ...(profile.phone ? { phone: profile.phone } : {}),
+    ...(profile.address ? { address: profile.address } : {}),
     createdAt: profile.createdAt,
     status: evaluate(license, now),
+    planName: findPlan(license.planId)?.name ?? license.planId,
+    archive: archive
+      ? { archivedAt: archive.archivedAt, purgeAfter: archive.purgeAfter, reason: archive.reason }
+      : null,
+    lastActiveAt: await tenantLastActive(tenantId, memberUids, employeeIds),
     license,
     payments,
-    employeeCount: employeesSnap.exists()
-      ? Object.keys(employeesSnap.val() as Record<string, unknown>).length
-      : 0,
+    employeeCount: employeeIds.length,
     orderCount: (counterSnap.val() as number | null) ?? 0,
     paymentRequest,
   };
@@ -263,9 +341,10 @@ export async function confirmPayment(params: {
    * natija qaytariladi.
    */
   idempotencyKey?: string;
-  byUid: string;
+  actor: Actor;
   now: number;
 }): Promise<{ license: License; payment: PaymentRecord; duplicate?: boolean }> {
+  const byUid = params.actor.uid;
   // Narx bazadagi JORIY qiymat bilan olinadi - summa ko'rsatilmasa
   // o'sha yoziladi, ya'ni panelda o'zgartirilgan narx amal qiladi.
   const plan = await findPlanWithPrice(params.planId);
@@ -279,6 +358,10 @@ export async function confirmPayment(params: {
     db().ref(`tenants/${params.tenantId}/profile`).get(),
   ]);
   if (!licenseSnap.exists()) throw ApiError.notFound('Biznes topilmadi.');
+
+  // Arxivdagi biznes: to'lov obunani yoqib yuborardi, arxiv yozuvi esa
+  // qolardi — va 30 kundan keyin PUL TO'LAGAN biznes o'chirilib ketardi.
+  await assertNotArchived(params.tenantId);
 
   const current = licenseSnap.val() as Omit<License, 'tenantId'>;
 
@@ -338,7 +421,7 @@ export async function confirmPayment(params: {
     planId: plan.id,
     planName: plan.name,
     amount: params.amount ?? plan.price,
-    confirmedBy: params.byUid,
+    confirmedBy: byUid,
     confirmedAt: params.now,
     ...(params.note ? { note: params.note } : {}),
     newExpiresAt: renewal.expiresAt,
@@ -375,10 +458,18 @@ export async function confirmPayment(params: {
           tenantId: params.tenantId,
           requestId,
           status: 'approved',
-          byUid: params.byUid,
+          byUid,
           now: params.now,
         })
       : {}),
+    ...auditUpdate({
+      at: params.now,
+      action: 'payment.confirm',
+      actor: params.actor,
+      tenantId: params.tenantId,
+      tenantName,
+      note: `${plan.name} · ${groupDigits(payment.amount)} so'm`,
+    }),
   };
 
   try {
@@ -394,17 +485,35 @@ export async function confirmPayment(params: {
   return { license, payment };
 }
 
-/** Biznesni to'xtatadi yoki qayta yoqadi. */
-export async function setSuspended(
-  tenantId: string,
-  suspended: boolean,
-  reason: string | null,
-): Promise<void> {
-  const ref = db().ref(`tenants/${tenantId}/license`);
-  if (!(await ref.get()).exists()) throw ApiError.notFound('Biznes topilmadi.');
+/**
+ * Biznesni to'xtatadi yoki qayta yoqadi.
+ *
+ * Arxivdagi biznes uchun taqiqlangan: arxiv ham "to'xtatilgan" holat
+ * orqali ishlaydi — bu yerdan yoqib yuborilsa, arxivdagi biznes ilovasi
+ * ochilib ketardi.
+ */
+export async function setSuspended(params: {
+  tenantId: string;
+  suspended: boolean;
+  reason: string | null;
+  actor: Actor;
+  now: number;
+}): Promise<void> {
+  const { tenantId, suspended } = params;
+  const profileSnap = await db().ref(`tenants/${tenantId}/profile`).get();
+  if (!profileSnap.exists()) throw ApiError.notFound('Biznes topilmadi.');
+  await assertNotArchived(tenantId);
 
-  await ref.update({
-    suspended,
-    suspendedReason: suspended ? reason : null,
+  await db().ref().update({
+    [`tenants/${tenantId}/license/suspended`]: suspended,
+    [`tenants/${tenantId}/license/suspendedReason`]: suspended ? params.reason : null,
+    ...auditUpdate({
+      at: params.now,
+      action: suspended ? 'tenant.suspend' : 'tenant.unsuspend',
+      actor: params.actor,
+      tenantId,
+      tenantName: (profileSnap.val() as TenantProfile).name,
+      ...(suspended && params.reason ? { note: params.reason } : {}),
+    }),
   });
 }

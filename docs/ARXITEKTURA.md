@@ -144,12 +144,25 @@ Barcha yo'llar `/api/v1` ostida. Avtorizatsiya: `Authorization: Bearer <ID token
 | GET | `/admin/me` | super-admin | ruxsatni tasdiqlash |
 | GET | `/admin/overview?range=7d\|30d\|90d\|12m` | super-admin | "Umumiy" sahifasi bitta so'rovda: ko'rsatkichlar, chartlar, e'tibor ro'yxati (Toshkent vaqti bo'yicha) |
 | GET | `/admin/badges` | super-admin | menyu hisoblagichlari (kutilayotgan to'lovlar) |
-| GET | `/admin/tenants` | super-admin | bizneslar ro'yxati |
-| GET | `/admin/tenants/:id` | super-admin | biznes kartasi |
-| POST | `/admin/tenants/:id/confirm-payment` | super-admin | to'lovni tasdiqlash |
-| POST | `/admin/tenants/:id/suspend` | super-admin | to'xtatish / yoqish |
-| GET | `/admin/payment-requests` | super-admin | to'lov so'rovlari navbati |
-| POST | `/admin/tenants/:id/payment-requests/:reqId/reject` | super-admin | so'rovni rad etish |
+| GET | `/admin/tenants` | `tenants.read` | bizneslar ro'yxati (arxiv holati va oxirgi faollik bilan) |
+| GET | `/admin/tenants/:id` | `tenants.read` | biznes kartasi |
+| PATCH | `/admin/tenants/:id/profile` | `tenants.edit` | nom, telefon, manzilni tahrirlash |
+| PUT | `/admin/tenants/:id/license` | `subscriptions.manage` | reja / muddatni TO'LOVSIZ o'zgartirish (sabab majburiy, tushumga yozilmaydi) |
+| POST | `/admin/tenants/:id/confirm-payment` | `payments.manage` | to'lovni tasdiqlash (`idempotencyKey` — takroriy bosishdan himoya) |
+| POST | `/admin/tenants/:id/suspend` | `tenants.suspend` | to'xtatish (sabab majburiy) / qayta ochish |
+| POST | `/admin/tenants/:id/archive` | `tenants.archive` | arxivlash (sabab majburiy) |
+| POST | `/admin/tenants/:id/restore` | `tenants.archive` | arxivdan qaytarish |
+| DELETE | `/admin/tenants/:id` | `tenants.delete` | butunlay o'chirish — faqat arxivdagi, tanada `confirmName` |
+| GET/POST | `/admin/tenants/:id/credentials` | `credentials.manage` | egasining logini / yangi parol |
+| GET | `/admin/tenants/:id/audit` | `audit.read` | shu biznes bo'yicha amallar jurnali |
+| GET | `/admin/audit` | `audit.read` | umumiy amallar jurnali |
+| GET | `/admin/payment-requests` | `payments.manage` | to'lov so'rovlari navbati |
+| POST | `/admin/tenants/:id/payment-requests/:reqId/reject` | `payments.manage` | so'rovni rad etish |
+
+Panel yo'llarida "Kim" ustunidagi nom — vakolat (`backend/src/lib/permissions.ts`).
+Hozir yagona rol — super-admin, unda hammasi bor. Yangi rol qo'shilganda
+yo'llar o'zgarmaydi: har biri o'z vakolatini `requirePermission` bilan
+tekshiradi.
 
 `/license/status` **tenantId'ni so'rovdan olmaydi** — faqat tokendagi
 da'vodan. Aks holda istalgan foydalanuvchi boshqa biznesning obuna
@@ -286,30 +299,81 @@ Firebase'ga kirish o'zi yetarli emas: har qanday hisob kira oladi, lekin
 panelga faqat `SUPER_ADMIN_UIDS` sozlamasidagi UID'lar. Ro'yxat bazada
 emas, **serverda** — uni hech kim ilova orqali o'zgartira olmaydi.
 
-Ruxsati yo'q hisob bilan kirilsa, panel o'sha hisobning UID'ini
-ko'rsatadi — sozlamaga qo'shish oson bo'lsin.
+Ruxsati yo'q hisob bilan kirilsa, panel oddiy "ruxsat yo'q" deydi — UID
+va sozlama nomi ko'rsatilmaydi (ular hujumchiga ma'lumot beradi).
 
 ### To'lov oqimi (qo'lda karta o'tkazma)
 
 ```
 Mijoz kartaga o'tkazadi
    │
-   └─▶ chekni Telegram orqali yuboradi
+   └─▶ ilovada "To'lov qildim" (so'rov → pending_payments)
           │
           ▼
-    Super-admin panelda biznesni ochadi
+    Panel: "To'lov so'rovlari" (menyuda hisoblagich)
           │
-          ├─ rejani tanlaydi
-          ├─ olingan summani kiritadi
-          └─ "To'lovni tasdiqlash"
-                │
-                ├─▶ litsenziya uzayadi (to'xtatilgan bo'lsa ochiladi)
-                └─▶ to'lov tarixga yoziladi
+          ├─ "Tasdiqlash" — reja va summa so'rovdan olinadi
+          │     ├─▶ litsenziya uzayadi
+          │     ├─▶ payments_log ga yoziladi (tushum)
+          │     └─▶ so'rov yopiladi, jurnalga yoziladi
+          │
+          └─ "Rad etish" — sabab majburiy, mijoz ilovada ko'radi
                        │
                        ▼
              Ilova 15 daqiqada o'zi ochiladi
              (yoki mijoz "Tekshirish" ni bosadi)
 ```
+
+So'rovsiz kelgan to'lov (masalan, naqd) — biznes kartasidagi "To'lov
+qabul qilish" bilan. Bir xil kalit (`idempotencyKey`) bilan qayta kelgan
+so'rov ikkinchi to'lov yozmaydi.
+
+### To'lov va "obunani o'zgartirish" — ikki xil amal
+
+| | To'lov qabul qilish | Obunani o'zgartirish |
+|---|---|---|
+| Qachon | Mijoz pul to'ladi | Xato tuzatish, sovg'a kunlar, kompensatsiya |
+| Tushumga | yoziladi (`payments_log`) | **yozilmaydi** |
+| Muddat | reja bo'yicha avtomatik | sana qo'lda tanlanadi |
+| Sabab | ixtiyoriy izoh | **majburiy** |
+| Jurnal | `payment.confirm` | `license.update` (oldingi → yangi qiymat) |
+
+Aralashtirilsa "Umumiy" sahifasidagi tushum yolg'on bo'lib qoladi.
+
+### Biznesning hayot yo'li: arxiv va o'chirish
+
+```
+Faol / Sinovda / Bloklangan
+   │  "Arxivlash" (sabab + nomni qo'lda yozish)
+   ▼
+Arxivda — ilova yopiq, ma'lumot 30 kun saqlanadi
+   │                              │
+   │ "Arxivdan qaytarish"         │ 30 kun o'tdi (avtomatik)
+   ▼                              │ yoki "Hozir o'chirish" (nomni yozish)
+oldingi holatiga qaytadi          ▼
+                          Butunlay o'chiriladi
+```
+
+* Butunlay o'chirishda biznes tuguni, xodimlarning PIN yozuvlari,
+  login, telefon indekslari, push tokenlar va egasi + xodimlarning
+  kirish hisoblari o'chadi. **`payments_log` saqlanadi** — o'tgan
+  davrlar tushumi o'zgarmasligi kerak.
+* Faqat arxivdagi biznes o'chiriladi (server tekshiradi) — faol biznes
+  bitta bosishda yo'qolmaydi.
+* Arxivdagi biznesga to'lov, obuna o'zgarishi va to'xtatish qo'llanmaydi
+  (409): aks holda to'lagan mijoz 30 kundan keyin o'chib ketardi.
+* Avtomatik tozalash faqat prod serverda ishlaydi (ishga tushgach 1
+  daqiqa, keyin har 6 soatda); mahalliy ishga tushirish hech narsani
+  o'chirmaydi.
+
+### Amallar jurnali (`admin_audit`)
+
+Panel orqali qilingan har bir o'zgarish (to'lov, rad etish, tahrirlash,
+obuna, to'xtatish, arxiv, o'chirish, login/parol, tarif narxi, xabar,
+sayt sozlamalari) kim, qachon va nima o'zgargani bilan yoziladi.
+Asosiy o'zgarish bilan BITTA atomar yozuvda — jurnalsiz o'zgarish
+bo'lmaydi. Parol, PIN, kalit kabi qiymatlar jurnalga tushmaydi
+(`[yashirilgan]`). Tugun faqat serverga ochiq.
 
 ### Muddat uzaytirish qoidasi
 

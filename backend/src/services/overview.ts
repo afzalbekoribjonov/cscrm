@@ -2,7 +2,7 @@ import { env } from '../config/env.js';
 import { db } from '../lib/firebase.js';
 import type { LicenseState, PlanKind } from '../types/license.js';
 import { loadUserActivity, summarizeActivity } from './activity.js';
-import { loadTenantRows } from './admin.js';
+import { loadArchives, loadTenantRows } from './admin.js';
 import { listPendingPayments } from './payment-request.js';
 
 /**
@@ -331,8 +331,9 @@ function toPayments(val: unknown): PaymentInput[] {
 export async function loadOverview(range: OverviewRange, now: number): Promise<Overview> {
   const { prevStart } = buildBuckets(range, now);
 
-  const [rows, periodSnap, recentSnap, pending, activity] = await Promise.all([
+  const [allRows, archives, periodSnap, recentSnap, pending, activity] = await Promise.all([
     loadTenantRows(now),
+    loadArchives(),
     db().ref('payments_log').orderByChild('at').startAt(prevStart).get(),
     db().ref('payments_log').orderByChild('at').limitToLast(LIST_LIMIT).get(),
     listPendingPayments(),
@@ -341,6 +342,10 @@ export async function loadOverview(range: OverviewRange, now: number): Promise<O
       .then((users) => summarizeActivity(users, now, ACTIVE_WINDOW))
       .catch(() => null),
   ]);
+
+  // Arxivdagi bizneslar "Umumiy" hisobiga kirmaydi: ular o'chirilish
+  // arafasida, "bloklangan — e'tibor bering" deb ko'rsatish chalg'itadi.
+  const rows = allRows.filter((r) => !archives.has(r.summary.tenantId));
 
   return buildOverview({
     range,

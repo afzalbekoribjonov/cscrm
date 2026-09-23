@@ -20,3 +20,17 @@ export function formatNumber(n: number): string {
 export function formatSom(n: number): string {
   return `${formatNumber(n)} so'm`;
 }
+
+/**
+ * Telefon: "998901234567" → "+998 90 123 45 67".
+ * Kutilmagan uzunlikdagi raqam o'zgarishsiz qaytadi — noto'g'ri
+ * guruhlab, chalg'itgandan ko'ra shunday qolgani yaxshi.
+ */
+export function formatPhone(raw: string | null | undefined): string {
+  if (!raw) return '';
+  const d = raw.replace(/\D/g, '');
+  if (d.length === 12 && d.startsWith('998')) {
+    return `+998 ${d.slice(3, 5)} ${d.slice(5, 8)} ${d.slice(8, 10)} ${d.slice(10)}`;
+  }
+  return raw;
+}

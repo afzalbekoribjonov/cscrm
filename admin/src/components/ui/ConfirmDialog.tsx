@@ -8,54 +8,7 @@ import { Field } from './Field';
 import { Input, Textarea } from './Input';
 import { Stack } from './Layout';
 import { matchesConfirmation } from './logic';
-
-const FALLBACK_ERROR = 'Amalni bajarib bo\'lmadi. Qayta urinib ko\'ring.';
-
-function errorText(e: unknown): string {
-  return e instanceof Error && e.message ? e.message : FALLBACK_ERROR;
-}
-
-/**
- * Bitta so'rov ketma-ketligi: takroriy bosishdan himoya + xato holati.
- *
- * `inFlight` — ref, holat emas: holat keyingi renderda yangilanadi,
- * tez ikki marta bosilganda ikkinchisi hali "band emas" deb o'tib
- * ketardi. Ref darhol o'zgaradi.
- */
-function useSubmission(open: boolean) {
-  const inFlight = useRef(false);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (open) {
-      setError(null);
-      setBusy(false);
-      inFlight.current = false;
-    }
-  }, [open]);
-
-  async function run(action: () => Promise<void> | void, onDone: () => void) {
-    if (inFlight.current) return;
-    inFlight.current = true;
-    setBusy(true);
-    setError(null);
-    try {
-      await action();
-      onDone();
-    } catch (e) {
-      // Oyna OCHIQ qoladi — foydalanuvchi nima bo'lganini ko'radi va
-      // qayta urina oladi. Yopilib ketsa, amal bajarildimi yo'qmi —
-      // noma'lum qolardi.
-      setError(errorText(e));
-    } finally {
-      inFlight.current = false;
-      setBusy(false);
-    }
-  }
-
-  return { busy, error, run };
-}
+import { useSubmission } from './submission';
 
 /**
  * Tasdiqlash oynasi — muhim yoki qaytarib bo'lmaydigan amallar uchun.

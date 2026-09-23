@@ -11,7 +11,9 @@ ko'rinmasligi.
   (faqat ishlab chiqishda; prod yig'ilishiga kirmaydi)
 * **Panelni ko'rib chiqish:** <http://localhost:5173/admin-preview.html> —
   haqiqiy sahifalar NAMUNAVIY javoblar bilan, serverga va bazaga ulanmasdan.
-  Holatlar: `?holat=bosh`, `xato`, `sekin`, `faolliksiz`
+  Holatlar: `?holat=bosh`, `xato`, `sekin`, `faolliksiz`. Sahifa:
+  `?yol=/admin/tenants/t2`. Amallar (to'lov, arxiv, o'chirish) xotiradagi
+  namunaviy ro'yxatni o'zgartiradi — sahifa yangilansa asliga qaytadi.
 * Sinovlar: `cd admin && npm test`
 
 ---
@@ -53,6 +55,7 @@ matn sifatida oq fonda 2–3:1 beradi, shuning uchun matnga `-ink` ishlatiladi.
 | `Dialog` | Oyna. Fokus ichida, orqa fon `inert`, Esc, fokus qaytadi; telefonda pastdan |
 | `ConfirmDialog` | Muhim / qaytarib bo'lmaydigan amal |
 | `PromptDialog` | Sabab so'rash (rad etish, to'xtatish) |
+| `FormDialog` | Maydonli oyna (tahrirlash, to'lov qabul qilish). Enter bilan yuboriladi, `validate` maydon xatolarini ko'rsatadi, server xatosida oyna ochiq qoladi va kiritilgan ma'lumot saqlanadi |
 | `useToast` | Amal natijasi ("Saqlandi") |
 | `Alert` | Sahifadagi doimiy ogohlantirish |
 | `EmptyState` | Ma'lumot yo'q — doim NIMA UCHUN bo'shligini aytadi |
@@ -67,7 +70,15 @@ eski so'rov bekor qilinadi, qayta yuklashda eski ma'lumot ekranda qoladi,
 oynaga qaytilganda eskirgan ma'lumot o'zi yangilanadi.
 
 Sahifa joylashuvi: `.ui-stat-grid` — ko'rsatkichlar qatori (1 → 2 → 4
-ustun, hech qachon 3 + 1), `.ui-grid` — kartalar to'ri (har ustun ≥ 360px).
+ustun, hech qachon 3 + 1), `.ui-grid` — kartalar to'ri (har ustun ≥ 360px;
+`.ui-grid--fill` — bitta karta qolsa ham cho'zilmaydi), `.ui-split` —
+asosiy ustun + yon panel (≥ 1100px), `.ui-toolbar` — qidiruv + filtrlar,
+`.ui-timeline` — amallar jurnali. Matn: `.ui-note` (izoh), `.ui-code`
+(login, ID — teng enli shrift), `.ui-muted`.
+
+Ro'yxat holati (qidiruv, filtr, saralash, sahifa) va karta bo'limi
+URL'da saqlanadi (`?q=&holat=&tartib=&sahifa=`, `?bolim=`) — orqaga
+qaytilganda yoki havola yuborilganda o'sha ko'rinish ochiladi.
 
 ## Qoidalar
 
@@ -76,8 +87,11 @@ ustun, hech qachon 3 + 1), `.ui-grid` — kartalar to'ri (har ustun ≥ 360px).
 | Amal | Qanday |
 |---|---|
 | Oddiy saqlash, filtr, qidiruv | Tasdiqlashsiz — natija toast bilan |
-| To'lovni tasdiqlash, reja yoki muddatni o'zgartirish, hisobni to'xtatish | `ConfirmDialog` — nima bo'lishi `consequences` da aniq yoziladi |
-| Arxivlash, butunlay o'chirish | `ConfirmDialog tone="danger" requireText={nomi}` — nom qo'lda yoziladi |
+| Tahrirlash, to'lov qabul qilish, obunani o'zgartirish | `FormDialog` — oqibati oyna ichida yoziladi ("tushumga yozilmaydi" va h.k.) |
+| To'xtatish, so'rovni rad etish | `PromptDialog tone="danger"` — sabab majburiy, mijozga ko'rinadi |
+| Qayta ochish, arxivdan qaytarish | `ConfirmDialog` — nima bo'lishi `consequences` da aniq yoziladi |
+| Arxivlash | `FormDialog tone="danger"` — sabab + nomni qo'lda yozish |
+| Butunlay o'chirish | `ConfirmDialog tone="danger" requireText={nomi}` — nom qo'lda yoziladi, server ham tekshiradi |
 
 Xavfli oynada fokus "Bekor qilish" da (yoki nom maydonida) — tasodifiy
 Enter hech narsani o'chirmaydi. `onConfirm` xato tashlasa oyna yopilmaydi,

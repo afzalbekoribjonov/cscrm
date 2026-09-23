@@ -2,6 +2,8 @@
 
 import type { Tone } from '@/components/ui/Badge';
 
+import { formatDay, formatTime } from './dates';
+
 export type LicenseState =
   | 'active'
   | 'expiring'
@@ -22,12 +24,24 @@ export interface LicenseStatus {
   blocked: boolean;
 }
 
+/** Arxiv holati: qachon arxivlangan va qachon butunlay o'chiriladi. */
+export interface ArchiveInfo {
+  archivedAt: number;
+  purgeAfter: number;
+  reason: string;
+}
+
 export interface TenantSummary {
   tenantId: string;
   name: string;
   phone?: string;
   createdAt: number;
   status: LicenseStatus;
+  /** Reja nomi ("3 oylik"). */
+  planName: string;
+  archive: ArchiveInfo | null;
+  /** Egasi yoki xodimining oxirgi faolligi; noma'lum — `null`. */
+  lastActiveAt: number | null;
 }
 
 export interface PaymentRecord {
@@ -64,6 +78,7 @@ export interface PendingPayment extends PaymentRequestRecord {
 }
 
 export interface TenantDetail extends TenantSummary {
+  address?: string;
   license: {
     planId: string;
     kind: string;
@@ -78,6 +93,37 @@ export interface TenantDetail extends TenantSummary {
   orderCount: number;
   /** Oxirgi to'lov so'rovi (bo'lmasa `null`). */
   paymentRequest: PaymentRequestRecord | null;
+}
+
+export type AuditAction =
+  | 'payment.confirm'
+  | 'payment.reject'
+  | 'tenant.update'
+  | 'tenant.suspend'
+  | 'tenant.unsuspend'
+  | 'tenant.archive'
+  | 'tenant.restore'
+  | 'tenant.delete'
+  | 'tenant.purge'
+  | 'license.update'
+  | 'credentials.login'
+  | 'credentials.password'
+  | 'plan.price'
+  | 'plan.price_reset'
+  | 'broadcast.create'
+  | 'broadcast.delete'
+  | 'site.settings';
+
+/** Amallar jurnali yozuvi — backend/src/services/audit.ts bilan mos. */
+export interface AuditEntry {
+  id: string;
+  at: number;
+  action: AuditAction;
+  actor: { uid: string; email: string | null };
+  tenantId?: string;
+  tenantName?: string;
+  note?: string;
+  changes?: Record<string, { from: unknown; to: unknown }>;
 }
 
 /** Biznes egasining kirish ma'lumotlari. Parol HECH QACHON kelmaydi. */
@@ -172,22 +218,19 @@ export function stateVisual(state: LicenseState): { label: string; tone: Tone } 
 
 export { formatSom } from './format';
 
+/**
+ * Sana va vaqt — Toshkent vaqti bo'yicha, oy nomi bilan ("23-sentabr 14:05").
+ *
+ * Ilgari brauzerning `toLocaleString('uz-UZ')` ishlatilardi: natija
+ * brauzerga qarab turlicha chiqardi ("09/23/2026" yoki "23.09.2026")
+ * va kompyuter soat mintaqasiga bog'liq edi.
+ */
 export function formatDateTime(ms: number | null | undefined): string {
   if (!ms) return '—';
-  return new Date(ms).toLocaleString('uz-UZ', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+  return `${formatDay(ms)} ${formatTime(ms)}`;
 }
 
 export function formatDate(ms: number | null | undefined): string {
   if (!ms) return '—';
-  return new Date(ms).toLocaleDateString('uz-UZ', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-  });
+  return formatDay(ms);
 }
