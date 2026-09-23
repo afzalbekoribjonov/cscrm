@@ -255,14 +255,21 @@ function clamp(n: number, min: number, max: number): number {
  * Hamma qiymat 0 bo'lsa: bitta "0" chizig'i, shkala esa 1 — ustunlar
  * yo'q, lekin chart buzilmaydi.
  */
-export function niceTicks(maxValue: number, target = 4): { max: number; ticks: number[] } {
+export function niceTicks(
+  maxValue: number,
+  target = 4,
+  /** Sanaladigan narsa (biznes, to'lov soni) — kasr bo'linma bo'lmaydi. */
+  integer = false,
+): { max: number; ticks: number[] } {
   if (!Number.isFinite(maxValue) || maxValue <= 0) return { max: 1, ticks: [0] };
 
   const rough = maxValue / Math.max(1, target);
   const magnitude = 10 ** Math.floor(Math.log10(rough));
   const residual = rough / magnitude;
   const factor = residual <= 1 ? 1 : residual <= 2 ? 2 : residual <= 2.5 ? 2.5 : residual <= 5 ? 5 : 10;
-  const step = factor * magnitude;
+  let step = factor * magnitude;
+  // "2,5 ta biznes" bo'lmaydi: butun qiymatda qadam butun va >= 1.
+  if (integer) step = Math.max(1, Math.ceil(step));
   const max = Math.ceil(maxValue / step - 1e-9) * step;
 
   const ticks: number[] = [];

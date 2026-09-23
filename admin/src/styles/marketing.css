@@ -238,8 +238,9 @@
   place-items: center;
   font-size: 0.78rem;
   font-weight: 800;
-  color: #fff;
-  overflow: hidden;
+  /* Matn rangi fonga qarab JS'da tanlanadi (StatusBar → inkFor).
+     `overflow: hidden` ATAYLAB yo'q: sig'maydigan raqam umuman
+     yozilmaydi, qirqilgan yarim raqam ko'rsatilmaydi. */
 }
 .stack-bar__seg:first-child { border-radius: 6px 0 0 6px; }
 .stack-bar__seg:last-child { border-radius: 0 6px 6px 0; }

@@ -142,7 +142,8 @@ Barcha yo'llar `/api/v1` ostida. Avtorizatsiya: `Authorization: Bearer <ID token
 | POST | `/employees/:id/pin` | ega | PIN almashtirish |
 | DELETE | `/employees/:id` | ega | xodimni o'chirish |
 | GET | `/admin/me` | super-admin | ruxsatni tasdiqlash |
-| GET | `/admin/stats` | super-admin | umumiy ko'rsatkichlar |
+| GET | `/admin/overview?range=7d\|30d\|90d\|12m` | super-admin | "Umumiy" sahifasi bitta so'rovda: ko'rsatkichlar, chartlar, e'tibor ro'yxati (Toshkent vaqti bo'yicha) |
+| GET | `/admin/badges` | super-admin | menyu hisoblagichlari (kutilayotgan to'lovlar) |
 | GET | `/admin/tenants` | super-admin | bizneslar ro'yxati |
 | GET | `/admin/tenants/:id` | super-admin | biznes kartasi |
 | POST | `/admin/tenants/:id/confirm-payment` | super-admin | to'lovni tasdiqlash |
@@ -316,3 +317,16 @@ Muddat **hali tugamagan** bo'lsa yangisi mavjudining ustiga qo'shiladi —
 oldindan to'lagan mijoz qolgan kunlarini yo'qotmaydi. Tugagan bo'lsa
 bugundan boshlanadi. Bir umrlikka o'tganda muddat bekor bo'ladi va
 yillik baza to'lovi sanasi qo'yiladi.
+
+### "Umumiy" sahifasi qayerdan oladi
+
+| Ko'rsatkich | Manba | Izoh |
+|---|---|---|
+| Tushum, chart | `payments_log` (`at` indeksi) | faqat davr + oldingi davr o'qiladi |
+| Yangi bizneslar | `tenant_directory` + `profile.createdAt` | |
+| Obuna holatlari, e'tibor ro'yxati | har biznesning `license` i → `evaluate()` | ilova ko'radigan holat bilan aynan bir xil |
+| To'lov so'rovlari | `pending_payments` | faqat hal qilinmaganlar |
+| Ilovadan foydalanish | Firebase **Auth** `lastRefreshTime` | bazaga yozilmaydi; olinmasa sahifa "aniqlab bo'lmadi" deydi |
+
+Vaqt Toshkent bo'yicha (UTC+5): server Singapurda, lekin "bugun" va
+"bu oy" mijozlar uchun hisoblanadi.

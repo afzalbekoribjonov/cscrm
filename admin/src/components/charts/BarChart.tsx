@@ -62,6 +62,7 @@ export function BarChart({
   height = 220,
   label,
   color = 'var(--chart-1)',
+  integer = false,
 }: {
   data: BarDatum[];
   /** Tooltip qiymati: "1 250 000 so'm". */
@@ -72,12 +73,14 @@ export function BarChart({
   /** Chart nomi — ekran o'quvchi uchun. */
   label: string;
   color?: string;
+  /** Qiymatlar butun son (biznes soni) — o'qda kasr bo'lmaydi. */
+  integer?: boolean;
 }) {
   const [ref, width] = useWidth<HTMLDivElement>();
   const [active, setActive] = useState<number | null>(null);
 
   const max = Math.max(0, ...data.map((d) => d.value));
-  const scale = niceTicks(max);
+  const scale = niceTicks(max, 4, integer);
   const tickLabels = scale.ticks.map(formatAxis);
 
   // Chap maydon eng uzun o'q yozuviga qarab (taxminan 6.4px / belgi).

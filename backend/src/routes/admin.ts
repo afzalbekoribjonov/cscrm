@@ -6,7 +6,6 @@ import { ApiError, asyncRoute } from '../middleware/error.js';
 import {
   IDEMPOTENCY_KEY,
   confirmPayment,
-  getStats,
   getTenant,
   listTenants,
   setSuspended,
@@ -31,6 +30,11 @@ import {
   listPendingPayments,
   rejectPaymentRequest,
 } from '../services/payment-request.js';
+import {
+  OVERVIEW_RANGES,
+  loadOverview,
+  type OverviewRange,
+} from '../services/overview.js';
 import { getSiteSettings, setSiteSettings } from '../services/site-settings.js';
 
 /**
@@ -55,10 +59,35 @@ adminRouter.get('/me', (req, res) => {
   });
 });
 
+/**
+ * Menyudagi hisoblagichlar — har bir panel sahifasida ko'rinadi.
+ *
+ * ATAYLAB yengil: faqat kutilayotgan to'lov so'rovlari (tugunda faqat
+ * hal qilinmaganlari turadi, u o'smaydi). Mijoz to'lab, tasdiq kutib
+ * turgan bo'lsa — admin qaysi sahifada bo'lmasin, buni ko'rishi kerak.
+ */
 adminRouter.get(
-  '/stats',
+  '/badges',
   asyncRoute(async (_req, res) => {
-    res.json({ ok: true, stats: await getStats(Date.now()) });
+    const pending = await listPendingPayments();
+    res.json({ ok: true, badges: { pendingPayments: pending.length } });
+  }),
+);
+
+const overviewQuery = z.object({
+  range: z.enum(OVERVIEW_RANGES as [OverviewRange, ...OverviewRange[]]).default('30d'),
+});
+
+/**
+ * "Umumiy" sahifasi — ko'rsatkichlar, chartlar va ro'yxatlar BITTA
+ * so'rovda. Sahifa bir nechta so'rov yuborib, ularni kutib turmasin.
+ */
+adminRouter.get(
+  '/overview',
+  asyncRoute(async (req, res) => {
+    const parsed = overviewQuery.safeParse(req.query);
+    if (!parsed.success) throw ApiError.badRequest('Davr noto\'g\'ri tanlangan.');
+    res.json({ ok: true, overview: await loadOverview(parsed.data.range, Date.now()) });
   }),
 );
 

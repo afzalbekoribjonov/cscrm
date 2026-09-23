@@ -52,20 +52,6 @@ export interface TenantDetail extends TenantSummary {
   paymentRequest: (PaymentRequestRecord & { id: string }) | null;
 }
 
-export interface AdminStats {
-  totalTenants: number;
-  activeTenants: number;
-  blockedTenants: number;
-  trialTenants: number;
-  lifetimeTenants: number;
-  /** Oxirgi 30 kunda tasdiqlangan to'lovlar summasi. */
-  revenue30d: number;
-  /** Ko'rib chiqilmagan to'lov so'rovlari. */
-  pendingPayments: number;
-}
-
-const DAY_MS = 24 * 60 * 60 * 1000;
-
 /**
  * Bizneslar ID'lari.
  *
@@ -111,14 +97,22 @@ async function readSummary(
   };
 }
 
-/** Barcha bizneslar va ularning obuna holati. */
-export async function listTenants(now: number): Promise<TenantSummary[]> {
+/**
+ * Barcha bizneslarning qisqa yozuvi (profil + obuna) — har biri
+ * alohida kichik o'qish, parallel. Ro'yxat va "Umumiy" sahifasi shuni
+ * ishlatadi.
+ */
+export async function loadTenantRows(
+  now: number,
+): Promise<{ summary: TenantSummary; license: Omit<License, 'tenantId'> }[]> {
   const ids = await tenantIds();
   const rows = await Promise.all(ids.map((id) => readSummary(id, now)));
+  return rows.filter((r): r is NonNullable<typeof r> => r !== null);
+}
 
-  const result = rows
-    .filter((r): r is NonNullable<typeof r> => r !== null)
-    .map((r) => r.summary);
+/** Barcha bizneslar va ularning obuna holati. */
+export async function listTenants(now: number): Promise<TenantSummary[]> {
+  const result = (await loadTenantRows(now)).map((r) => r.summary);
 
   // Diqqat talab qiladiganlar tepada: bloklanganlar, keyin muddati
   // yaqinlar, keyin qolganlari.
@@ -413,48 +407,4 @@ export async function setSuspended(
     suspended,
     suspendedReason: suspended ? reason : null,
   });
-}
-
-export async function getStats(now: number): Promise<AdminStats> {
-  const monthAgo = now - 30 * DAY_MS;
-
-  const [ids, revenueSnap, pendingSnap] = await Promise.all([
-    tenantIds(),
-    // `at` bo'yicha indekslangan — butun to'lovlar tarixi emas, faqat
-    // oxirgi 30 kunlik qismi o'qiladi.
-    db().ref('payments_log').orderByChild('at').startAt(monthAgo).get(),
-    db().ref('pending_payments').get(),
-  ]);
-
-  const stats: AdminStats = {
-    totalTenants: 0,
-    activeTenants: 0,
-    blockedTenants: 0,
-    trialTenants: 0,
-    lifetimeTenants: 0,
-    revenue30d: 0,
-    pendingPayments: pendingSnap.exists()
-      ? Object.keys(pendingSnap.val() as Record<string, unknown>).length
-      : 0,
-  };
-
-  const rows = await Promise.all(ids.map((id) => readSummary(id, now)));
-  for (const row of rows) {
-    if (!row) continue;
-    stats.totalTenants += 1;
-    if (row.summary.status.blocked) stats.blockedTenants += 1;
-    else stats.activeTenants += 1;
-    if (row.license.kind === 'trial') stats.trialTenants += 1;
-    if (row.license.kind === 'lifetime') stats.lifetimeTenants += 1;
-  }
-
-  if (revenueSnap.exists()) {
-    for (const entry of Object.values(
-      revenueSnap.val() as Record<string, { amount?: number }>,
-    )) {
-      stats.revenue30d += entry.amount ?? 0;
-    }
-  }
-
-  return stats;
 }

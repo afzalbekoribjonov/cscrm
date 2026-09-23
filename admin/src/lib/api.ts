@@ -20,10 +20,27 @@ export class ApiError extends Error {
  * super-admin ekanini server aynan shu token orqali tekshiradi (UID
  * `SUPER_ADMIN_UIDS` ro'yxatida bo'lishi kerak).
  */
+/**
+ * FAQAT ISHLAB CHIQISH UCHUN: ko'rib chiqish sahifalari (src/dev/)
+ * haqiqiy serverga va bazaga ulanmasdan ishlashi uchun javoblarni
+ * almashtiradi. Prod yig'ilishida `import.meta.env.DEV` = false —
+ * bu shox kodga umuman kirmaydi.
+ */
+type DevTransport = (path: string, init: RequestInit) => Promise<unknown>;
+let devTransport: DevTransport | null = null;
+
+export function setDevTransport(fn: DevTransport): void {
+  if (import.meta.env.DEV) devTransport = fn;
+}
+
 async function request<T>(
   path: string,
   init: RequestInit = {},
 ): Promise<T> {
+  if (import.meta.env.DEV && devTransport) {
+    return (await devTransport(path, init)) as T;
+  }
+
   const user = firebaseAuth().currentUser;
   if (!user) throw new ApiError('Tizimga kirilmagan.', 401, 'unauthorized');
 
@@ -39,7 +56,10 @@ async function request<T>(
         ...(init.headers ?? {}),
       },
     });
-  } catch {
+  } catch (e) {
+    // Ataylab bekor qilingan so'rov (sahifadan chiqildi, davr
+    // almashtirildi) — bu xato emas, "aloqa yo'q" deyish yolg'on bo'lardi.
+    if (init.signal?.aborted) throw e;
     throw new ApiError(MESSAGES.offline);
   }
 
@@ -90,7 +110,8 @@ export function humanMessage(status: number, serverMessage?: string): string {
 }
 
 export const api = {
-  get: <T>(path: string) => request<T>(path),
+  get: <T>(path: string, opts: { signal?: AbortSignal } = {}) =>
+    request<T>(path, { signal: opts.signal }),
   post: <T>(path: string, body: unknown) =>
     request<T>(path, { method: 'POST', body: JSON.stringify(body) }),
   put: <T>(path: string, body: unknown) =>

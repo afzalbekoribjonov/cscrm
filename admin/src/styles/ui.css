@@ -417,10 +417,19 @@ select.ui-input {
 /* Ko'rsatkich kartasi (stat)                                        */
 /* ---------------------------------------------------------------- */
 
+/* Ko'rsatkichlar qatori: 1 → 2 → 4 ustun. `auto-fit` ATAYLAB emas:
+   u planshetda 3 ustun berib, to'rtinchi kartani pastda yolg'iz
+   qoldirardi (3 + 1). Qator 2×2 yoki 4×1 bo'lsa muvozanatli. */
 .ui-stat-grid {
   display: grid;
   gap: var(--space-4);
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr));
+  grid-template-columns: minmax(0, 1fr);
+}
+@media (min-width: 560px) {
+  .ui-stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (min-width: 1180px) {
+  .ui-stat-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
 
 .ui-stat {
@@ -1142,3 +1151,215 @@ a.ui-stat:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .ui-chart-table td:not(:first-child),
 .ui-chart-table th:not(:first-child) { text-align: end; font-variant-numeric: tabular-nums; }
 .ui-chart-table-scroll { max-height: 320px; overflow: auto; }
+
+/* ---------------------------------------------------------------- */
+/* Moslashuvchan to'r                                                */
+/* ---------------------------------------------------------------- */
+
+/* Ustunlar soni ekranga qarab o'zi aniqlanadi: har ustun kamida
+   `--min` keng. Sig'masa — bitta ustun. */
+.ui-grid {
+  display: grid;
+  gap: var(--space-4);
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--min, 360px)), 1fr));
+  align-items: start;
+}
+
+/* ---------------------------------------------------------------- */
+/* Ro'yxat                                                           */
+/* ---------------------------------------------------------------- */
+
+.ui-list { display: grid; margin: 0; padding: 0; list-style: none; }
+.ui-list > li + li { border-top: 1px solid var(--border); }
+.ui-list__item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: var(--space-3) 0;
+  color: var(--text);
+}
+.ui-list__item.is-link {
+  margin-inline: calc(-1 * var(--space-2));
+  padding-inline: var(--space-2);
+  border-radius: var(--radius-sm);
+  text-decoration: none;
+  transition: background var(--dur-fast);
+}
+.ui-list__item.is-link:hover { background: var(--surface-muted); text-decoration: none; }
+.ui-list__item.is-link:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.ui-list__leading { display: inline-flex; flex-shrink: 0; }
+.ui-list__main { display: grid; gap: 2px; flex: 1; min-width: 0; }
+.ui-list__title,
+.ui-list__meta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ui-list__title { font-size: var(--fs-14); font-weight: var(--fw-semibold); }
+.ui-list__meta { font-size: var(--fs-13); color: var(--text-muted); }
+.ui-list__trailing {
+  flex-shrink: 0;
+  font-size: var(--fs-14);
+  font-weight: var(--fw-semibold);
+  font-variant-numeric: tabular-nums;
+  text-align: end;
+}
+.ui-list__chevron { display: inline-flex; flex-shrink: 0; color: var(--text-muted); }
+
+/* ---------------------------------------------------------------- */
+/* Yon panel (drawer)                                                */
+/* ---------------------------------------------------------------- */
+
+@keyframes ui-drawer-in { from { transform: translateX(-24px); opacity: 0; } }
+
+.ui-drawer-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-overlay);
+  background: rgb(8 14 26 / 0.55);
+  animation: ui-fade-in var(--dur) var(--ease);
+}
+.ui-drawer {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  display: flex;
+  flex-direction: column;
+  width: min(300px, 86vw);
+  padding-bottom: env(safe-area-inset-bottom);
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+  animation: ui-drawer-in var(--dur) var(--ease);
+}
+.ui-drawer:focus-visible { outline: none; }
+.ui-drawer__head { display: flex; justify-content: flex-end; padding: var(--space-2); }
+.ui-drawer__body { flex: 1; overflow-y: auto; padding: 0 var(--space-3) var(--space-4); }
+.ui-drawer__foot { padding: var(--space-3); border-top: 1px solid var(--border); }
+
+/* ---------------------------------------------------------------- */
+/* Ilova karkasi: yon menyu + tarkib                                  */
+/* ---------------------------------------------------------------- */
+
+.ui-shell {
+  display: grid;
+  grid-template-columns: 248px minmax(0, 1fr);
+  min-height: 100dvh;
+  --sticky-offset: 0px;
+}
+
+.ui-shell__sidebar {
+  position: sticky;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  padding: var(--space-4) var(--space-3);
+  overflow-y: auto;
+  background: var(--surface);
+  border-inline-end: 1px solid var(--border);
+}
+.ui-shell__brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-2) var(--space-6);
+}
+.ui-shell__brand-tag {
+  padding: 2px var(--space-2);
+  border-radius: 999px;
+  background: var(--surface-muted);
+  color: var(--text-muted);
+  font-size: var(--fs-12);
+  font-weight: var(--fw-bold);
+}
+.ui-shell__foot {
+  display: grid;
+  gap: var(--space-2);
+  margin-top: auto;
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border);
+}
+.ui-shell__user {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  padding-inline: var(--space-2);
+  font-size: var(--fs-13);
+  color: var(--text-muted);
+}
+.ui-shell__user span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.ui-shell__main { min-width: 0; }
+.ui-shell__content {
+  max-width: 1200px;
+  margin-inline: auto;
+  padding: var(--space-8) var(--space-8) var(--space-16);
+}
+.ui-shell__topbar { display: none; }
+
+.ui-nav { display: grid; gap: 2px; }
+.ui-nav__link {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: var(--control-h);
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  font-size: var(--fs-14);
+  font-weight: var(--fw-semibold);
+  text-decoration: none;
+  transition: background var(--dur-fast), color var(--dur-fast);
+}
+.ui-nav__link:hover { background: var(--surface-muted); color: var(--text); text-decoration: none; }
+.ui-nav__link.is-active { background: var(--brand-soft); color: var(--brand-ink); }
+.ui-nav__link:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.ui-nav__count {
+  min-width: 20px;
+  margin-inline-start: auto;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--brand);
+  color: #fff;
+  font-size: var(--fs-12);
+  font-weight: var(--fw-bold);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 1023px) {
+  .ui-shell { grid-template-columns: minmax(0, 1fr); --sticky-offset: 56px; }
+  .ui-shell__sidebar { display: none; }
+  .ui-shell__topbar {
+    position: sticky;
+    top: 0;
+    z-index: var(--z-header);
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    height: 56px;
+    padding: 0 var(--space-3);
+    background: color-mix(in srgb, var(--surface) 92%, transparent);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--border);
+  }
+  .ui-shell__topbar-end { display: flex; gap: var(--space-1); margin-inline-start: auto; }
+  .ui-shell__content { padding: var(--space-5) var(--space-4) var(--space-12); }
+}
+
+.ui-list-skeleton { display: grid; gap: var(--space-4); }
+.ui-list-skeleton__row { display: flex; gap: var(--space-3); align-items: center; }
+.ui-list-skeleton__text { display: grid; gap: 6px; flex: 1; }
+
+/* Telefondagi menyu panelida hisob bloki panel pastki qismida —
+   ikkinchi ajratuvchi chiziq kerak emas. */
+.ui-drawer__foot .ui-shell__foot { margin: 0; padding-top: 0; border-top: 0; }
+
+/* Telefonda ko'rsatkich kartalari ustma-ust — ular ekranni egallab
+   ketmasligi uchun ichki bo'shliq kichikroq. */
+@media (max-width: 520px) {
+  .ui-stat { padding: var(--space-4); gap: var(--space-1); }
+  .ui-stat-grid { gap: var(--space-3); }
+}

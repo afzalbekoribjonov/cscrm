@@ -9,6 +9,9 @@ ko'rinmasligi.
 * Komponent uslublari: `admin/src/styles/ui.css` (hammasi `ui-` bilan)
 * **Jonli vitrina:** `cd admin && npm run dev` → <http://localhost:5173/ui-kit.html>
   (faqat ishlab chiqishda; prod yig'ilishiga kirmaydi)
+* **Panelni ko'rib chiqish:** <http://localhost:5173/admin-preview.html> —
+  haqiqiy sahifalar NAMUNAVIY javoblar bilan, serverga va bazaga ulanmasdan.
+  Holatlar: `?holat=bosh`, `xato`, `sekin`, `faolliksiz`
 * Sinovlar: `cd admin && npm test`
 
 ---
@@ -45,6 +48,8 @@ matn sifatida oq fonda 2–3:1 beradi, shuning uchun matnga `-ink` ishlatiladi.
 | `Tabs` | Bir sahifada bir necha bo'lim (biznes kartasi) |
 | `DataTable` + `useTable` + `Pagination` | Ro'yxatlar. Telefonda kartalar, saralash alohida tanlovda |
 | `DropdownMenu` | Qator amallari ("…"). Xavfli amallar oxirida, ajratilgan |
+| `List`, `ListItem`, `ListSkeleton` | Karta ichidagi qisqa ro'yxatlar ("E'tibor talab qiladi", "Oxirgi to'lovlar") |
+| `Drawer` | Telefondagi menyu paneli — Dialog bilan bir xil fokus va `inert` qoidalari |
 | `Dialog` | Oyna. Fokus ichida, orqa fon `inert`, Esc, fokus qaytadi; telefonda pastdan |
 | `ConfirmDialog` | Muhim / qaytarib bo'lmaydigan amal |
 | `PromptDialog` | Sabab so'rash (rad etish, to'xtatish) |
@@ -56,6 +61,13 @@ matn sifatida oq fonda 2–3:1 beradi, shuning uchun matnga `-ink` ishlatiladi.
 | `Stack`, `Cluster` | Oraliqni `style={{ marginTop }}` o'rniga shkaladan |
 
 `window.confirm`, `window.prompt`, `alert` — **ishlatilmaydi**.
+
+Ma'lumot yuklash — `useApi(path, pick)` (`lib/use-api.ts`): yo'l o'zgarsa
+eski so'rov bekor qilinadi, qayta yuklashda eski ma'lumot ekranda qoladi,
+oynaga qaytilganda eskirgan ma'lumot o'zi yangilanadi.
+
+Sahifa joylashuvi: `.ui-stat-grid` — ko'rsatkichlar qatori (1 → 2 → 4
+ustun, hech qachon 3 + 1), `.ui-grid` — kartalar to'ri (har ustun ≥ 360px).
 
 ## Qoidalar
 

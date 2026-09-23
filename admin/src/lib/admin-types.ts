@@ -89,15 +89,60 @@ export interface OwnerCredentials {
   disabled: boolean;
 }
 
-export interface AdminStats {
-  totalTenants: number;
-  activeTenants: number;
-  blockedTenants: number;
-  trialTenants: number;
-  lifetimeTenants: number;
-  revenue30d: number;
-  /** Ko'rib chiqilmagan to'lov so'rovlari. */
+/** "Umumiy" sahifasi davri. */
+export type OverviewRange = '7d' | '30d' | '90d' | '12m';
+
+export type AttentionReason = 'pending_payment' | 'blocked' | 'expiring';
+
+/** `GET /admin/overview` javobi — backend/src/services/overview.ts bilan mos. */
+export interface Overview {
+  range: OverviewRange;
+  generatedAt: number;
+  period: { start: number; prevStart: number };
+  revenue: { current: number; previous: number; count: number };
+  registrations: { current: number; previous: number };
+  /**
+   * `active/trial/expiring/blocked` — chart guruhlari (har biznes bittasida).
+   * `paid` — pullik va bloklanmagan (muddati yaqinlari ham), `onTrial` — sinovda.
+   */
+  tenants: {
+    total: number;
+    active: number;
+    trial: number;
+    expiring: number;
+    blocked: number;
+    paid: number;
+    onTrial: number;
+  };
+  /** `null` — faollikni aniqlab bo'lmadi. */
+  activity: { activeTenants: number; activeUsers: number; totalUsers: number } | null;
   pendingPayments: number;
+  series: { starts: number[]; revenue: number[]; registrations: number[] };
+  attention: {
+    tenantId: string;
+    name: string;
+    reason: AttentionReason;
+    state: LicenseState;
+    daysLeft: number | null;
+    amount?: number;
+    at?: number;
+  }[];
+  recentTenants: {
+    tenantId: string;
+    name: string;
+    createdAt: number;
+    state: LicenseState;
+    kind: 'trial' | 'subscription' | 'lifetime';
+    lastActiveAt: number | null;
+  }[];
+  recentPayments: {
+    id: string;
+    tenantId: string;
+    tenantName: string;
+    planName: string;
+    amount: number;
+    at: number;
+  }[];
 }
 
 /**

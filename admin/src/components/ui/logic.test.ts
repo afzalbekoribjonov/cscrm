@@ -275,3 +275,16 @@ describe('visibleLabelIndexes', () => {
     expect(visibleLabelIndexes(0, 5)).toEqual([]);
   });
 });
+
+describe('niceTicks — butun sonlar', () => {
+  it('sanaladigan narsada kasr bo\'linma yo\'q', () => {
+    expect(niceTicks(1, 4, true)).toEqual({ max: 1, ticks: [0, 1] });
+    expect(niceTicks(3, 4, true)).toEqual({ max: 3, ticks: [0, 1, 2, 3] });
+    const { ticks } = niceTicks(7, 4, true);
+    expect(ticks.every(Number.isInteger)).toBe(true);
+  });
+
+  it('katta sonlarda oddiy rejim bilan bir xil', () => {
+    expect(niceTicks(1_790_000, 4, true)).toEqual(niceTicks(1_790_000));
+  });
+});

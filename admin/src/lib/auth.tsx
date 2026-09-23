@@ -17,7 +17,7 @@ import { api, ApiError } from './api';
 import { firebaseAuth } from './firebase';
 import { isFirebaseConfigured } from './env';
 
-interface AuthState {
+export interface AuthState {
   /** Firebase foydalanuvchisi. Kirilmagan bo'lsa `null`. */
   user: User | null;
 
@@ -37,7 +37,8 @@ interface AuthState {
   signOutNow: () => Promise<void>;
 }
 
-const AuthContext = createContext<AuthState | null>(null);
+/** Eksport — faqat ko'rib chiqish sahifalari (src/dev/) soxta foydalanuvchi berishi uchun. */
+export const AuthContext = createContext<AuthState | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
