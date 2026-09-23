@@ -19,7 +19,9 @@
      sababli u to'q bo'lishi kerak. Tun rejimida esa aynan o'sha to'q
      ko'k qora fon ustida MATN sifatida deyarli o'qilmaydi. Ikki vazifa
      — ikki token. */
-  --brand-ink: #0b5fff;
+  /* #0b5fff yumshoq brend fonida (nishon, faol menyu) 4.49:1 berardi —
+     WCAG AA'dan (4.5) sal past. Bir pog'ona to'qroq: 5.32:1. */
+  --brand-ink: #0a55e6;
   /* Brend tusidagi yumshoq fon — nishon, ikonka kvadrati, urg'uli blok. */
   --brand-soft: #e9f0ff;
 
@@ -67,7 +69,90 @@
   /* Bo'limlar orasidagi bo'shliq — ekran kengaygan sari o'sadi. */
   --section-gap: clamp(56px, 9vw, 104px);
 
+  /* ============================================================
+     DIZAYN TIZIMI TOKENLARI
+     Qiymatlarni komponentlarda QO'LDA yozmang — shu yerdan oling.
+     ============================================================ */
+
+  /* Oraliqlar — 4px qadam. Tasodifiy 13px, 18px, 22px o'rniga shu
+     shkaladan tanlanadi: shunda elementlar bir to'rga tushadi. */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+  /* Matn o'lchamlari (ilova ichidagi sahifalar uchun). Marketing
+     sarlavhalari o'z `clamp()` qiymatlarida qoladi. */
+  --fs-12: 0.75rem;
+  --fs-13: 0.8125rem;
+  --fs-14: 0.875rem;
+  --fs-16: 1rem;
+  --fs-18: 1.125rem;
+  --fs-20: 1.25rem;
+  --fs-24: 1.5rem;
+  --fs-30: 1.875rem;
+  --fs-36: 2.25rem;
+
+  --lh-tight: 1.2;
+  --lh-snug: 1.35;
+  --lh-normal: 1.5;
+
+  --fw-regular: 400;
+  --fw-semibold: 600;
+  --fw-bold: 700;
+  --fw-heavy: 800;
+
+  /* Holat MATNI va uning yumshoq foni.
+     `--success` va boshqalar — belgi va to'ldirish uchun; ular MATN
+     sifatida oq fonda 2–3:1 berardi (masalan "Faol" nishoni 2.82:1).
+     `-ink` qiymatlari hisoblab tanlangan: oq fonda, sahifa fonida va
+     o'z `-soft` fonida >= 4.5:1 (WCAG AA). */
+  --success-ink: #157038;
+  --warning-ink: #a14a06;
+  --danger-ink: #b91c1c;
+  --info-ink: #1d4ed8;
+  --neutral-ink: #475569;
+  --success-soft: color-mix(in srgb, var(--success-ink) 12%, #fff);
+  --warning-soft: color-mix(in srgb, var(--warning-ink) 12%, #fff);
+  --danger-soft: color-mix(in srgb, var(--danger-ink) 12%, #fff);
+  --info-soft: color-mix(in srgb, var(--info-ink) 12%, #fff);
+  --neutral-soft: color-mix(in srgb, var(--neutral-ink) 12%, #fff);
+
+  /* Boshqaruv elementlari balandligi. Barmoq bilan bosiladigan
+     ekranda 44px dan past bo'lmaydi (pastdagi `pointer: coarse`). */
+  --control-h-sm: 32px;
+  --control-h: 40px;
+  --control-h-lg: 48px;
+
+  --focus-ring: 0 0 0 3px color-mix(in srgb, var(--brand) 35%, transparent);
+
+  /* Qatlamlar tartibi — bitta joyda, aks holda 9999 poygasi boshlanadi. */
+  --z-sticky: 20;
+  --z-header: 30;
+  --z-dropdown: 40;
+  --z-overlay: 50;
+  --z-toast: 60;
+
+  /* Harakat. Qisqa — bu ish quroli, animatsiya faqat holatni
+     tushuntirish uchun. */
+  --dur-fast: 120ms;
+  --dur: 180ms;
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+
   color-scheme: light;
+}
+
+@media (pointer: coarse) {
+  :root {
+    --control-h-sm: 40px;
+    --control-h: 44px;
+  }
 }
 
 /* Tun rejimi.
@@ -101,6 +186,19 @@
   --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.3);
   --shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 8px 24px rgb(0 0 0 / 0.35);
   --shadow-lg: 0 2px 4px rgb(0 0 0 / 0.3), 0 18px 48px rgb(0 0 0 / 0.5);
+
+  /* Tun rejimidagi holat ranglari — kunduzgisining "teskarisi" emas,
+     alohida tanlangan va to'q sirtga nisbatan tekshirilgan (>= 4.5:1). */
+  --success-ink: #4ade80;
+  --warning-ink: #fbbf24;
+  --danger-ink: #f87171;
+  --info-ink: #7fa9ff;
+  --neutral-ink: #aab7cc;
+  --success-soft: color-mix(in srgb, var(--success-ink) 16%, var(--surface));
+  --warning-soft: color-mix(in srgb, var(--warning-ink) 16%, var(--surface));
+  --danger-soft: color-mix(in srgb, var(--danger-ink) 16%, var(--surface));
+  --info-soft: color-mix(in srgb, var(--info-ink) 16%, var(--surface));
+  --neutral-soft: color-mix(in srgb, var(--neutral-ink) 16%, var(--surface));
 
   color-scheme: dark;
 }

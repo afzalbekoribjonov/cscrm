@@ -14,6 +14,8 @@ import {
 import { formatNumber } from '@/lib/format';
 import type { Plan } from '@/lib/plans';
 
+import { Badge } from '@/components/ui';
+
 import { OwnerCredentialsCard } from './OwnerCredentialsCard';
 
 export function TenantDetailPage() {
@@ -168,18 +170,9 @@ export function TenantDetailPage() {
         }}
       >
         <h1 style={{ fontSize: 26, margin: 0 }}>{tenant.name}</h1>
-        <span
-          style={{
-            padding: '4px 12px',
-            borderRadius: 999,
-            fontSize: 12.5,
-            fontWeight: 700,
-            color: visual.color,
-            background: `color-mix(in srgb, ${visual.color} 14%, transparent)`,
-          }}
-        >
+        <Badge tone={visual.tone} dot>
           {visual.label}
-        </span>
+        </Badge>
       </div>
 
       <div

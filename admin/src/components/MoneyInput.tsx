@@ -2,6 +2,9 @@ import { useLayoutEffect, useRef, type CSSProperties } from 'react';
 
 import { formatNumber } from '@/lib/format';
 
+import { useFieldProps } from './ui/Field';
+import { cx } from './ui/logic';
+
 /** Eng uzun summa — 12 xona (999 milliard). */
 const MAX_DIGITS = 12;
 
@@ -34,6 +37,8 @@ export function MoneyInput({
   style,
   id,
   placeholder,
+  className,
+  disabled,
 }: {
   /** Faqat raqamlardan iborat qiymat, masalan "537000". */
   value: string;
@@ -41,7 +46,11 @@ export function MoneyInput({
   style?: CSSProperties;
   id?: string;
   placeholder?: string;
+  className?: string;
+  disabled?: boolean;
 }) {
+  // `Field` ichida bo'lsa — yorliq, maslahat va xato avtomatik bog'lanadi.
+  const field = useFieldProps({ id });
   const ref = useRef<HTMLInputElement>(null);
 
   /** Kursor qaysi raqamdan keyin turishi kerak. */
@@ -74,10 +83,13 @@ export function MoneyInput({
 
   return (
     <input
-      id={id}
+      {...field}
       ref={ref}
       type="text"
       inputMode="numeric"
+      autoComplete="off"
+      disabled={disabled}
+      className={cx('ui-input', className)}
       placeholder={placeholder}
       value={value === '' ? '' : formatNumber(Number(value))}
       onChange={(e) => {

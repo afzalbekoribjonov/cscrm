@@ -1,5 +1,7 @@
 /** Super-admin API javoblarining turlari (backend bilan mos). */
 
+import type { Tone } from '@/components/ui/Badge';
+
 export type LicenseState =
   | 'active'
   | 'expiring'
@@ -98,24 +100,28 @@ export interface AdminStats {
   pendingPayments: number;
 }
 
-/** Holatning ko'rinishi: nom va rang. */
-export function stateVisual(state: LicenseState): {
-  label: string;
-  color: string;
-} {
+/**
+ * Holatning ko'rinishi: nom va ohang (`<Badge tone>` uchun).
+ *
+ * Ilgari to'g'ridan-to'g'ri rang qaytarardi (`var(--success)` va h.k.)
+ * va u MATN rangi sifatida ishlatilardi — oq fonda 1.9–3.9:1, ya'ni
+ * o'qish qiyin. Endi ohang: Badge uni tekshirilgan `--*-ink` rangiga
+ * aylantiradi (>= 4.5:1).
+ */
+export function stateVisual(state: LicenseState): { label: string; tone: Tone } {
   switch (state) {
     case 'active':
-      return { label: 'Faol', color: 'var(--success)' };
+      return { label: 'Faol', tone: 'success' };
     case 'expiring':
-      return { label: 'Muddat yaqin', color: 'var(--warning)' };
+      return { label: 'Muddat yaqin', tone: 'warning' };
     case 'grace':
-      return { label: 'Muddat tugadi', color: 'var(--warning)' };
+      return { label: 'Muddat tugadi', tone: 'warning' };
     case 'expired':
-      return { label: 'Bloklangan', color: 'var(--danger)' };
+      return { label: 'Bloklangan', tone: 'danger' };
     case 'lifetime_fee_due':
-      return { label: 'Yillik to\'lov', color: 'var(--accent)' };
+      return { label: 'Yillik to\'lov', tone: 'warning' };
     case 'suspended':
-      return { label: 'To\'xtatilgan', color: 'var(--danger)' };
+      return { label: 'To\'xtatilgan', tone: 'danger' };
   }
 }
 

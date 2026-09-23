@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 
 import { SiteLayout } from './components/SiteLayout';
+import { ToastProvider } from './components/ui';
 import { AuthProvider, useAuth } from './lib/auth';
 import { NotFoundPage } from './pages/NotFoundPage';
 import { AdminLayout } from './pages/admin/AdminLayout';
@@ -56,43 +57,46 @@ function RequireSuperAdmin() {
 export function App() {
   return (
     <AuthProvider>
-      <Routes>
-        <Route element={<SiteLayout />}>
-          <Route index element={<LandingPage />} />
-          <Route path="imkoniyatlar" element={<FeaturesPage />} />
-          <Route path="narxlar" element={<PricingPage />} />
-          <Route path="yuklab-olish" element={<DownloadPage />} />
-          <Route path="yordam" element={<HelpPage />} />
-          <Route path="aloqa" element={<ContactPage />} />
+      {/* Amal natijasi xabarlari ("Saqlandi") — butun ilova uchun bitta. */}
+      <ToastProvider>
+        <Routes>
+          <Route element={<SiteLayout />}>
+            <Route index element={<LandingPage />} />
+            <Route path="imkoniyatlar" element={<FeaturesPage />} />
+            <Route path="narxlar" element={<PricingPage />} />
+            <Route path="yuklab-olish" element={<DownloadPage />} />
+            <Route path="yordam" element={<HelpPage />} />
+            <Route path="aloqa" element={<ContactPage />} />
 
-          {/* Soha sahifalari bitta shablondan chiqadi — yangisini
-              qo'shish uchun faqat SOLUTIONS ro'yxatiga yozish kifoya. */}
-          {SOLUTIONS.map((s) => (
-            <Route
-              key={s.slug}
-              path={s.slug}
-              element={<SolutionPage content={s} />}
-            />
-          ))}
+            {/* Soha sahifalari bitta shablondan chiqadi — yangisini
+                qo'shish uchun faqat SOLUTIONS ro'yxatiga yozish kifoya. */}
+            {SOLUTIONS.map((s) => (
+              <Route
+                key={s.slug}
+                path={s.slug}
+                element={<SolutionPage content={s} />}
+              />
+            ))}
 
-          <Route path="maxfiylik" element={<PrivacyPage />} />
-          <Route path="oferta" element={<OfferPage />} />
+            <Route path="maxfiylik" element={<PrivacyPage />} />
+            <Route path="oferta" element={<OfferPage />} />
 
-          <Route path="*" element={<NotFoundPage />} />
-        </Route>
+            <Route path="*" element={<NotFoundPage />} />
+          </Route>
 
-        <Route path="/kirish" element={<AdminLoginPage />} />
+          <Route path="/kirish" element={<AdminLoginPage />} />
 
-        <Route path="/admin" element={<RequireSuperAdmin />}>
-          <Route index element={<DashboardPage />} />
-          <Route path="payment-requests" element={<PaymentRequestsPage />} />
-          <Route path="broadcasts" element={<BroadcastsPage />} />
-          <Route path="plans" element={<PlansPage />} />
-          <Route path="settings" element={<SettingsPage />} />
-          <Route path="tenants" element={<TenantsPage />} />
-          <Route path="tenants/:tenantId" element={<TenantDetailPage />} />
-        </Route>
-      </Routes>
+          <Route path="/admin" element={<RequireSuperAdmin />}>
+            <Route index element={<DashboardPage />} />
+            <Route path="payment-requests" element={<PaymentRequestsPage />} />
+            <Route path="broadcasts" element={<BroadcastsPage />} />
+            <Route path="plans" element={<PlansPage />} />
+            <Route path="settings" element={<SettingsPage />} />
+            <Route path="tenants" element={<TenantsPage />} />
+            <Route path="tenants/:tenantId" element={<TenantDetailPage />} />
+          </Route>
+        </Routes>
+      </ToastProvider>
     </AuthProvider>
   );
 }

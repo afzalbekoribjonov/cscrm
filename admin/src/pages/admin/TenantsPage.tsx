@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 
+import { Badge } from '@/components/ui';
 import { api } from '@/lib/api';
 import {
   formatDate,
@@ -262,15 +263,9 @@ export function TenantsPage() {
                         </div>
                       </td>
                       <td data-label="Holat">
-                        <span
-                          className="badge"
-                          style={{
-                            color: visual.color,
-                            background: `color-mix(in srgb, ${visual.color} 14%, transparent)`,
-                          }}
-                        >
+                        <Badge tone={visual.tone} dot>
                           {visual.label}
-                        </span>
+                        </Badge>
                       </td>
                       <td data-label="Reja">{t.status.planId}</td>
                       <td data-label="Muddat">
