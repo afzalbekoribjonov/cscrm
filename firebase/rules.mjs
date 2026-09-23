@@ -5,10 +5,11 @@
  * JSON'da uni qo'lda nusxalash — bir joyda tuzatib, boshqasida unutish
  * degani. Bu yerda shartlar BIR MARTA yoziladi.
  *
- *   node firebase/rules.mjs           — JSON'ni qayta yozadi
- *   node firebase/rules.mjs --check   — JSON manba bilan mosligini tekshiradi
+ *   node firebase/rules.mjs           — ikkala JSON'ni qayta yozadi
+ *   node firebase/rules.mjs --check   — ular manba bilan mosligini tekshiradi
+ *   npm test (firebase/ ichida)       — qoidalarni emulatorda sinaydi
  *
- * JSON'ni QO'LDA TAHRIRLAMANG — o'zgarish shu faylda qilinadi.
+ * JSON'larni QO'LDA TAHRIRLAMANG — o'zgarish shu faylda qilinadi.
  */
 import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -160,18 +161,54 @@ export const rules = {
   },
 };
 
-const out = join(dirname(fileURLToPath(import.meta.url)), 'database.rules.json');
-const json = `${JSON.stringify(rules, null, 2)}\n`;
+/**
+ * `"//"` izoh kalitlarini olib tashlaydi.
+ *
+ * Firebase (CLI ham, emulator ham, REST ham) qoidalar faylida
+ * noma'lum kalitni qabul qilmaydi: "Expected 'rules' property".
+ */
+export function stripComments(node) {
+  if (Array.isArray(node)) return node.map(stripComments);
+  if (node === null || typeof node !== 'object') return node;
+  return Object.fromEntries(
+    Object.entries(node)
+      .filter(([key]) => key !== '//')
+      .map(([key, value]) => [key, stripComments(value)]),
+  );
+}
+
+const here = dirname(fileURLToPath(import.meta.url));
+
+/**
+ * Ikki fayl yig'iladi:
+ *   database.rules.json        — IZOHLI, o'qish va ko'rib chiqish uchun;
+ *   database.rules.deploy.json — izohsiz, Firebase qabul qiladigan nusxa
+ *                                (`firebase.json` shunga qaraydi).
+ */
+const OUTPUTS = [
+  [join(here, 'database.rules.json'), `${JSON.stringify(rules, null, 2)}\n`],
+  [join(here, 'database.rules.deploy.json'), `${JSON.stringify(stripComments(rules), null, 2)}\n`],
+];
+
 const isMain = process.argv[1] === fileURLToPath(import.meta.url);
 
 if (isMain && process.argv.includes('--check')) {
-  const current = readFileSync(out, 'utf8').split('\r\n').join('\n');
-  if (current !== json) {
-    console.error('database.rules.json manbadan farq qiladi: node firebase/rules.mjs');
-    process.exit(1);
+  for (const [file, expected] of OUTPUTS) {
+    let current = '';
+    try {
+      current = readFileSync(file, 'utf8').split('\r\n').join('\n');
+    } catch {
+      // yo'q fayl ham farq hisoblanadi
+    }
+    if (current !== expected) {
+      console.error(`${file} manbadan farq qiladi: node firebase/rules.mjs`);
+      process.exit(1);
+    }
   }
-  console.log('database.rules.json — manba bilan mos');
+  console.log('qoidalar fayllari — manba bilan mos');
 } else if (isMain) {
-  writeFileSync(out, json);
-  console.log(`yozildi: ${out}`);
+  for (const [file, content] of OUTPUTS) {
+    writeFileSync(file, content);
+    console.log(`yozildi: ${file}`);
+  }
 }

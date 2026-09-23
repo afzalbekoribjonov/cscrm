@@ -1,0 +1,151 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "super_admins": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": false
+      }
+    },
+    "admin_logins": {
+      "$login": {
+        ".read": false,
+        ".write": false
+      }
+    },
+    "employee_phone_index": {
+      ".read": false,
+      ".write": false
+    },
+    "employee_secrets": {
+      ".read": false,
+      ".write": false
+    },
+    "user_tenants": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": false
+      }
+    },
+    "tenant_directory": {
+      ".read": false,
+      ".write": false
+    },
+    "pending_payments": {
+      ".read": false,
+      ".write": false,
+      ".indexOn": [
+        "tenantId"
+      ]
+    },
+    "broadcasts": {
+      ".read": false,
+      ".write": false,
+      ".indexOn": [
+        "createdAt"
+      ]
+    },
+    "push_tokens": {
+      ".read": false,
+      ".write": false
+    },
+    "plan_prices": {
+      ".read": false,
+      ".write": false
+    },
+    "site_settings": {
+      ".read": false,
+      ".write": false
+    },
+    "payments_log": {
+      ".read": false,
+      ".write": false,
+      ".indexOn": [
+        "at"
+      ]
+    },
+    "tenants": {
+      "$tenantId": {
+        "profile": {
+          ".read": "auth != null && auth.token.tenantId === $tenantId && (auth.token.role === 'owner' || (root.child('tenants').child($tenantId).child('employees').child(auth.token.employeeId).exists() && root.child('tenants').child($tenantId).child('employees').child(auth.token.employeeId).child('active').val() !== false))",
+          ".write": false
+        },
+        "license": {
+          ".read": "auth != null && auth.token.tenantId === $tenantId && (auth.token.role === 'owner' || (root.child('tenants').child($tenantId).child('employees').child(auth.token.employeeId).exists() && root.child('tenants').child($tenantId).child('employees').child(auth.token.employeeId).child('active').val() !== false))",
+          ".write": false
+        },
+        "members": {
+          ".read": "auth != null && auth.token.tenantId === $tenantId && (auth.token.role === 'owner' || (root.child('tenants').child($tenantId).child('employees').child(auth.token.employeeId).exists() && root.child('tenants').child($tenantId).child('employees').child(auth.token.employeeId).child('active').val() !== false))",
+          ".write": false
+        },
+        "employees": {
+          ".read": "auth != null && auth.token.tenantId === $tenantId && (auth.token.role === 'owner' || (root.child('tenants').child($tenantId).child('employees').child(auth.token.employeeId).exists() && root.child('tenants').child($tenantId).child('employees').child(auth.token.employeeId).child('active').val() !== false))",
+          ".write": "auth != null && auth.token.tenantId === $tenantId && auth.token.role === 'owner' && root.child('tenants').child($tenantId).child('license').child('suspended').val() !== true",
+          ".indexOn": [
+            "phone",
+            "active"
+          ],
+          "$employeeId": {
+            ".read": "auth != null && auth.token.tenantId === $tenantId && auth.token.employeeId === $employeeId"
+          }
+        },
+        "products": {
+          ".read": "auth != null && auth.token.tenantId === $tenantId && (auth.token.role === 'owner' || (root.child('tenants').child($tenantId).child('employees').child(auth.token.employeeId).exists() && root.child('tenants').child($tenantId).child('employees').child(auth.token.employeeId).child('active').val() !== false))",
+          ".write": "auth != null && auth.token.tenantId === $tenantId && auth.token.role === 'owner' && root.child('tenants').child($tenantId).child('license').child('suspended').val() !== true"
+        },
+        "counters": {
+          ".read": "auth != null && auth.token.tenantId === $tenantId && (auth.token.role === 'owner' || (root.child('tenants').child($tenantId).child('employees').child(auth.token.employeeId).exists() && root.child('tenants').child($tenantId).child('employees').child(auth.token.employeeId).child('active').val() !== false))",
+          "$counter": {
+            ".write": "auth != null && auth.token.tenantId === $tenantId && (auth.token.role === 'owner' || (root.child('tenants').child($tenantId).child('employees').child(auth.token.employeeId).exists() && root.child('tenants').child($tenantId).child('employees').child(auth.token.employeeId).child('active').val() !== false)) && root.child('tenants').child($tenantId).child('license').child('suspended').val() !== true && newData.exists()",
+            ".validate": "newData.isNumber() && (!data.exists() || !data.isNumber() || newData.val() > data.val())"
+          }
+        },
+        "orders": {
+          ".read": "auth != null && auth.token.tenantId === $tenantId && (auth.token.role === 'owner' || (root.child('tenants').child($tenantId).child('employees').child(auth.token.employeeId).exists() && root.child('tenants').child($tenantId).child('employees').child(auth.token.employeeId).child('active').val() !== false))",
+          ".indexOn": [
+            "active",
+            "status",
+            "createdAt",
+            "deliveredAt",
+            "createdBy",
+            "debtAmount"
+          ],
+          "$orderId": {
+            ".write": "auth != null && auth.token.tenantId === $tenantId && (auth.token.role === 'owner' || (root.child('tenants').child($tenantId).child('employees').child(auth.token.employeeId).exists() && root.child('tenants').child($tenantId).child('employees').child(auth.token.employeeId).child('active').val() !== false)) && root.child('tenants').child($tenantId).child('license').child('suspended').val() !== true"
+          }
+        },
+        "expenses": {
+          ".read": "auth != null && auth.token.tenantId === $tenantId && (auth.token.role === 'owner' || (root.child('tenants').child($tenantId).child('employees').child(auth.token.employeeId).exists() && root.child('tenants').child($tenantId).child('employees').child(auth.token.employeeId).child('active').val() !== false))",
+          ".indexOn": [
+            "spentAt"
+          ],
+          "$expenseId": {
+            ".write": "auth != null && auth.token.tenantId === $tenantId && (auth.token.role === 'owner' || (root.child('tenants').child($tenantId).child('employees').child(auth.token.employeeId).exists() && root.child('tenants').child($tenantId).child('employees').child(auth.token.employeeId).child('active').val() !== false)) && root.child('tenants').child($tenantId).child('license').child('suspended').val() !== true"
+          }
+        },
+        "order_history": {
+          ".read": "auth != null && auth.token.tenantId === $tenantId && (auth.token.role === 'owner' || (root.child('tenants').child($tenantId).child('employees').child(auth.token.employeeId).exists() && root.child('tenants').child($tenantId).child('employees').child(auth.token.employeeId).child('active').val() !== false))",
+          ".indexOn": [
+            "orderId",
+            "at"
+          ],
+          "$entryId": {
+            ".write": "auth != null && auth.token.tenantId === $tenantId && (auth.token.role === 'owner' || (root.child('tenants').child($tenantId).child('employees').child(auth.token.employeeId).exists() && root.child('tenants').child($tenantId).child('employees').child(auth.token.employeeId).child('active').val() !== false)) && root.child('tenants').child($tenantId).child('license').child('suspended').val() !== true && !data.exists()"
+          }
+        },
+        "payments": {
+          ".read": "auth != null && auth.token.tenantId === $tenantId && (auth.token.role === 'owner' || (root.child('tenants').child($tenantId).child('employees').child(auth.token.employeeId).exists() && root.child('tenants').child($tenantId).child('employees').child(auth.token.employeeId).child('active').val() !== false))",
+          ".write": false
+        },
+        "payment_requests": {
+          ".read": "auth != null && auth.token.tenantId === $tenantId && (auth.token.role === 'owner' || (root.child('tenants').child($tenantId).child('employees').child(auth.token.employeeId).exists() && root.child('tenants').child($tenantId).child('employees').child(auth.token.employeeId).child('active').val() !== false))",
+          ".write": false
+        },
+        "$other": {
+          ".validate": false
+        }
+      }
+    }
+  }
+}

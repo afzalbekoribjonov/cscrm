@@ -1,0 +1,16 @@
+{
+  "name": "cscrm-firebase",
+  "private": true,
+  "type": "module",
+  "description": "Baza qoidalari manbasi va ularning emulatordagi sinovi",
+  "scripts": {
+    "rules": "node rules.mjs",
+    "rules:check": "node rules.mjs --check",
+    "test": "node rules.mjs --check && firebase emulators:exec --only database --project demo-cscrm \"node --test --test-reporter=spec test/rules.test.mjs\""
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^4.0.1",
+    "firebase": "^11.10.0",
+    "firebase-tools": "^14.27.0"
+  }
+}

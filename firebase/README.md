@@ -4,16 +4,43 @@
 
 | Fayl | Vazifasi |
 |---|---|
-| `database.rules.json` | Realtime Database xavfsizlik qoidalari |
-| `firebase.json` | Firebase CLI sozlamasi |
+| `rules.mjs` | Qoidalar **MANBASI** — o'zgarish faqat shu yerda |
+| `database.rules.json` | Izohli nusxa — o'qish va ko'rib chiqish uchun (yig'iladi) |
+| `database.rules.deploy.json` | Izohsiz nusxa — Firebase aynan shuni qabul qiladi (yig'iladi) |
+| `test/rules.test.mjs` | Qoidalarning emulatordagi sinovi |
+| `firebase.json` | Firebase CLI va emulator sozlamasi |
+
+Ikkala JSON ham `rules.mjs` dan yig'iladi — ularni qo'lda tahrirlamang.
+Firebase qoidalar faylidagi `"//"` izoh kalitini qabul qilmaydi, shuning
+uchun joylanadigan nusxa alohida.
+
+## Qoidani o'zgartirish tartibi
+
+```bash
+cd firebase
+npm install                  # bir marta
+node rules.mjs               # JSON'larni qayta yig'ish
+npm test                     # emulatorda sinov — JONLI BAZAGA TEGMAYDI
+```
+
+Sinov uchun Java 11+ kerak (emulator Java'da ishlaydi). Sinovdagi
+"ilova:" holatlari ilovaning haqiqiy yozuv yo'llari: ular o'tmasa, yangi
+qoida mijozlar qo'lidagi ilovani buzadi — joylamang.
 
 ## Qoidalarni joylash
 
+Faqat sinovlar o'tgandan keyin. Yo'llardan biri:
+
 ```bash
-npm install -g firebase-tools
-firebase login
+# 1) Firebase CLI (Google hisobi bilan)
 firebase deploy --only database --project <PROJECT_ID> --config firebase/firebase.json
+
+# 2) Servis kaliti bilan (backend/.env dagi FIREBASE_SERVICE_ACCOUNT)
+node tools/deploy_rules.mjs
 ```
+
+Yoki qo'lda: Firebase Console → Realtime Database → Rules — va
+`database.rules.deploy.json` mazmunini qo'yish.
 
 ## Ma'lumotlar tuzilishi
 
@@ -21,6 +48,7 @@ firebase deploy --only database --project <PROJECT_ID> --config firebase/firebas
 /super_admins/{uid}            → true            CSCRM egalari
 /user_tenants/{uid}            → tenantId        teskari qidiruv
 /admin_logins/{login}          → {uid, tenantId} login → hisob
+/employee_secrets/{t}/{e}      → {pinHash}       PIN hashlari (mijozga berk)
 /tenants/{tenantId}/
     profile/                   biznes ma'lumoti
     license/                   obuna holati  (FAQAT backend yozadi)

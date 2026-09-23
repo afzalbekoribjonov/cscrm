@@ -1,5 +1,14 @@
 {
   "database": {
-    "rules": "database.rules.json"
+    "rules": "database.rules.deploy.json"
+  },
+  "emulators": {
+    "database": {
+      "host": "127.0.0.1",
+      "port": 9000
+    },
+    "ui": {
+      "enabled": false
+    }
   }
 }

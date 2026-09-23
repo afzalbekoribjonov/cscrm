@@ -38,3 +38,4 @@ firebase-debug.log
 
 # --- Claude Code (mahalliy vositalar sozlamasi, loyihaga aloqasi yo'q) ---
 .claude/
+database-debug.log
