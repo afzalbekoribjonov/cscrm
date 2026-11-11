@@ -1,6 +1,7 @@
 import 'package:firebase_database/firebase_database.dart';
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
 
+import '../l10n/text.dart';
 import '../theme/app_colors.dart';
 
 /// Internet uzilganda ekran tepasida chiqadigan ingichka chiziq.

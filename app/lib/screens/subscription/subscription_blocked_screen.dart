@@ -1,7 +1,8 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../l10n/text.dart';
 import '../../branding/app_branding.dart';
 import '../../branding/logo.dart';
 import '../../models/license_status.dart';

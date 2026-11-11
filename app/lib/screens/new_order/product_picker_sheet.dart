@@ -1,6 +1,7 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
 import 'package:flutter/services.dart';
 
+import '../../l10n/text.dart';
 import '../../models/product.dart';
 import '../../services/product_service.dart';
 import '../../theme/app_colors.dart';

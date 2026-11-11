@@ -1,5 +1,6 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
 
+import '../../l10n/text.dart';
 import '../../utils/delivery_sort.dart';
 
 /// "Tayyor" ro'yxati ustidagi saralash tugmalari.

@@ -1,9 +1,11 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
 
+import '../l10n/text.dart';
 import '../screens/auth/login_screen.dart';
 import '../services/auth_service.dart';
 import '../services/license_controller.dart';
-import '../services/notification_center.dart';
+import '../services/message_center.dart';
+import '../services/policy_service.dart';
 import '../services/order_sync_service.dart';
 import '../services/session_service.dart';
 
@@ -49,7 +51,8 @@ Future<void> confirmAndLogout(BuildContext context) async {
   // Keyingi foydalanuvchi oldingi biznesning obuna holatini ko'rib
   // qolmasligi uchun kesh ham tozalanadi.
   await LicenseController.instance.stop();
-  await NotificationCenter.instance.stop();
+  await PolicyCenter.instance.stop();
+  MessageCenter.instance.clear();
   // Yuborilmagan buyurtmalar navbati ham tozalanadi: ular shu
   // foydalanuvchining ishi, keyingisiga o'tib ketmasligi kerak.
   await OrderSyncService.instance.stop();

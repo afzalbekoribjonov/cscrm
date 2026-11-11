@@ -48,7 +48,9 @@ class NewOrderItemDraft {
         'hajm': hajm,
         'price': price,
         'createdBy': createdBy,
-        'status': ItemStatus.yuvilmoqda.key,
+        // Yangi xizmat NAVBATDA turadi — yuvish xodim "Yuvish" tugmasini
+        // bosganda boshlanadi. Ilgari darhol "Yuvilmoqda" bo'lardi.
+        'status': ItemStatus.navbatda.key,
         if (unit != null) 'unit': unit!.key,
         if (quantity > 0) 'quantity': quantity,
       };
@@ -76,6 +78,8 @@ abstract interface class OrderWriter {
     required String createdByName,
     String? comment,
     int? createdAt,
+    double? pickupLat,
+    double? pickupLng,
   });
 }
 
@@ -429,6 +433,8 @@ class OrderService implements OrderWriter {
     required String createdByName,
     String? comment,
     int? createdAt,
+    double? pickupLat,
+    double? pickupLng,
   }) async {
 
     final itemsMap = <String, Object?>{};
@@ -492,6 +498,10 @@ class OrderService implements OrderWriter {
         'createdAt': createdAt ?? ServerValue.timestamp,
         'items': itemsMap,
         'itemCount': items.length,
+        if (pickupLat != null && pickupLng != null) ...{
+          'pickupLat': pickupLat,
+          'pickupLng': pickupLng,
+        },
         'totalPrice': totalPrice,
         'lastActionAt': ServerValue.timestamp,
         'lastActionBy': createdBy,
@@ -518,11 +528,15 @@ class OrderService implements OrderWriter {
   /// Buyurtma darajasidagi (mahsulotlarga bog'liq bo'lmagan) holat
   /// o'zgarishlari uchun - hozircha faqat "Olib kelish -> Yuvishda"
   /// (Qabul qilindi) shu orqali amalga oshiriladi.
+  ///
+  /// [deadline] berilsa (buyurtmada muddat yo'q bo'lsa) shu yozuv bilan
+  /// BIRGA belgilanadi — "Ilova qonuniyatlari"dagi topshirish muddati.
   Future<void> advanceStatus({
     required Order order,
     required OrderStatus toStatus,
     required String byEmployeeId,
     required String byName,
+    DateTime? deadline,
   }) async {
     final historyKey = _newHistoryKey();
 
@@ -534,6 +548,8 @@ class OrderService implements OrderWriter {
 
     await awaitOrQueue(_scope.root.update({
       'orders/${order.id}/status': toStatus.key,
+      if (deadline != null && order.deadline == null)
+        'orders/${order.id}/deadline': deadline.millisecondsSinceEpoch,
       if (toStatus == OrderStatus.yuvishda)
         'orders/${order.id}/washStartedAt': ServerValue.timestamp,
       ...(accepted
@@ -579,6 +595,10 @@ class OrderService implements OrderWriter {
         'toStatus': toStatus.key,
         'itemProductName': item.productName,
         'itemKey': item.key,
+        // Hajm tarixga ham yoziladi: xodimning kunlik ishi ("12 m² yuvdi")
+        // shu yozuvlardan hisoblanadi — buyurtmani qayta yuklamasdan.
+        if (item.hasNumericMeasure) 'quantity': item.quantity,
+        if (item.unit != null) 'unit': item.unit!.key,
         if (trimmedReason.isNotEmpty) 'note': trimmedReason,
       },
       mutate: (map, items) {
@@ -588,6 +608,11 @@ class OrderService implements OrderWriter {
         updated['status'] = toStatus.key;
         if (trimmedReason.isNotEmpty) {
           updated['rewashReason'] = trimmedReason;
+        }
+        // Qayta yuvishga qaytgan xizmat yana navbatga turadi — keyingi
+        // "Yuvish" bosilganda vaqt yangidan boshlanadi.
+        if (toStatus == ItemStatus.qaytaYuvildi) {
+          updated.remove('washStartedAt');
         }
         items[item.key] = updated;
 
@@ -628,6 +653,143 @@ class OrderService implements OrderWriter {
         }
       },
     );
+  }
+
+  /// "Yuvish" tugmasi: navbatdagi (yoki qayta yuvishga qaytgan) xizmatlar
+  /// "Yuvilmoqda" holatiga o'tadi.
+  ///
+  /// Bir nechta xizmat BITTA tranzaksiyada o'tadi ("Hammasini yuvish").
+  /// Holat SERVERDAGI joriy qiymatdan tekshiriladi: boshqa xodim shu
+  /// xizmatni allaqachon yuvishga olgan bo'lsa, u qayta o'zgartirilmaydi.
+  Future<void> startWash({
+    required Order order,
+    required List<OrderItem> items,
+    required String byEmployeeId,
+    required String byName,
+  }) async {
+    if (items.isEmpty) return;
+    final keys = {for (final i in items) i.key};
+    final started = <OrderItem>[];
+
+    await awaitOrQueue(
+        _scope.ref('orders/${order.id}').runTransaction((current) {
+      if (current == null) return Transaction.abort();
+      final map = Map<String, dynamic>.from(current as Map);
+      final all = Map<String, dynamic>.from(asFirebaseMap(map['items']));
+      started.clear();
+      for (final key in keys) {
+        final raw = all[key];
+        if (raw is! Map) continue;
+        final status = ItemStatus.fromKey(raw['status'] as String? ?? '');
+        if (!status.awaitsWash) continue;
+        final updated = Map<String, dynamic>.from(raw)
+          ..['status'] = ItemStatus.yuvilmoqda.key
+          ..['washStartedAt'] = ServerValue.timestamp;
+        all[key] = updated;
+        started.add(items.firstWhere((i) => i.key == key));
+      }
+      if (started.isEmpty) return Transaction.abort();
+      map['items'] = all;
+      map.addAll(_lastAction(byEmployeeId));
+      return Transaction.success(map);
+    }));
+
+    if (started.isEmpty) return;
+    await awaitOrQueue(_scope.root.update({
+      for (final item in started)
+        'order_history/${_newHistoryKey()}': _historyEntry(order.id, {
+          'type': 'item_status_changed',
+          'byEmployeeId': byEmployeeId,
+          'byName': byName,
+          'at': ServerValue.timestamp,
+          'fromStatus': item.status.key,
+          'toStatus': ItemStatus.yuvilmoqda.key,
+          'itemProductName': item.productName,
+          'itemKey': item.key,
+          if (item.hasNumericMeasure) 'quantity': item.quantity,
+          if (item.unit != null) 'unit': item.unit!.key,
+        }),
+    }));
+  }
+
+  /// BO'LIB TOPSHIRISH: tayyor xizmatlarning bir qismi buyurtmaning
+  /// qolganidan oldin mijozga beriladi.
+  ///
+  /// Xizmat holati "Tayyor" bo'lib qoladi, faqat topshirilgani belgilanadi
+  /// (`handedAt`) — ilovaning eski versiyalari ham uni to'g'ri ko'radi.
+  /// Buyurtma ochiq qoladi; qolgan xizmatlar tayyor bo'lgach odatdagidek
+  /// topshiriladi.
+  ///
+  /// [amount] — shu topshirishda olingan pul (0 — "keyin to'laydi").
+  /// U `prepaidAmount` ga qo'shiladi va tarixga alohida yoziladi: kunlik
+  /// tushum uni AYNAN shu kunga qo'shadi, oxirgi topshirishda esa
+  /// mijozdan faqat qolgan qismi so'raladi.
+  Future<void> handOverItems({
+    required Order order,
+    required List<OrderItem> items,
+    required double amount,
+    required String method,
+    required String byEmployeeId,
+    required String byName,
+  }) async {
+    if (items.isEmpty) return;
+    final keys = {for (final i in items) i.key};
+    final handed = <OrderItem>[];
+    var applied = 0.0;
+
+    // `markDelivered` bilan bir xil yo'l: aloqa sust bo'lsa ham mijoz
+    // eshigi oldida ish to'xtamasin — o'zgarish qurilmada darhol
+    // qo'llanadi va aloqa tiklanganda serverda qayta tekshiriladi.
+    await awaitOrQueue(
+        _scope.ref('orders/${order.id}').runTransaction((current) {
+      if (current == null) return Transaction.abort();
+      final map = Map<String, dynamic>.from(current as Map);
+      if (map['status'] == OrderStatus.yetgazildi.key) {
+        return Transaction.abort();
+      }
+      final all = Map<String, dynamic>.from(asFirebaseMap(map['items']));
+      handed.clear();
+      for (final key in keys) {
+        final raw = all[key];
+        if (raw is! Map) continue;
+        if (raw['status'] != ItemStatus.tayyor.key) continue;
+        if ((raw['handedAt'] as num?) != null) continue;
+        all[key] = Map<String, dynamic>.from(raw)
+          ..['handedAt'] = ServerValue.timestamp
+          ..['handedBy'] = byEmployeeId
+          ..['handedByName'] = byName;
+        handed.add(items.firstWhere((i) => i.key == key));
+      }
+      if (handed.isEmpty) return Transaction.abort();
+
+      // Olingan pul buyurtmaning qolgan qarzidan oshib ketmaydi.
+      final total = sumItemPrices(all);
+      final prepaid = (map['prepaidAmount'] as num?)?.toDouble() ?? 0;
+      final open = (total - prepaid).clamp(0, double.infinity).toDouble();
+      applied = amount <= 0 ? 0 : (amount > open ? open : amount);
+      if (applied > 0) map['prepaidAmount'] = prepaid + applied;
+
+      map['items'] = all;
+      map.addAll(_lastAction(byEmployeeId));
+      return Transaction.success(map);
+    }));
+
+    if (handed.isEmpty) return;
+    final names = handed.map((i) => i.productName).join(', ');
+    await awaitOrQueue(_scope
+        .ref('order_history/${_newHistoryKey()}')
+        .set(_historyEntry(order.id, {
+          'type': 'partial_delivery',
+          'byEmployeeId': byEmployeeId,
+          'byName': byName,
+          'at': ServerValue.timestamp,
+          'amount': applied,
+          'method': method,
+          'note': applied > 0
+              ? '${handed.length} ta xizmat topshirildi ($names) · '
+                  '$method orqali ${formatSom(applied)}'
+              : '${handed.length} ta xizmat topshirildi ($names)',
+        })));
   }
 
   /// Mavjud buyurtmaga yangi mahsulot(lar) qo'shadi - Yuvish yoki Olib
@@ -888,6 +1050,9 @@ class OrderService implements OrderWriter {
     required String byEmployeeId,
     required String byName,
   }) async {
+    // Haqiqatda olingan summa tranzaksiya ichida hisoblanadi — tarixga
+    // AYNAN shu yoziladi (so'ralgan emas).
+    var received = paymentAmount;
 
     await awaitOrQueue(
         _scope.ref('orders/${order.id}').runTransaction((current) {
@@ -900,23 +1065,42 @@ class OrderService implements OrderWriter {
         return Transaction.abort();
       }
 
-      final items = asFirebaseMap(map['items']);
+      final items = Map<String, dynamic>.from(asFirebaseMap(map['items']));
+      // Bo'lib topshirishda oldindan olingan pul — mijozdan faqat qolgan
+      // qismi so'raladi va farq (qarz/skidka) shu qoldiqdan hisoblanadi.
+      final prepaid = (map['prepaidAmount'] as num?)?.toDouble() ?? 0;
+      final total = sumItemPrices(items);
+      final due = total - prepaid;
       final settlement = splitDeliveryPayment(
-        orderTotal: sumItemPrices(items),
+        orderTotal: due > 0 ? due : 0,
         paid: paymentAmount,
         shortfallIsDiscount: shortfallIsDiscount,
       );
+
+      // Hali berilmagan xizmatlar shu payt topshirildi.
+      for (final entry in items.entries.toList()) {
+        final raw = entry.value;
+        if (raw is! Map || (raw['handedAt'] as num?) != null) continue;
+        items[entry.key] = Map<String, dynamic>.from(raw)
+          ..['handedAt'] = ServerValue.timestamp
+          ..['handedBy'] = byEmployeeId
+          ..['handedByName'] = byName;
+      }
+      map['items'] = items;
 
       map['status'] = OrderStatus.yetgazildi.key;
       // Buyurtma operatsion oqimdan chiqdi - endi faol ro'yxatga
       // qo'shilmaydi va kundalik yuklamaga ta'sir qilmaydi.
       map['active'] = false;
       map['paymentMethod'] = paymentMethod;
-      map['paymentAmount'] = settlement.paid;
+      // Jami olingan: oldindan + hozir.
+      map['paymentAmount'] = prepaid + settlement.paid;
       // Yetkazish lahzasidagi summa. `paymentAmount` keyin qarz to'langan
       // sari o'sadi, bu esa o'zgarmaydi - daromadni "qaysi kuni pul
-      // olindi" bo'yicha hisoblash uchun aynan shu kerak.
+      // olindi" bo'yicha hisoblash uchun aynan shu kerak. Oldindan
+      // olingan qism bu yerga KIRMAYDI — u o'z kunida alohida sanalgan.
       map['deliveryPaidAmount'] = settlement.paid;
+      received = settlement.paid;
       map['debtAmount'] = settlement.debt;
       map['discountAmount'] = settlement.discount;
 
@@ -955,8 +1139,13 @@ class OrderService implements OrderWriter {
           'at': ServerValue.timestamp,
           'fromStatus': order.status.key,
           'toStatus': OrderStatus.yetgazildi.key,
-          'note':
-              '$paymentMethod orqali ${formatSom(paymentAmount)} qabul qilindi',
+          // Summa alohida maydonda — xodimning kunlik hisoboti uchun.
+          // Tushum hisobi buni SANAMAYDI (u buyurtmaning o'zidagi
+          // `deliveryPaidAmount` dan olinadi), shuning uchun ikki marta
+          // qo'shilmaydi.
+          'amount': received,
+          'method': paymentMethod,
+          'note': '$paymentMethod orqali ${formatSom(received)} qabul qilindi',
         })));
   }
 
@@ -1046,6 +1235,55 @@ class OrderService implements OrderWriter {
       'authorName': authorName,
       'createdAt': ServerValue.timestamp,
     });
+  }
+
+  /// Telefon raqami bo'yicha mijozning OXIRGI buyurtmasini topadi — yangi
+  /// buyurtmada ism, manzil va GPS avtomatik to'ldirilishi uchun.
+  ///
+  /// So'rov `customerPhone` indeksiga tayanadi va bitta yozuv qaytaradi.
+  /// INDEKSSIZ bunday so'rov butun buyurtmalar ro'yxatini yuklab
+  /// yuborardi — shuning uchun [indexReady] (baza qoidalari yangilangani)
+  /// `false` bo'lsa umuman yuborilmaydi.
+  Future<Order?> lastOrderOfCustomer(
+    String phone, {
+    required bool indexReady,
+  }) async {
+    final orders =
+        await ordersOfCustomer(phone, indexReady: indexReady, limit: 1);
+    return orders.isEmpty ? null : orders.first;
+  }
+
+  /// Mijozning oxirgi [limit] ta buyurtmasi (yangisi birinchi) — qidiruvda
+  /// topshirilgan eski buyurtmalarni topish uchun. [lastOrderOfCustomer]
+  /// dagi kabi faqat indeks tayyor bo'lsa so'raladi.
+  Future<List<Order>> ordersOfCustomer(
+    String phone, {
+    required bool indexReady,
+    int limit = 20,
+  }) async {
+    final normalized = normalizePhone(phone);
+    if (!indexReady || normalized.length != 12) return const [];
+    final snap = await awaitOrFail(
+      _scope
+          .ref('orders')
+          .orderByChild('customerPhone')
+          .equalTo(normalized)
+          .limitToLast(limit)
+          .get(),
+      timeout: const Duration(seconds: 8),
+    );
+    return _parse(snap)..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+  }
+
+  /// Bitta buyurtmani raqami bo'yicha bir marta o'qiydi (qidiruvda —
+  /// qurilmada yo'q, masalan allaqachon topshirilgan buyurtma).
+  Future<Order?> fetchOrder(int orderId) async {
+    final snap = await awaitOrFail(
+      _scope.ref('orders/$orderId').get(),
+      timeout: const Duration(seconds: 8),
+    );
+    final raw = snap.value;
+    return raw is Map ? Order.fromMap('$orderId', raw) : null;
   }
 
   Future<void> deleteOrder(int orderId) async {

@@ -1,7 +1,9 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
 
+import '../../../l10n/text.dart';
 import '../../../models/order_history_entry.dart';
 import '../../../theme/app_colors.dart';
+import '../../../utils/uz_dates.dart';
 import 'order_view_common.dart';
 
 class HistoryTimeline extends StatelessWidget {
@@ -45,8 +47,9 @@ class HistoryRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final visual = historyVisual(entry);
-    final time =
-        orderTimeFormat.format(DateTime.fromMillisecondsSinceEpoch(entry.at));
+    final time = UzDates.dateTime(UzDates.fromMillis(entry.at));
+    // Eski yozuvlarda boshqaruvchi "Admin" deb yozilgan.
+    final who = entry.byName == "Admin" ? "Boshqaruvchi" : entry.byName;
 
     return IntrinsicHeight(
       child: Row(
@@ -59,10 +62,10 @@ class HistoryRow extends StatelessWidget {
                 height: 24,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  color: visual.color.withValues(alpha: 0.15),
+                  color: visual.tone.soft(context),
                   shape: BoxShape.circle,
                 ),
-                child: Icon(visual.icon, size: 13, color: visual.color),
+                child: Icon(visual.icon, size: 13, color: visual.tone.ink(context)),
               ),
               if (!isLast)
                 Expanded(
@@ -101,7 +104,7 @@ class HistoryRow extends StatelessWidget {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    '$time · ${entry.byName}',
+                    '$time · $who',
                     style: theme.textTheme.bodySmall
                         ?.copyWith(color: context.colorTextSecondary),
                   ),

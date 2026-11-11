@@ -1,5 +1,6 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
 
+import '../l10n/text.dart';
 import '../models/license_status.dart';
 import '../screens/subscription/subscription_blocked_screen.dart';
 import '../services/license_controller.dart';

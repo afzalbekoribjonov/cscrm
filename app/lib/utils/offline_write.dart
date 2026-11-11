@@ -68,7 +68,9 @@ String _messageFor(Object error) {
       case 'invalid-token':
         return 'Sessiya muddati tugagan. Chiqib, qaytadan kiring.';
       default:
-        return 'O\'zgarishni saqlab bo\'lmadi: ${error.message ?? error.code}';
+        // Firebase'ning o'z (inglizcha, texnik) xabari foydalanuvchiga
+        // ko'rsatilmaydi — u faqat jurnalga yoziladi.
+        return 'O\'zgarishni saqlab bo\'lmadi. Qayta urinib ko\'ring.';
     }
   }
   return 'O\'zgarishni saqlab bo\'lmadi.';

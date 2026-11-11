@@ -1,32 +1,46 @@
 import 'package:flutter/material.dart';
 
-/// Ilovaning to'rtta ish bo'limi. Xodimga vakolat aynan shu bo'limlar
-/// bo'yicha beriladi: xodim qaysi bo'limga vakolatli bo'lsa, faqat o'sha
-/// bo'limga tegishli ishlarni va faqat o'sha bo'lim ichidan turib bajara
-/// oladi (qarang: [StaffAccess.canActIn]).
+/// Ilovaning ish bo'limlari. Xodimga vakolat aynan shu bo'limlar bo'yicha
+/// beriladi: xodim qaysi bo'limga vakolatli bo'lsa, faqat o'sha bo'limni
+/// ochadi va faqat o'sha bo'lim ichidan turib ish qiladi (qarang:
+/// [StaffAccess.canActIn]). Vakolati yo'q bo'limda "Sizda vakolat mavjud
+/// emas" deb turadi — ichidagi buyurtmalar ko'rinmaydi.
 enum WorkSection {
-  yangi('yangi', 'Yangi buyurtma', Icons.note_add_rounded),
-  yuvish('yuvish', 'Yuvish', Icons.local_laundry_service_rounded),
-  qadoqlash('qadoqlash', 'Qadoqlash', Icons.inventory_2_rounded),
-  yetgazma('yetgazma', 'Yetgazma', Icons.local_shipping_rounded);
+  yangi('yangi', 'Yangi', 'Yangi buyurtma', Icons.add_circle_outline_rounded,
+      Icons.add_circle_rounded),
+  yuvish('yuvish', 'Yuvish', 'Yuvish', Icons.local_laundry_service_outlined,
+      Icons.local_laundry_service_rounded),
+  qadoqlash('qadoqlash', 'Qadoqlash', 'Qadoqlash', Icons.inventory_2_outlined,
+      Icons.inventory_2_rounded),
+  yetgazma('yetgazma', 'Yetgazma', 'Yetgazma', Icons.local_shipping_outlined,
+      Icons.local_shipping_rounded),
+  ombor('ombor', 'Ombor', 'Omborxona', Icons.warehouse_outlined,
+      Icons.warehouse_rounded);
 
-  const WorkSection(this.key, this.label, this.icon);
+  const WorkSection(
+      this.key, this.shortLabel, this.label, this.icon, this.selectedIcon);
 
   final String key;
+
+  /// Pastki menyudagi qisqa nom.
+  final String shortLabel;
   final String label;
   final IconData icon;
+  final IconData selectedIcon;
 
   /// Vakolat berish ekranida ko'rsatiladigan qisqa izoh.
   String get accessHint {
     switch (this) {
       case WorkSection.yangi:
-        return 'Yangi buyurtma yaratish';
+        return 'Yangi buyurtma yaratish, bugungi buyurtmalar';
       case WorkSection.yuvish:
-        return 'Xizmat qo\'shish, o\'lchash, qadoqlashga o\'tkazish';
+        return 'Xizmat qo\'shish, o\'lchash, yuvish, qadoqlashga o\'tkazish';
       case WorkSection.qadoqlash:
         return 'Qadoqlandi belgilash, qayta yuvishga qaytarish';
       case WorkSection.yetgazma:
-        return 'Olib kelish, qabul qilish, yetgazish va to\'lov';
+        return 'Olib kelish, qabul qilish, topshirish va to\'lov';
+      case WorkSection.ombor:
+        return 'Uzoq olib ketilmagan buyurtmalar va ularni topshirish';
     }
   }
 

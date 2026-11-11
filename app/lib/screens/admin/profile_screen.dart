@@ -1,6 +1,7 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
 import 'package:intl/intl.dart';
 
+import '../../l10n/text.dart';
 import '../../models/employee.dart';
 import '../../models/license_status.dart';
 import '../../services/employee_service.dart';

@@ -28,6 +28,8 @@ class PendingOrder {
     required this.createdByName,
     required this.comment,
     this.assignedOrderId,
+    this.pickupLat,
+    this.pickupLng,
   });
 
   /// Qurilmadagi vaqtinchalik kalit. Server raqami bilan hech qanday
@@ -55,6 +57,11 @@ class PendingOrder {
   /// yozilmaydi: keyingi urinishda raqam bo'yicha tekshiriladi.
   final int? assignedOrderId;
 
+  /// Doimiy mijozning oldingi buyurtmasidagi GPS manzil — yangi
+  /// buyurtmaga ko'chiriladi.
+  final double? pickupLat;
+  final double? pickupLng;
+
   PendingOrder withOrderId(int id) => PendingOrder(
         localId: localId,
         createdAt: createdAt,
@@ -68,6 +75,8 @@ class PendingOrder {
         createdByName: createdByName,
         comment: comment,
         assignedOrderId: id,
+        pickupLat: pickupLat,
+        pickupLng: pickupLng,
       );
 
   /// Umumiy summa — ro'yxatda ko'rsatish uchun.
@@ -85,6 +94,8 @@ class PendingOrder {
         'createdByName': createdByName,
         'comment': comment,
         'assignedOrderId': assignedOrderId,
+        if (pickupLat != null) 'pickupLat': pickupLat,
+        if (pickupLng != null) 'pickupLng': pickupLng,
         'items': items
             .map((i) => {
                   'productId': i.productId,
@@ -110,6 +121,8 @@ class PendingOrder {
         createdByName: json['createdByName'] as String? ?? '',
         comment: json['comment'] as String? ?? '',
         assignedOrderId: (json['assignedOrderId'] as num?)?.toInt(),
+        pickupLat: (json['pickupLat'] as num?)?.toDouble(),
+        pickupLng: (json['pickupLng'] as num?)?.toDouble(),
         items: ((json['items'] as List?) ?? const [])
             .cast<Map<String, Object?>>()
             .map((i) => NewOrderItemDraft(

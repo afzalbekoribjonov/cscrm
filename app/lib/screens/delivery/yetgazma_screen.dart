@@ -1,39 +1,36 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
 
+import '../../l10n/text.dart';
+import '../../models/app_user.dart';
 import '../../models/order.dart';
-import '../../models/staff_access.dart';
 import '../../models/work_section.dart';
 import '../../services/location_service.dart';
 import '../../theme/app_colors.dart';
+import '../../ui/sheets.dart';
 import '../../utils/delivery_sort.dart';
 import '../../utils/order_sections.dart';
-import '../../widgets/count_banner.dart';
-import '../../widgets/admin_action.dart';
-import '../../widgets/settings_action.dart';
-import '../../widgets/notification_action.dart';
-import '../../widgets/my_activity_action.dart';
-import '../../widgets/order_card.dart';
-import '../../widgets/order_search_action.dart';
-import '../../widgets/finance_actions.dart';
+import '../../widgets/order_list_view.dart';
+import '../home/section_scaffold.dart';
 import 'delivery_sort_bar.dart';
 
-/// "Yetgazma" bo'limi - transport bilan bog'liq 3 bosqich: mijozdan olib
-/// kelinishi kerak bo'lgan, sexda tayyor bo'lib mijozga yetgazilishi kerak
-/// bo'lgan, va bugun yetgazib bo'lingan buyurtmalar.
+/// "Yetgazma" bo'limi — uchta ro'yxat:
+///  * **Olib kelish** — mijozdan olib kelinishi kerak;
+///  * **Deyarli tayyor** — kamida bitta xizmati tayyor, qolgani sexda
+///    (tayyorlarini bo'lib topshirish mumkin);
+///  * **Tayyor** — hamma xizmati tayyor, topshirish kutilmoqda.
+///
+/// Ilgari uchinchi ro'yxat "Yetgazildi" edi — bugun topshirilganlar. U
+/// ish ro'yxati emas (qilinadigan ish yo'q) va qo'shimcha so'rov talab
+/// qilardi. Bugungi natijalar boshqaruvchining "Asosiy" sahifasida.
 class YetgazmaScreen extends StatefulWidget {
   const YetgazmaScreen({
     super.key,
     required this.sections,
-    required this.currentUserId,
-    required this.currentUserName,
-    required this.access,
+    required this.user,
   });
 
-  /// Bo'limlar HomeShell'da bir marta hisoblanadi - bu ekran filtrlamaydi.
   final OrderSections sections;
-  final String currentUserId;
-  final String currentUserName;
-  final StaffAccess access;
+  final AppUser user;
 
   @override
   State<YetgazmaScreen> createState() => _YetgazmaScreenState();
@@ -41,40 +38,28 @@ class YetgazmaScreen extends StatefulWidget {
 
 class _YetgazmaScreenState extends State<YetgazmaScreen>
     with SingleTickerProviderStateMixin {
-  late final TabController _tabController =
-      TabController(length: 3, vsync: this);
-
+  late final TabController _tabs = TabController(length: 3, vsync: this);
   final _location = LocationService();
 
   var _sort = DeliverySort.all;
   var _locating = false;
 
-  /// Dastavchikning oxirgi ma'lum joylashuvi.
-  ///
-  /// Bir marta olinadi va saqlanadi: har bir qayta chizishda GPS
-  /// so'rash telefon batareyasini bekorga yeb qo'yardi. Ro'yxatni
-  /// yangilash uchun "Manzil" ni qayta bosish kifoya.
+  /// Dastavchikning oxirgi ma'lum joylashuvi — bir marta olinadi:
+  /// har chizishda GPS so'rash batareyani bekorga sarflardi.
   double? _lat;
   double? _lng;
 
   @override
   void dispose() {
-    _tabController.dispose();
+    _tabs.dispose();
     super.dispose();
   }
 
-  /// Saralash usulini almashtiradi.
-  ///
-  /// "Manzil" tanlanganda GPS so'raladi. So'rov muvaffaqiyatsiz
-  /// tugasa — masalan GPS o'chiq yoki ruxsat berilmagan — sabab
-  /// ko'rsatiladi va OLDINGI saralash saqlanib qoladi: ro'yxatni
-  /// tasodifiy tartibda qoldirish foydalanuvchini chalg'itardi.
   Future<void> _changeSort(DeliverySort sort) async {
     if (sort != DeliverySort.distance) {
       setState(() => _sort = sort);
       return;
     }
-
     setState(() => _locating = true);
     try {
       final position = await _location.getCurrentLocation();
@@ -85,114 +70,90 @@ class _YetgazmaScreenState extends State<YetgazmaScreen>
         _sort = DeliverySort.distance;
       });
     } on LocationFailure catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(e.message),
-          backgroundColor: AppColors.warning,
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      if (mounted) showResult(context, e.message, error: true);
     } finally {
       if (mounted) setState(() => _locating = false);
     }
   }
 
+  Widget _sortable(List<Order> orders, String emptyTitle, IconData icon,
+      String emptyMessage) {
+    return Column(
+      children: [
+        DeliverySortBar(
+          value: _sort,
+          locating: _locating,
+          onChanged: _changeSort,
+        ),
+        Expanded(
+          child: OrderListView(
+            orders: sortDeliveries(orders, _sort, fromLat: _lat, fromLng: _lng),
+            user: widget.user,
+            section: WorkSection.yetgazma,
+            emptyIcon: icon,
+            emptyTitle: emptyTitle,
+            emptyMessage: emptyMessage,
+            showPrice: true,
+            distanceOf: _sort == DeliverySort.distance
+                ? (o) => distanceTo(o, fromLat: _lat, fromLng: _lng)
+                : null,
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final pickup = widget.sections.pickup;
-    final ready = widget.sections.readyForDelivery;
-    final deliveredToday = widget.sections.deliveredToday;
-
-    return Scaffold(
-      appBar: AppBar(
-        leading: const SettingsAction(),
-        title: const Text('Yetgazma'),
-        actions: [
-          NotificationAction(
-            currentUserId: widget.currentUserId,
-            currentUserName: widget.currentUserName,
-            access: widget.access,
+    final s = widget.sections;
+    return SectionScaffold(
+      user: widget.user,
+      section: WorkSection.yetgazma,
+      sections: s,
+      subtitle: s.deliveryBadgeCount == 0
+          ? 'Hozircha ish yo\'q'
+          : '${s.deliveryBadgeCount} ta buyurtma kutilmoqda',
+      bottom: TabBar(
+        controller: _tabs,
+        isScrollable: true,
+        tabs: [
+          _CountTab(label: 'Olib kelish', count: s.pickup.length),
+          _CountTab(
+            label: 'Deyarli tayyor',
+            count: s.almostReady.length,
+            tone: StageTone.almost,
           ),
-          OrderSearchAction(
-            orders: widget.sections.all,
-            currentUserId: widget.currentUserId,
-            currentUserName: widget.currentUserName,
-            access: widget.access,
-            section: WorkSection.yetgazma,
-          ),
-          ...financeActions(
-            access: widget.access,
-            currentUserId: widget.currentUserId,
-            currentUserName: widget.currentUserName,
-          ),
-          if (!widget.access.isAdmin && widget.access.has(WorkSection.yetgazma))
-            MyActivityAction(
-              currentUserId: widget.currentUserId,
-              currentUserName: widget.currentUserName,
-              access: widget.access,
-            ),
-          AdminAction(
-            isAdmin: widget.access.isAdmin,
-            currentUserId: widget.currentUserId,
-            currentUserName: widget.currentUserName,
+          _CountTab(
+            label: 'Tayyor',
+            count: s.readyForDelivery.length,
+            tone: StageTone.ready,
           ),
         ],
-        bottom: TabBar(
-          controller: _tabController,
-          isScrollable: true,
-          tabs: [
-            Tab(text: 'Olib kelish (${pickup.length})'),
-            Tab(text: 'Tayyor (${ready.length})'),
-            Tab(text: 'Yetgazildi (${deliveredToday.length})'),
-          ],
-        ),
       ),
       body: TabBarView(
-        controller: _tabController,
+        controller: _tabs,
         children: [
-          _OrderList(
-            orders: pickup,
-            currentUserId: widget.currentUserId,
-            currentUserName: widget.currentUserName,
-            access: widget.access,
-            emptyText: 'Olib kelinishi kerak bo\'lgan buyurtma yo\'q',
+          OrderListView(
+            orders: s.pickup,
+            user: widget.user,
+            section: WorkSection.yetgazma,
+            emptyIcon: Icons.moped_outlined,
+            emptyTitle: 'Olib kelinadigan buyurtma yo\'q',
+            emptyMessage: '"Olib kelish" turidagi yangi buyurtmalar shu yerga '
+                'tushadi.',
           ),
-          // "Tayyor" — yagona saralanadigan ro'yxat. Qolgan ikkitasi
-          // boshqa mantiqqa ega: birida buyurtmani olib kelish kerak,
-          // ikkinchisi esa tugagan ish.
-          Column(
-            children: [
-              DeliverySortBar(
-                value: _sort,
-                locating: _locating,
-                onChanged: _changeSort,
-              ),
-              Expanded(
-                child: _OrderList(
-                  orders: sortDeliveries(
-                    ready,
-                    _sort,
-                    fromLat: _lat,
-                    fromLng: _lng,
-                  ),
-                  currentUserId: widget.currentUserId,
-                  currentUserName: widget.currentUserName,
-                  access: widget.access,
-                  emptyText: 'Yetgazishga tayyor buyurtma yo\'q',
-                  showDistance: _sort == DeliverySort.distance,
-                  fromLat: _lat,
-                  fromLng: _lng,
-                ),
-              ),
-            ],
+          _sortable(
+            s.almostReady,
+            'Deyarli tayyor buyurtma yo\'q',
+            Icons.timelapse_rounded,
+            'Kamida bitta xizmati tayyor bo\'lgan buyurtmalar shu yerda '
+                'ko\'rinadi — ularni bo\'lib topshirish mumkin.',
           ),
-          _OrderList(
-            orders: deliveredToday,
-            currentUserId: widget.currentUserId,
-            currentUserName: widget.currentUserName,
-            access: widget.access,
-            emptyText: 'Bugun hali yetgazilgan buyurtma yo\'q',
+          _sortable(
+            s.readyForDelivery,
+            'Topshirishga tayyor buyurtma yo\'q',
+            Icons.check_circle_outline_rounded,
+            'Hamma xizmati tayyor bo\'lgan buyurtmalar shu yerga tushadi.',
           ),
         ],
       ),
@@ -200,59 +161,45 @@ class _YetgazmaScreenState extends State<YetgazmaScreen>
   }
 }
 
-class _OrderList extends StatelessWidget {
-  const _OrderList({
-    required this.orders,
-    required this.currentUserId,
-    required this.currentUserName,
-    required this.access,
-    required this.emptyText,
-    this.showDistance = false,
-    this.fromLat,
-    this.fromLng,
+class _CountTab extends StatelessWidget {
+  const _CountTab({
+    required this.label,
+    required this.count,
+    this.tone = StageTone.pickup,
   });
 
-  final List<Order> orders;
-  final String currentUserId;
-  final String currentUserName;
-  final StaffAccess access;
-  final String emptyText;
-
-  /// Kartada manzildan keyin masofa yozilsinmi.
-  ///
-  /// Faqat "Manzil" bo'yicha saralanganda: boshqa tartiblarda masofa
-  /// hech narsani tushuntirmaydi va shunchaki shovqin bo'lib qoladi.
-  final bool showDistance;
-
-  final double? fromLat;
-  final double? fromLng;
+  final String label;
+  final int count;
+  final StageTone tone;
 
   @override
   Widget build(BuildContext context) {
-    if (orders.isEmpty) {
-      return Center(
-        child: Text(emptyText, style: Theme.of(context).textTheme.bodyMedium),
-      );
-    }
-    return ListView.separated(
-      padding: EdgeInsets.fromLTRB(
-          16, 12, 16, 16 + MediaQuery.of(context).padding.bottom),
-      itemCount: orders.length + 1,
-      separatorBuilder: (_, __) => const SizedBox(height: 10),
-      itemBuilder: (context, index) {
-        if (index == 0) return CountBanner(count: orders.length);
-        final order = orders[index - 1];
-        return OrderCard(
-          order: order,
-          currentUserId: currentUserId,
-          currentUserName: currentUserName,
-          access: access,
-          section: WorkSection.yetgazma,
-          distanceMeters: showDistance
-              ? distanceTo(order, fromLat: fromLat, fromLng: fromLng)
-              : null,
-        );
-      },
+    return Tab(
+      height: 44,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(label),
+          if (count > 0) ...[
+            const SizedBox(width: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1),
+              decoration: BoxDecoration(
+                color: tone.soft(context),
+                borderRadius: BorderRadius.circular(99),
+              ),
+              child: Text(
+                '$count',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: tone.ink(context),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
     );
   }
 }

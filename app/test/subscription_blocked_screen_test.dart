@@ -3,6 +3,7 @@ import 'package:cscrm/services/license_service.dart';
 import 'package:cscrm/screens/subscription/subscription_blocked_screen.dart';
 import 'package:cscrm/theme/app_theme.dart';
 import 'package:flutter/material.dart';
+import 'package:cscrm/l10n/script.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// Bloklash ekrani to'g'ri chizilishini tekshiradi.
@@ -115,8 +116,8 @@ void main() {
     )));
     await tester.pump();
 
-    expect(find.text('Obuna muddati tugadi'), findsOneWidget);
-    expect(find.text('Obuna muddati tugagan. To\'lov qiling.'), findsOneWidget);
+    expect(find.text(t('Obuna muddati tugadi')), findsOneWidget);
+    expect(find.text(t('Obuna muddati tugagan. To\'lov qiling.')), findsOneWidget);
   });
 
   testWidgets('"Tekshirish" tugmasi ikkala rolga ham ko\'rinadi',
@@ -130,7 +131,7 @@ void main() {
       await tester.pump();
 
       expect(
-        find.text('Tekshirish'),
+        find.text(t('Tekshirish')),
         findsOneWidget,
         reason: 'xodim ham to\'lov o\'tganini o\'zi tekshira olishi kerak '
             '(isOwner=$isOwner)',
@@ -147,10 +148,10 @@ void main() {
     )));
     await tester.pump();
 
-    expect(find.text('Nima qilish kerak'), findsOneWidget);
-    expect(find.textContaining('biznes rahbari'), findsOneWidget);
+    expect(find.text(t('Nima qilish kerak')), findsOneWidget);
+    expect(find.textContaining(t('biznes rahbari')), findsOneWidget);
     expect(
-      find.text('Rejalar'),
+      find.text(t('Rejalar')),
       findsNothing,
       reason: 'xodim reja tanlamaydi',
     );
@@ -168,7 +169,7 @@ void main() {
     )));
     await tester.pump();
 
-    expect(find.text('Hisob to\'xtatilgan'), findsOneWidget);
+    expect(find.text(t('Hisob to\'xtatilgan')), findsOneWidget);
   });
 
   group('ogohlantirish holati — hali hech narsa tugamagan', () {
@@ -190,9 +191,9 @@ void main() {
       )));
       await tester.pump();
 
-      expect(find.text('Yillik baza to\'lovi yaqin'), findsOneWidget);
+      expect(find.text(t('Yillik baza to\'lovi yaqin')), findsOneWidget);
       expect(
-        find.text('Obuna muddati tugadi'),
+        find.text(t('Obuna muddati tugadi')),
         findsNothing,
         reason: 'bir umrlik rejada obuna degan narsa yo\'q',
       );
@@ -210,8 +211,8 @@ void main() {
       )));
       await tester.pump();
 
-      expect(find.text('Muddat tugayapti'), findsOneWidget);
-      expect(find.text('Obuna muddati tugadi'), findsNothing);
+      expect(find.text(t('Muddat tugayapti')), findsOneWidget);
+      expect(find.text(t('Obuna muddati tugadi')), findsNothing);
     });
   });
 
@@ -226,7 +227,7 @@ void main() {
     )));
     await tester.pump();
 
-    expect(find.text('Yillik baza to\'lovi'), findsOneWidget);
+    expect(find.text(t('Yillik baza to\'lovi')), findsOneWidget);
   });
 
   testWidgets('server javob bermasa ham ekran ishlaydi', (tester) async {
@@ -238,8 +239,8 @@ void main() {
     // Rejalar so'rovi tugashini kutamiz (tarmoq yo'q - xatolik bilan).
     await tester.pump(const Duration(seconds: 1));
 
-    expect(find.text('Tekshirish'), findsOneWidget);
-    expect(find.text('Biz bilan bog\'laning'), findsOneWidget);
+    expect(find.text(t('Tekshirish')), findsOneWidget);
+    expect(find.text(t('Biz bilan bog\'laning')), findsOneWidget);
   });
 
   group('to\'lov so\'rovi', () {
@@ -255,7 +256,7 @@ void main() {
         await tester.pump();
 
         expect(
-          find.text('Tasdiqlanishi kutilmoqda'),
+          find.text(t('Tasdiqlanishi kutilmoqda')),
           findsOneWidget,
           reason: 'xodim ham xabar berilganini bilishi kerak '
               '(isOwner=$isOwner)',
@@ -274,7 +275,7 @@ void main() {
       await tester.pump();
 
       expect(
-        find.text('To\'lov haqida xabar berish'),
+        find.text(t('To\'lov haqida xabar berish')),
         findsNothing,
         reason: 'server ikkinchi so\'rovni qabul qilmaydi',
       );
@@ -290,7 +291,7 @@ void main() {
       )));
       await tester.pump();
 
-      expect(find.text('To\'lov haqida xabar berish'), findsOneWidget);
+      expect(find.text(t('To\'lov haqida xabar berish')), findsOneWidget);
     });
 
     testWidgets('xodimga to\'lov tugmasi berilmaydi', (tester) async {
@@ -302,7 +303,7 @@ void main() {
       )));
       await tester.pump();
 
-      expect(find.text('To\'lov haqida xabar berish'), findsNothing);
+      expect(find.text(t('To\'lov haqida xabar berish')), findsNothing);
     });
 
     testWidgets('rad etilgan so\'rovda sabab ko\'rsatiladi', (tester) async {
@@ -317,8 +318,8 @@ void main() {
       )));
       await tester.pump();
 
-      expect(find.text('So\'rov rad etildi'), findsOneWidget);
-      expect(find.textContaining('To\'lov kelmadi'), findsOneWidget);
+      expect(find.text(t('So\'rov rad etildi')), findsOneWidget);
+      expect(find.textContaining(t('To\'lov kelmadi')), findsOneWidget);
     });
   });
 
@@ -334,9 +335,9 @@ void main() {
       )));
       await tester.pump();
 
-      expect(find.textContaining('9860'), findsNothing);
-      expect(find.textContaining('kartasi'), findsNothing);
-      expect(find.textContaining('Chekni yuborish'), findsNothing);
+      expect(find.textContaining(t('9860')), findsNothing);
+      expect(find.textContaining(t('kartasi')), findsNothing);
+      expect(find.textContaining(t('Chekni yuborish')), findsNothing);
     });
 
     testWidgets('aloqa tugmalari ikkala rolga ham ko\'rinadi',
@@ -350,9 +351,9 @@ void main() {
         )));
         await tester.pump();
 
-        expect(find.text('Telegram'), findsOneWidget,
+        expect(find.text(t('Telegram')), findsOneWidget,
             reason: 'isOwner=$isOwner');
-        expect(find.text('Qo\'ng\'iroq'), findsOneWidget,
+        expect(find.text(t('Qo\'ng\'iroq')), findsOneWidget,
             reason: 'isOwner=$isOwner');
       }
     });
@@ -366,8 +367,8 @@ void main() {
       )));
       await tester.pump();
 
-      expect(find.text('Rejani tanlang'), findsOneWidget);
-      expect(find.text('3 oylik'), findsOneWidget);
+      expect(find.text(t('Rejani tanlang')), findsOneWidget);
+      expect(find.text(t('3 oylik')), findsOneWidget);
     });
 
     testWidgets('xodimga reja ko\'rsatilmaydi', (tester) async {
@@ -379,7 +380,7 @@ void main() {
       )));
       await tester.pump();
 
-      expect(find.text('Rejani tanlang'), findsNothing);
+      expect(find.text(t('Rejani tanlang')), findsNothing);
     });
   });
 }

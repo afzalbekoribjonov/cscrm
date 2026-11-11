@@ -1,3 +1,5 @@
+import 'measure_unit.dart';
+
 /// Buyurtma ustidagi bitta o'zgarish yozuvi (audit jurnali).
 ///
 /// MUHIM: bu yozuvlar buyurtma tugunida EMAS, alohida
@@ -27,6 +29,8 @@ class OrderHistoryEntry {
     this.itemKey,
     this.amount,
     this.method,
+    this.quantity,
+    this.unit,
   });
 
   factory OrderHistoryEntry.fromMap(String key, Map<dynamic, dynamic> map) {
@@ -44,6 +48,8 @@ class OrderHistoryEntry {
       itemKey: map['itemKey'] as String?,
       amount: (map['amount'] as num?)?.toDouble(),
       method: map['method'] as String?,
+      quantity: (map['quantity'] as num?)?.toDouble(),
+      unit: MeasureUnit.fromKey(map['unit'] as String?),
     );
   }
 
@@ -78,6 +84,11 @@ class OrderHistoryEntry {
 
   /// Pul qanday qabul qilingani (`Naqd pul` / `Karta`).
   final String? method;
+
+  /// Xizmat bosqichi o'zgarganda — uning hajmi ("6 m²"). Xodimning
+  /// kunlik ishi shundan hisoblanadi. Eski yozuvlarda bo'lmaydi.
+  final double? quantity;
+  final MeasureUnit? unit;
 
   /// Yozuv shu xizmatga tegishlimi.
   ///

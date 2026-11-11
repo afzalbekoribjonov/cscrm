@@ -1,7 +1,8 @@
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
 import 'package:flutter/services.dart';
 
+import '../../l10n/text.dart';
 import '../../branding/app_branding.dart';
 import '../../branding/logo.dart';
 import '../../firebase_options.dart';

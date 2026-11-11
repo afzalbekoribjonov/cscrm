@@ -1,56 +1,33 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
 
-import '../models/staff_access.dart';
+import '../l10n/text.dart';
 import '../screens/notifications/notifications_screen.dart';
 import '../services/message_center.dart';
-import '../services/notification_center.dart';
 
-/// App bar'ning o'ng yuqori burchagidagi bildirishnoma qo'ng'irog'i.
-///
-/// Raqam IKKI manbadan yig'iladi: CSCRM'dan kelgan o'qilmagan xabarlar
-/// va boshqalar qilgan buyurtma hodisalari. Xodim o'z ishidan o'ziga
-/// bildirishnoma olmaydi.
+/// App bar'dagi xabarlar qo'ng'irog'i — o'qilmagan CSCRM xabarlari soni
+/// bilan.
 class NotificationAction extends StatelessWidget {
-  const NotificationAction({
-    super.key,
-    required this.currentUserId,
-    required this.currentUserName,
-    required this.access,
-  });
-
-  final String currentUserId;
-  final String currentUserName;
-  final StaffAccess access;
+  const NotificationAction({super.key});
 
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
-      listenable: Listenable.merge([
-        NotificationCenter.instance,
-        MessageCenter.instance,
-      ]),
+      listenable: MessageCenter.instance,
       builder: (context, _) {
-        final count = NotificationCenter.instance.unreadCount +
-            MessageCenter.instance.unreadCount;
+        final count = MessageCenter.instance.unreadCount;
         return IconButton(
-          tooltip: 'Bildirishnomalar',
+          tooltip: t('Xabarlar'),
           icon: Badge(
             label: Text('$count'),
             isLabelVisible: count > 0,
             child: Icon(
               count > 0
-                  ? Icons.notifications_active_rounded
+                  ? Icons.notifications_active_outlined
                   : Icons.notifications_none_rounded,
             ),
           ),
           onPressed: () => Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => NotificationsScreen(
-                currentUserId: currentUserId,
-                currentUserName: currentUserName,
-                access: access,
-              ),
-            ),
+            MaterialPageRoute(builder: (_) => const NotificationsScreen()),
           ),
         );
       },

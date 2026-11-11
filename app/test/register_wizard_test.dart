@@ -2,6 +2,7 @@ import 'package:cscrm/screens/auth/register_business_screen.dart';
 import 'package:cscrm/services/auth_service.dart';
 import 'package:cscrm/theme/app_theme.dart';
 import 'package:flutter/material.dart';
+import 'package:cscrm/l10n/script.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// Ro'yxatdan o'tish sehrgari — har bir savol alohida ekranda.
@@ -55,7 +56,7 @@ void main() {
     await tester.pumpWidget(wrap(const RegisterBusinessScreen()));
     await tester.pump();
 
-    expect(find.text('Biznesingiz nomi'), findsOneWidget);
+    expect(find.text(t('Biznesingiz nomi')), findsOneWidget);
     expect(
       find.byType(TextField),
       findsOneWidget,
@@ -82,7 +83,7 @@ void main() {
 
     await type(tester, 'Nihol gilam yuvish');
     await tapNext(tester);
-    expect(find.text('Telefon raqamingiz'), findsOneWidget);
+    expect(find.text(t('Telefon raqamingiz')), findsOneWidget);
 
     await type(tester, '+998 90 123');
     expect(
@@ -104,7 +105,7 @@ void main() {
     await type(tester, '998901234567');
     await tapNext(tester);
 
-    expect(find.text('Login o\'ylab toping'), findsOneWidget);
+    expect(find.text(t('Login o\'ylab toping')), findsOneWidget);
     await type(tester, 'ni');
     expect(actionEnabled(tester), isFalse);
 
@@ -113,7 +114,7 @@ void main() {
     expect(actionEnabled(tester), isTrue);
 
     await tapNext(tester);
-    expect(find.text('Parol yarating'), findsOneWidget);
+    expect(find.text(t('Parol yarating')), findsOneWidget);
 
     await type(tester, '12345');
     expect(actionEnabled(tester), isFalse);
@@ -133,9 +134,9 @@ void main() {
     await tester.tap(find.byIcon(Icons.arrow_back_rounded));
     await tester.pumpAndSettle();
 
-    expect(find.text('Biznesingiz nomi'), findsOneWidget);
+    expect(find.text(t('Biznesingiz nomi')), findsOneWidget);
     expect(
-      find.text('Nihol servis'),
+      find.text(t('Nihol servis')),
       findsOneWidget,
       reason: 'orqaga qaytganda yozilgan matn yo\'qolmasligi kerak',
     );
@@ -163,8 +164,8 @@ void main() {
     await tapNext(tester);
 
     expect(auth.calls, 1);
-    expect(find.text('Login o\'ylab toping'), findsOneWidget);
-    expect(find.text('Bu login band. Boshqasini tanlang.'), findsOneWidget);
+    expect(find.text(t('Login o\'ylab toping')), findsOneWidget);
+    expect(find.text(t('Bu login band. Boshqasini tanlang.')), findsOneWidget);
   });
 
   testWidgets('boshqa xatolik joyida ko\'rsatiladi', (tester) async {
@@ -182,8 +183,8 @@ void main() {
     await type(tester, 'parol123');
     await tapNext(tester);
 
-    expect(find.text('Parol yarating'), findsOneWidget);
-    expect(find.text('Javob kelmadi.'), findsOneWidget);
+    expect(find.text(t('Parol yarating')), findsOneWidget);
+    expect(find.text(t('Javob kelmadi.')), findsOneWidget);
   });
 
   testWidgets('xatolik yangi harf kiritilganda yo\'qoladi', (tester) async {
@@ -201,9 +202,9 @@ void main() {
     await type(tester, 'parol123');
     await tapNext(tester);
 
-    expect(find.text('Javob kelmadi.'), findsOneWidget);
+    expect(find.text(t('Javob kelmadi.')), findsOneWidget);
 
     await type(tester, 'parol1234');
-    expect(find.text('Javob kelmadi.'), findsNothing);
+    expect(find.text(t('Javob kelmadi.')), findsNothing);
   });
 }

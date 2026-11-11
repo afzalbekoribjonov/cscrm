@@ -1,153 +1,72 @@
 import 'package:flutter/material.dart';
 
-import '../../models/staff_access.dart';
+import '../../models/app_user.dart';
+import '../../models/item_status.dart';
+import '../../models/order.dart';
 import '../../models/work_section.dart';
 import '../../theme/app_colors.dart';
 import '../../utils/order_sections.dart';
-import '../../utils/wash_section_stats.dart';
-import '../../widgets/section_stats_bar.dart';
-import '../../widgets/admin_action.dart';
-import '../../widgets/settings_action.dart';
-import '../../widgets/notification_action.dart';
-import '../../widgets/my_activity_action.dart';
-import '../../widgets/order_card.dart';
-import '../../widgets/order_search_action.dart';
-import '../../widgets/finance_actions.dart';
+import '../../widgets/order_list_view.dart';
+import '../home/section_scaffold.dart';
+import 'unmeasured_screen.dart';
 
-/// "Yuvish" bo'limi - sexga kirgan, hali xizmat qo'shilmagan yoki kamida
-/// bitta xizmati "Yuvilmoqda"/"Qayta yuvildi" holatida bo'lgan
-/// buyurtmalarni ko'rsatadi.
+/// "Yuvish" bo'limi — sexga kirgan buyurtmalarning yuvilishi kerak
+/// bo'lgan xizmatlari.
+///
+/// Ilgari tepada 4 ta katta statistika kartasi turardi — ekranning
+/// yarmini egallardi. Endi faqat bitta narsa ko'rsatiladi: o'lchanmagan
+/// xizmatlar soni (qizil), u bosilganda ularning ro'yxati ochiladi.
 class WashScreen extends StatelessWidget {
-  const WashScreen({
-    super.key,
-    required this.sections,
-    required this.currentUserId,
-    required this.currentUserName,
-    required this.access,
-  });
+  const WashScreen({super.key, required this.sections, required this.user});
 
-  /// Bo'limlar HomeShell'da bir marta hisoblanadi - bu ekran filtrlamaydi.
   final OrderSections sections;
-  final String currentUserId;
-  final String currentUserName;
-  final StaffAccess access;
+  final AppUser user;
+
+  /// Qayta yuvishga qaytganlar — tepada: ular kechikkan ish.
+  List<Order> _sorted() {
+    final list = [...sections.wash];
+    int rank(Order o) =>
+        o.items.any((i) => i.status == ItemStatus.qaytaYuvildi) ? 0 : 1;
+    list.sort((a, b) => rank(a).compareTo(rank(b)));
+    return list;
+  }
 
   @override
   Widget build(BuildContext context) {
-    final filtered = sections.wash;
-    final stats = washSectionStats(filtered);
+    final orders = _sorted();
+    final items = orders.fold<int>(
+        0, (s, o) => s + o.items.where((i) => i.status.isWashStage).length);
+    final unmeasured = sections.unmeasured.length;
 
-    return Scaffold(
-      appBar: AppBar(
-        leading: const SettingsAction(),
-        title: const Text('Yuvish'),
-        actions: [
-          NotificationAction(
-            currentUserId: currentUserId,
-            currentUserName: currentUserName,
-            access: access,
-          ),
-          OrderSearchAction(
-            orders: sections.all,
-            currentUserId: currentUserId,
-            currentUserName: currentUserName,
-            access: access,
-            section: WorkSection.yuvish,
-          ),
-          ...financeActions(
-            access: access,
-            currentUserId: currentUserId,
-            currentUserName: currentUserName,
-          ),
-          if (!access.isAdmin && access.has(WorkSection.yetgazma))
-            MyActivityAction(
-              currentUserId: currentUserId,
-              currentUserName: currentUserName,
-              access: access,
-            ),
-          AdminAction(
-            isAdmin: access.isAdmin,
-            currentUserId: currentUserId,
-            currentUserName: currentUserName,
-          ),
-        ],
-      ),
-      body: filtered.isEmpty
-          ? Center(
-              child: Text(
-                'Yuvish navbatida buyurtma yo\'q',
-                style: Theme.of(context).textTheme.bodyMedium,
+    return SectionScaffold(
+      user: user,
+      section: WorkSection.yuvish,
+      sections: sections,
+      subtitle: orders.isEmpty
+          ? 'Navbat bo\'sh'
+          : '${orders.length} ta buyurtma · $items ta xizmat',
+      body: OrderListView(
+        orders: orders,
+        user: user,
+        section: WorkSection.yuvish,
+        emptyIcon: Icons.local_laundry_service_outlined,
+        emptyTitle: 'Yuvish navbatida buyurtma yo\'q',
+        emptyMessage: 'Sexga qabul qilingan buyurtmalar shu yerga tushadi.',
+        header: unmeasured == 0
+            ? null
+            : AlertStrip(
+                icon: Icons.straighten_rounded,
+                tone: StageTone.danger,
+                text: '$unmeasured ta xizmat o\'lchanmagan',
+                trailing: 'Ko\'rish',
+                onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => UnmeasuredScreen(
+                    refs: sections.unmeasured,
+                    user: user,
+                  ),
+                )),
               ),
-            )
-          : ListView.separated(
-              padding: EdgeInsets.fromLTRB(
-                  16, 12, 16, 16 + MediaQuery.of(context).padding.bottom),
-              itemCount: filtered.length + 1,
-              separatorBuilder: (_, __) => const SizedBox(height: 10),
-              itemBuilder: (context, index) {
-                if (index == 0) {
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 4),
-                    child: SectionStatsBar(stats: _statsFor(stats)),
-                  );
-                }
-                return OrderCard(
-                  order: filtered[index - 1],
-                  currentUserId: currentUserId,
-                  currentUserName: currentUserName,
-                  access: access,
-                  section: WorkSection.yuvish,
-                );
-              },
-            ),
+      ),
     );
   }
-}
-
-
-/// Ko'rsatkichlar MAZMUNIY tartibda: avval umumiy hajm, keyin ishni
-/// to'sib turgan narsalar, oxirida jarayondagi ish.
-///
-/// Nol bo'lgan "muammo" ko'rsatkichlari umuman chizilmaydi — sexdagi
-/// odamga "0 ta qayta yuvish" degan karta hech narsa bermaydi, faqat
-/// joy egallaydi.
-List<SectionStat> _statsFor(WashSectionStats s) {
-  return [
-    SectionStat(
-      icon: Icons.local_laundry_service_rounded,
-      color: AppColors.primary,
-      value: '${s.orderCount} ta',
-      label: 'Buyurtma yuvishda',
-    ),
-    if (s.rewashItems > 0)
-      SectionStat(
-        icon: Icons.replay_rounded,
-        color: AppColors.danger,
-        value: '${s.rewashItems} ta',
-        label: 'Qayta yuvish',
-        emphasise: true,
-      ),
-    if (s.ordersWithoutItems > 0)
-      SectionStat(
-        icon: Icons.playlist_add_rounded,
-        color: AppColors.warning,
-        value: '${s.ordersWithoutItems} ta',
-        label: 'Xizmat qo\'shilmagan',
-        emphasise: true,
-      ),
-    if (s.unmeasuredItems > 0)
-      SectionStat(
-        icon: Icons.straighten_rounded,
-        color: AppColors.warning,
-        value: '${s.unmeasuredItems} ta',
-        label: 'Mahsulot o\'lchanmagan',
-        emphasise: true,
-      ),
-    SectionStat(
-      icon: Icons.water_drop_rounded,
-      color: AppColors.statusWashing,
-      value: '${s.washingItems} ta',
-      label: 'Mahsulot yuvilmoqda',
-    ),
-  ];
 }

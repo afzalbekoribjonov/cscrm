@@ -3,6 +3,7 @@ import 'package:cscrm/screens/subscription/subscription_blocked_screen.dart';
 import 'package:cscrm/services/license_service.dart';
 import 'package:cscrm/theme/app_theme.dart';
 import 'package:flutter/material.dart';
+import 'package:cscrm/l10n/script.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// Ekran haqiqiy telefon o'lchamlarida buzilmasligini tekshiradi.
@@ -76,7 +77,7 @@ void main() {
   testWidgets('eng tor telefonda buzilmaydi', (tester) async {
     await pumpAt(tester, const Size(320, 3000));
     expect(tester.takeException(), isNull);
-    expect(find.text('Rejani tanlang'), findsOneWidget);
+    expect(find.text(t('Rejani tanlang')), findsOneWidget);
   });
 
   testWidgets('odatiy telefonda buzilmaydi', (tester) async {
@@ -94,9 +95,9 @@ void main() {
   testWidgets('oylik narx faqat ko\'p oylik rejalarda', (tester) async {
     await pumpAt(tester, const Size(390, 3000));
     // 3 oylik: 537000 / 3 = 179 000
-    expect(find.textContaining('179'), findsOneWidget);
+    expect(find.textContaining(t('179')), findsOneWidget);
     // 1 oylikda oylik narx takrorlanmaydi.
-    expect(find.textContaining('199 000 so\'m/oy'), findsNothing);
+    expect(find.textContaining(t('199 000 so\'m/oy')), findsNothing);
   });
 
   testWidgets('ommabop reja standart tanlangan', (tester) async {
@@ -106,7 +107,7 @@ void main() {
 
   testWidgets('boshqa reja bosilsa tanlov ko\'chadi', (tester) async {
     await pumpAt(tester, const Size(390, 3000));
-    await tester.tap(find.text('1 yillik'));
+    await tester.tap(find.text(t('1 yillik')));
     await tester.pump();
     expect(find.byIcon(Icons.radio_button_checked_rounded), findsOneWidget);
     expect(tester.takeException(), isNull);
@@ -114,6 +115,6 @@ void main() {
 
   testWidgets('bir umrlik yillik to\'lovi ko\'rinadi', (tester) async {
     await pumpAt(tester, const Size(390, 3000));
-    expect(find.textContaining('Yiliga \$50'), findsOneWidget);
+    expect(find.textContaining(t('Yiliga \$50')), findsOneWidget);
   });
 }

@@ -1,53 +1,71 @@
-import 'package:flutter/material.dart';
+import 'dart:async';
 
+import 'package:flutter/material.dart' hide Text;
+import 'package:url_launcher/url_launcher.dart';
+
+import '../../l10n/text.dart';
+import '../../models/app_user.dart';
+import '../../models/business_policies.dart';
 import '../../models/item_status.dart';
 import '../../models/order.dart';
 import '../../models/order_history_entry.dart';
 import '../../models/order_item.dart';
 import '../../models/order_status.dart';
 import '../../models/product.dart';
-import '../../models/staff_access.dart';
 import '../../models/staff_permission.dart';
 import '../../models/work_section.dart';
 import '../../services/location_service.dart';
 import '../../services/order_service.dart';
+import '../../services/policy_service.dart';
 import '../../services/product_service.dart';
 import '../../theme/app_colors.dart';
+import '../../theme/app_theme.dart';
+import '../../ui/action_menu.dart';
+import '../../ui/sheets.dart';
+import '../../ui/surfaces.dart';
+import '../../ui/uz_date_picker.dart';
+import '../../utils/date_utils.dart';
+import '../../utils/money.dart';
+import '../../utils/order_sections.dart';
+import '../../utils/phone.dart';
+import '../../utils/uz_dates.dart';
 import '../../widgets/edit_order_sheet.dart';
-import '../../widgets/order_card.dart' show dayBadgeColor, dayBadgeText;
 import '../../widgets/payment_dialog.dart';
 import '../../widgets/phone_link.dart';
-import '../../widgets/status_chip.dart';
+import '../../widgets/stage_visuals.dart';
 import '../../widgets/stream_error_view.dart';
 import '../new_order/cart_line.dart';
 import '../new_order/product_picker_sheet.dart';
 import 'widgets/comment_bubble.dart';
 import 'widgets/edit_item_sheet.dart';
-import 'widgets/order_action_cards.dart';
+import 'widgets/handover_sheet.dart';
 import 'widgets/order_history_view.dart';
-import 'widgets/order_item_card.dart';
+import 'widgets/order_item_tile.dart';
 import 'widgets/order_sheets.dart';
-import 'widgets/order_view_common.dart';
-import '../../utils/money.dart';
 
+/// Buyurtmaning to'liq ko'rinishi. Jonli: boshqa xodim nimanidir
+/// o'zgartirsa, ekran darhol yangilanadi.
+///
+/// Bo'limdan ochilganda FAQAT shu bo'limning xizmatlari to'liq
+/// ko'rsatiladi va faqat shu bo'limning amallari ochiq. Boshqa
+/// bo'limdagi xizmatlar pastda belgilar bilan.
 class OrderDetailScreen extends StatefulWidget {
   const OrderDetailScreen({
     super.key,
     required this.orderId,
-    required this.currentUserId,
-    required this.currentUserName,
-    required this.access,
+    required this.user,
     this.section,
+    @visibleForTesting this.orderStream,
   });
 
-  final int orderId;
-  final String currentUserId;
-  final String currentUserName;
-  final StaffAccess access;
+  /// Faqat sinov/rasm uchun — bazasiz namunaviy buyurtma.
+  final Stream<Order?>? orderStream;
 
-  /// Buyurtma qaysi bo'limdan ochilgani. null bo'lsa (masalan boshqaruv
-  /// paneli yoki hisobot ekranidan) - faqat ko'rish rejimi (admin bundan
-  /// mustasno, unga barcha amallar ochiq).
+  final int orderId;
+  final AppUser user;
+
+  /// Qaysi bo'limdan ochilgani. `null` — boshqaruvchi yoki qidiruvdan:
+  /// barcha xizmatlar ko'rinadi.
   final WorkSection? section;
 
   @override
@@ -55,124 +73,378 @@ class OrderDetailScreen extends StatefulWidget {
 }
 
 class _OrderDetailScreenState extends State<OrderDetailScreen> {
-  final _service = OrderService();
-  // Bir marta yaratilib saqlanadi - build() ichida chaqirilsa, mahalliy
-  // setState() yangi Stream obyekti hosil qilib, ekranni "waiting" holatiga
-  // qaytarib yuborardi.
-  late final _orderStream = _service.streamOrder(widget.orderId);
+  late final _service = OrderService();
+  late final _orderStream =
+      widget.orderStream ?? _service.streamOrder(widget.orderId);
 
-  /// Tarix ALOHIDA oqimda — u endi buyurtma tugunida emas.
-  ///
-  /// Shu sabab ro'yxat ekranlari tarixni umuman yuklamaydi; u faqat shu
-  /// karta ochilganda so'raladi.
-  late final _historyStream = _service.streamOrderHistory(widget.orderId);
+  /// Tarix faqat KERAK BO'LGANDA yuklanadi (tarix bo'limi ochilganda yoki
+  /// xizmat tarixi so'ralganda). Ilgari har bir buyurtma ochilishi bilan
+  /// yuklanardi — ko'pincha hech kim qaramasa ham.
+  final _history = ValueNotifier<List<OrderHistoryEntry>?>(null);
+  StreamSubscription<List<OrderHistoryEntry>>? _historySub;
 
-  /// Tarix hali kelmagan bo'lsa bo'sh — karta baribir ochiladi.
-  List<OrderHistoryEntry> _history = const [];
-  bool _commentsOpen = false;
-  bool _historyOpen = false;
   final _commentCtrl = TextEditingController();
-  bool _sendingComment = false;
-  bool _busy = false;
+  var _sendingComment = false;
+  var _historyOpen = false;
+  var _busy = false;
 
-  /// Admin qilgan o'zgarish tarixda "Admin" deb ko'rinadi.
-  String get _byName =>
-      widget.access.isAdmin ? 'Admin' : widget.currentUserName;
+  AppUser get _user => widget.user;
+  String get _byName => _user.historyName;
+  BusinessPolicies get _policies => PolicyCenter.instance.value;
 
-  bool get _isAdmin => widget.access.isAdmin;
+  @override
+  void dispose() {
+    _historySub?.cancel();
+    _history.dispose();
+    _commentCtrl.dispose();
+    super.dispose();
+  }
 
-  /// Yuvish bo'limidagi ishlar (xizmat qo'shish, o'lchash, qadoqlashga
-  /// o'tkazish) shu bo'limdan turibgina bajariladi.
-  bool get _canWashHere =>
-      widget.access.canActIn(widget.section, WorkSection.yuvish);
+  void _ensureHistory() {
+    _historySub ??= _service.streamOrderHistory(widget.orderId).listen(
+          (entries) => _history.value = entries,
+          onError: (Object _) => _history.value = const [],
+        );
+  }
 
-  bool get _canPackageHere =>
-      widget.access.canActIn(widget.section, WorkSection.qadoqlash);
+  // ------------------------------------------------------------ vakolatlar
 
+  bool _canIn(WorkSection s) => _user.access.canActIn(widget.section, s);
+  bool get _canWashHere => _canIn(WorkSection.yuvish);
+  bool get _canPackageHere => _canIn(WorkSection.qadoqlash);
   bool get _canTransportHere =>
-      widget.access.canActIn(widget.section, WorkSection.yetgazma);
+      _canIn(WorkSection.yetgazma) || _canIn(WorkSection.ombor);
 
-  /// Buyurtma ma'lumotlari va xizmatlarini o'zgartirish: buyurtma sexda
-  /// bo'lsa Yuvish vakolati bilan, olib kelinayotgan bo'lsa Yetgazma
-  /// vakolati bilan.
+  /// Buyurtma ma'lumoti va xizmatlarini o'zgartirish.
+  ///
+  /// Topshirilgan buyurtma YOPIQ — boshqaruvchiga ham: puli olingan va
+  /// kunlik hisobotga kirgan, keyin o'zgarsa hisobot buzilardi.
   bool _canManage(Order order) {
-    // YETGAZILGAN buyurtma YOPIQ — adminga ham.
-    //
-    // Sabab hisobda: buyurtma topshirilgan, puli olingan va u kunlik
-    // daromadga kirgan. Keyin unga xizmat qo'shilsa yoki narxi
-    // o'zgartirilsa, allaqachon yopilgan hisobot o'zgarib ketadi va
-    // kassa bilan raqam to'g'ri kelmay qoladi.
-    //
-    // Ilgari bu shart YO'Q edi: xodimga yopiq, adminga esa ochiq
-    // bo'lardi — chunki birinchi qator "admin bo'lsa hammasi mumkin"
-    // deb qaytarardi.
     if (order.status.isClosed) return false;
-
-    if (_isAdmin) return true;
+    if (_user.isManager) return true;
     if (order.status.isInWorkshop) return _canWashHere;
     if (order.status == OrderStatus.olibKelish) return _canTransportHere;
     return false;
   }
 
-  /// Xizmat hajmini o'lchash/narxini o'zgartirish - bo'lim vakolatidan
-  /// tashqari alohida "O'lchash va narx" huquqi ham talab qilinadi.
-  bool _canMeasure(Order order) =>
-      _canManage(order) && widget.access.can(StaffPermission.measure);
+  bool _canEditDetails(Order o) =>
+      _canManage(o) && _user.access.can(StaffPermission.editOrder);
+  bool _canDelete(Order o) =>
+      !o.status.isClosed && _user.access.can(StaffPermission.deleteOrder);
+  bool get _canSeePhone => _user.access.can(StaffPermission.viewPhone);
+  bool get _canComment => _user.access.can(StaffPermission.comment);
 
-  /// Mijoz ma'lumotlarini (ism, telefon, manzil, muddat) tahrirlash.
-  bool _canEditDetails(Order order) =>
-      _canManage(order) && widget.access.can(StaffPermission.editOrder);
+  ItemPermissions _itemPermissions(Order order) => ItemPermissions(
+        wash: _canWashHere && order.status.isInWorkshop,
+        package: _canPackageHere,
+        measure: _canManage(order) && _user.access.can(StaffPermission.measure),
+        rewash: _user.access.can(StaffPermission.rewash),
+        delete:
+            _canManage(order) && _user.access.can(StaffPermission.manageItems),
+        comment: _canComment,
+        measureBeforeWash: _policies.measureBeforeWash,
+        measureBeforePackaging: _policies.measureBeforePackaging,
+      );
 
-  /// O'chirish. Yopilgan buyurtmada berilmaydi — u hisobotga
-  /// kirgan, o'chirilsa kunlik daromad o'zgarib ketardi.
-  bool _canDelete(Order order) =>
-      !order.status.isClosed && widget.access.can(StaffPermission.deleteOrder);
+  // ---------------------------------------------------------------- amallar
 
-  bool get _canSeePhone => widget.access.can(StaffPermission.viewPhone);
-
-  /// Izoh yozish vakolati. O'qish hammaga ochiq - faqat yozish cheklanadi.
-  bool get _canComment => widget.access.can(StaffPermission.comment);
-
-  /// Xizmat turini almashtirish va xizmatni o'chirish vakolati.
-  bool get _canManageItems => widget.access.can(StaffPermission.manageItems);
-
-  @override
-  void dispose() {
-    _commentCtrl.dispose();
-    super.dispose();
+  Future<void> _run(Future<void> Function() action, {String? done}) async {
+    setState(() => _busy = true);
+    try {
+      await action();
+      if (mounted && done != null) showResult(context, done);
+    } on TimeoutException {
+      if (mounted) {
+        showResult(context,
+            'Internet aloqasi yo\'q. Aloqa tiklanganda qayta urinib ko\'ring.',
+            error: true);
+      }
+    } on LocationFailure catch (e) {
+      if (mounted) showResult(context, e.message, error: true);
+    } catch (e) {
+      debugPrint('Buyurtma amali bajarilmadi: $e');
+      if (mounted) {
+        showResult(context, 'Amalni bajarib bo\'lmadi. Qayta urinib ko\'ring.',
+            error: true);
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
   }
 
-  Future<void> _openEdit(Order order) async {
-    await showModalBottomSheet(
+  Future<void> _startWash(Order order, List<OrderItem> items) => _run(
+        () => _service.startWash(
+          order: order,
+          items: items,
+          byEmployeeId: _user.id,
+          byName: _byName,
+        ),
+        done: items.length == 1
+            ? '${items.first.productName} yuvishga olindi'
+            : '${items.length} ta xizmat yuvishga olindi',
+      );
+
+  Future<void> _advanceItem(Order order, OrderItem item, ItemStatus to) => _run(
+        () => _service.updateItemStatus(
+          order: order,
+          item: item,
+          toStatus: to,
+          byEmployeeId: _user.id,
+          byName: _byName,
+        ),
+        done: to == ItemStatus.tayyor
+            ? '${item.productName} tayyor'
+            : '${item.productName} qadoqlashga o\'tdi',
+      );
+
+  Future<void> _rewash(Order order, OrderItem item) async {
+    final reason = await showDialog<String>(
       context: context,
-      isScrollControlled: true,
-      builder: (_) => EditOrderSheet(order: order),
+      builder: (_) => RewashReasonDialog(
+        productName: item.productName,
+        reasonRequired: _policies.rewashReasonRequired,
+      ),
     );
+    if (reason == null || !mounted) return;
+    await _run(
+      () => _service.updateItemStatus(
+        order: order,
+        item: item,
+        toStatus: ItemStatus.qaytaYuvildi,
+        rewashReason: reason,
+        byEmployeeId: _user.id,
+        byName: _byName,
+      ),
+      done: '${item.productName} qayta yuvishga qaytarildi',
+    );
+  }
+
+  Future<void> _measure(Order order, OrderItem item) async {
+    Product? product;
+    setState(() => _busy = true);
+    try {
+      product = await ProductService().getProduct(item.productId);
+    } catch (_) {
+      product = null;
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+    if (!mounted) return;
+    if (product == null) {
+      showResult(context, 'Bu xizmat turi o\'chirilgan — o\'lchab bo\'lmadi.',
+          error: true);
+      return;
+    }
+    final result = await showAppSheet<ItemEditResult>(
+      context,
+      (_) => EditItemSheet(
+        product: product!,
+        currentHajm: item.hajm,
+        currentPrice: item.price,
+        canChangeProduct: _user.access.can(StaffPermission.manageItems),
+      ),
+    );
+    if (result == null || !mounted) return;
+    await _run(
+      () => _service.updateItemMeasurement(
+        order: order,
+        item: item,
+        hajm: result.hajm,
+        price: result.price,
+        unit: result.unit,
+        quantity: result.quantity,
+        newProductId:
+            result.productId == item.productId ? null : result.productId,
+        newProductName:
+            result.productName == item.productName ? null : result.productName,
+        byEmployeeId: _user.id,
+        byName: _byName,
+      ),
+      done: 'O\'lcham saqlandi',
+    );
+  }
+
+  Future<void> _deleteItem(Order order, OrderItem item) async {
+    final ok = await confirmAction(
+      context,
+      title: 'Xizmatni o\'chirish',
+      message: '"${item.productName}" buyurtmadan o\'chiriladi va narx qayta '
+          'hisoblanadi.',
+      confirmLabel: 'O\'chirish',
+      destructive: true,
+    );
+    if (!ok || !mounted) return;
+    await _run(
+      () => _service.deleteItem(
+        order: order,
+        item: item,
+        byEmployeeId: _user.id,
+        byName: _byName,
+      ),
+      done: 'Xizmat o\'chirildi',
+    );
+  }
+
+  Future<void> _addProducts(Order order) async {
+    final cart = await showAppSheet<List<CartLine>>(
+      context,
+      (_) => const ProductPickerSheet(),
+    );
+    if (cart == null || cart.isEmpty || !mounted) return;
+    await _run(
+      () => _service.addItemsToOrder(
+        orderId: order.id,
+        items: expandCartToDrafts(cart),
+        createdBy: _user.id,
+        createdByName: _byName,
+      ),
+      done: 'Xizmat qo\'shildi',
+    );
+  }
+
+  Future<void> _openComments(OrderItem item) => showAppSheet<void>(
+        context,
+        (_) => ItemCommentsSheet(
+          title: item.productName,
+          comments: item.comments,
+          canWrite: _canComment,
+          onSend: (text) => _service.addItemComment(
+            orderId: widget.orderId,
+            itemKey: item.key,
+            text: text,
+            authorId: _user.id,
+            authorName: _byName,
+          ),
+        ),
+      );
+
+  Future<void> _openItemHistory(OrderItem item) {
+    _ensureHistory();
+    return showAppSheet<void>(
+      context,
+      (_) => ValueListenableBuilder<List<OrderHistoryEntry>?>(
+        valueListenable: _history,
+        builder: (context, entries, _) => entries == null
+            ? const SizedBox(
+                height: 200, child: Center(child: CircularProgressIndicator()))
+            : ItemHistorySheet(
+                title: item.productName,
+                entries: entries
+                    .where((h) => h.belongsToItem(item.key, item.productName))
+                    .toList(),
+              ),
+      ),
+    );
+  }
+
+  Future<void> _saveGps(Order order) => _run(() async {
+        final position = await LocationService().getCurrentLocation();
+        await _service.savePickupLocation(
+          orderId: order.id,
+          latitude: position.latitude,
+          longitude: position.longitude,
+        );
+      }, done: 'Manzil GPS orqali saqlandi');
+
+  Future<void> _acceptPickup(Order order) async {
+    final p = _policies;
+    DateTime? deadline;
+    if (order.deadline == null) {
+      if (p.deadlineDays > 0) {
+        deadline =
+            startOfDay(DateTime.now()).add(Duration(days: p.deadlineDays));
+      } else if (p.deadlineRequired) {
+        deadline = await showUzDatePicker(
+          context,
+          title: 'Topshirish sanasi',
+          initial: startOfDay(DateTime.now()).add(const Duration(days: 1)),
+          first: startOfDay(DateTime.now()),
+          last: DateTime.now().add(const Duration(days: 365)),
+        );
+        if (deadline == null || !mounted) return;
+      }
+    }
+    await _run(
+      () => _service.advanceStatus(
+        order: order,
+        toStatus: OrderStatus.yuvishda,
+        byEmployeeId: _user.id,
+        byName: _byName,
+        deadline: deadline,
+      ),
+      done: 'Buyurtma sexga qabul qilindi',
+    );
+  }
+
+  Future<void> _deliver(Order order) async {
+    final result = await showAppSheet<PaymentResult>(
+      context,
+      (_) => PaymentDialog(
+        orderTotal: order.totalPrice,
+        prepaid: order.prepaidAmount,
+        allowDiscount: _user.access.can(StaffPermission.discount),
+        allowDebt: _policies.debtAllowed,
+      ),
+    );
+    if (result == null || !mounted) return;
+    await _run(
+      () => _service.markDelivered(
+        order: order,
+        paymentMethod: result.method,
+        paymentAmount: result.amount,
+        shortfallIsDiscount: result.shortfallIsDiscount,
+        byEmployeeId: _user.id,
+        byName: _byName,
+      ),
+      done: 'Buyurtma topshirildi',
+    );
+  }
+
+  Future<void> _handOver(Order order) async {
+    final result = await showAppSheet<HandoverResult>(
+      context,
+      (_) => HandoverSheet(order: order),
+    );
+    if (result == null || !mounted) return;
+    await _run(
+      () => _service.handOverItems(
+        order: order,
+        items: result.items,
+        amount: result.amount,
+        method: result.method,
+        byEmployeeId: _user.id,
+        byName: _byName,
+      ),
+      done: '${result.items.length} ta xizmat topshirildi',
+    );
+  }
+
+  Future<void> _openDirections(Order order) async {
+    try {
+      await LocationService()
+          .openDirections(order.pickupLat!, order.pickupLng!);
+    } on LocationFailure catch (e) {
+      if (mounted) showResult(context, e.message, error: true);
+    }
+  }
+
+  Future<void> _call(Order order) async {
+    final digits = digitsOnly(order.customerPhone);
+    if (digits.isEmpty) return;
+    await launchUrl(Uri(scheme: 'tel', path: '+$digits'),
+        mode: LaunchMode.externalApplication);
   }
 
   Future<void> _confirmDelete(Order order) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Buyurtmani o\'chirish'),
-        content: Text(
-          '${order.code} (${order.customerName}) butunlay o\'chiriladi. '
+    final ok = await confirmAction(
+      context,
+      title: 'Buyurtmani o\'chirish',
+      message: '${order.code} (${order.customerName}) butunlay o\'chiriladi. '
           'Bu amalni ortga qaytarib bo\'lmaydi.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Bekor qilish'),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('O\'chirish'),
-          ),
-        ],
-      ),
+      confirmLabel: 'O\'chirish',
+      destructive: true,
     );
-    if (confirmed != true) return;
+    if (!ok || !mounted) return;
     await _service.deleteOrder(order.id);
     if (mounted) Navigator.of(context).pop();
   }
@@ -185,7 +457,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
       await _service.addComment(
         orderId: order.id,
         text: text,
-        authorId: widget.currentUserId,
+        authorId: _user.id,
         authorName: _byName,
       );
       _commentCtrl.clear();
@@ -194,604 +466,712 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     }
   }
 
-  /// Buyurtmani qabul qilish. Topshirish sanasi shu bosqichda majburiy -
-  /// hali belgilanmagan bo'lsa avval kalendar ochiladi.
-  Future<void> _acceptPickup(Order order) async {
-    var deadline = order.deadline == null
-        ? null
-        : DateTime.fromMillisecondsSinceEpoch(order.deadline!);
-    if (deadline == null) {
-      deadline = await _pickDeadline();
-      // Kalendar ochiq turganda ekran yopilgan bo'lishi mumkin.
-      if (deadline == null || !mounted) return;
-    }
-
-    setState(() => _busy = true);
-    try {
-      if (order.deadline == null) {
-        await _service.setDeadline(
-          orderId: order.id,
-          deadline: deadline,
-          byEmployeeId: widget.currentUserId,
-          byName: _byName,
-        );
-      }
-      await _service.advanceStatus(
-        order: order,
-        toStatus: OrderStatus.yuvishda,
-        byEmployeeId: widget.currentUserId,
-        byName: _byName,
-      );
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
-  Future<DateTime?> _pickDeadline() async {
-    final now = DateTime.now();
-    return showDatePicker(
-      context: context,
-      initialDate: DateTime(now.year, now.month, now.day + 1),
-      firstDate: DateTime(now.year, now.month, now.day),
-      lastDate: now.add(const Duration(days: 365)),
-      helpText: 'Topshirish sanasini tanlang',
-      cancelText: 'Bekor qilish',
-      confirmText: 'Tanlash',
-    );
-  }
-
-  Future<void> _saveGps(Order order) async {
-    setState(() => _busy = true);
-    try {
-      final position = await LocationService().getCurrentLocation();
-      await _service.savePickupLocation(
-        orderId: order.id,
-        latitude: position.latitude,
-        longitude: position.longitude,
-      );
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('GPS manzil saqlandi')),
-        );
-      }
-    } on LocationFailure catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(e.message)));
-      }
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
-  Future<void> _openDirections(Order order) async {
-    if (!order.hasPickupLocation) {
-      await showDialog<void>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: const Text('GPS ma\'lumotlari saqlanmagan'),
-          content: const Text(
-            'Bu buyurtma olib kelinayotganda GPS manzil saqlanmagan, '
-            'shu sabab xaritada yo\'nalish ko\'rsatib bo\'lmaydi. '
-            'Mijozning manzili va telefon raqamidan foydalaning.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text('Yopish'),
+  void _openMenu(Order order) {
+    showActionMenu(
+      context,
+      title: order.code,
+      groups: [
+        MenuGroup(actions: [
+          if (_canEditDetails(order))
+            MenuAction(
+              icon: Icons.edit_outlined,
+              label: 'Ma\'lumotlarni tahrirlash',
+              subtitle: 'Ism, telefon, manzil va muddat',
+              onTap: () => showAppSheet<void>(
+                  context, (_) => EditOrderSheet(order: order)),
             ),
-          ],
-        ),
-      );
-      return;
-    }
-    try {
-      await LocationService()
-          .openDirections(order.pickupLat!, order.pickupLng!);
-    } on LocationFailure catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(e.message)));
-      }
-    }
-  }
-
-  Future<void> _deliver(Order order) async {
-    final result = await showModalBottomSheet<PaymentResult>(
-      context: context,
-      isScrollControlled: true,
-      builder: (_) => PaymentDialog(
-        orderTotal: order.totalPrice,
-        allowDiscount: widget.access.can(StaffPermission.discount),
-      ),
-    );
-    if (result == null || !mounted) return;
-    setState(() => _busy = true);
-    try {
-      await _service.markDelivered(
-        order: order,
-        paymentMethod: result.method,
-        paymentAmount: result.amount,
-        shortfallIsDiscount: result.shortfallIsDiscount,
-        byEmployeeId: widget.currentUserId,
-        byName: _byName,
-      );
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
-  Future<void> _advanceItem(Order order, OrderItem item, ItemStatus to) async {
-    setState(() => _busy = true);
-    try {
-      await _service.updateItemStatus(
-        order: order,
-        item: item,
-        toStatus: to,
-        byEmployeeId: widget.currentUserId,
-        byName: _byName,
-      );
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
-  Future<void> _rewash(Order order, OrderItem item) async {
-    final reason = await showDialog<String>(
-      context: context,
-      builder: (_) => RewashReasonDialog(productName: item.productName),
-    );
-    if (reason == null || !mounted) return;
-    setState(() => _busy = true);
-    try {
-      await _service.updateItemStatus(
-        order: order,
-        item: item,
-        toStatus: ItemStatus.qaytaYuvildi,
-        rewashReason: reason,
-        byEmployeeId: widget.currentUserId,
-        byName: _byName,
-      );
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
-  Future<void> _addItemComment(Order order, OrderItem item, String text) async {
-    if (text.trim().isEmpty) return;
-    await _service.addItemComment(
-      orderId: order.id,
-      itemKey: item.key,
-      text: text,
-      authorId: widget.currentUserId,
-      authorName: _byName,
+          if (_canSeePhone && digitsOnly(order.customerPhone).isNotEmpty)
+            MenuAction(
+              icon: Icons.call_outlined,
+              label: 'Qo\'ng\'iroq qilish',
+              subtitle: formatPhoneForDisplay(order.customerPhone),
+              tone: StageTone.success,
+              onTap: () => _call(order),
+            ),
+          if (order.hasPickupLocation)
+            MenuAction(
+              icon: Icons.near_me_outlined,
+              label: 'Xaritada yo\'l',
+              subtitle: 'Mijoz manziliga yo\'nalish',
+              tone: StageTone.info,
+              onTap: () => _openDirections(order),
+            ),
+        ]),
+        MenuGroup(actions: [
+          if (_canDelete(order))
+            MenuAction(
+              icon: Icons.delete_outline_rounded,
+              label: 'Buyurtmani o\'chirish',
+              destructive: true,
+              onTap: () => _confirmDelete(order),
+            ),
+        ]),
+      ],
     );
   }
 
-  Future<void> _addProducts(Order order) async {
-    final cart = await showModalBottomSheet<List<CartLine>>(
-      context: context,
-      isScrollControlled: true,
-      builder: (_) => const ProductPickerSheet(),
-    );
-    if (cart == null || cart.isEmpty || !mounted) return;
-    setState(() => _busy = true);
-    try {
-      await _service.addItemsToOrder(
-        orderId: order.id,
-        items: expandCartToDrafts(cart),
-        createdBy: widget.currentUserId,
-        createdByName: _byName,
-      );
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
-  Future<void> _editItem(Order order, OrderItem item) async {
-    setState(() => _busy = true);
-    Product? product;
-    try {
-      product = await ProductService().getProduct(item.productId);
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-    if (!mounted) return;
-    if (product == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Xizmat topilmadi, o\'lchab bo\'lmadi.')),
-      );
-      return;
-    }
-    final result = await showModalBottomSheet<ItemEditResult>(
-      context: context,
-      isScrollControlled: true,
-      builder: (_) => EditItemSheet(
-        product: product!,
-        currentHajm: item.hajm,
-        currentPrice: item.price,
-        // Xizmat turini almashtirish alohida vakolat talab qiladi.
-        canChangeProduct: _canManageItems,
-      ),
-    );
-    if (result == null || !mounted) return;
-    await _service.updateItemMeasurement(
-      order: order,
-      item: item,
-      hajm: result.hajm,
-      price: result.price,
-      unit: result.unit,
-      quantity: result.quantity,
-      newProductId:
-          result.productId == item.productId ? null : result.productId,
-      newProductName:
-          result.productName == item.productName ? null : result.productName,
-      byEmployeeId: widget.currentUserId,
-      byName: _byName,
-    );
-  }
-
-  Future<void> _deleteItem(Order order, OrderItem item) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Xizmatni o\'chirish'),
-        content: Text(
-          '"${item.productName}" buyurtmadan butunlay o\'chiriladi va '
-          'umumiy narx qayta hisoblanadi.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Bekor qilish'),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('O\'chirish'),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true || !mounted) return;
-    setState(() => _busy = true);
-    try {
-      await _service.deleteItem(
-        order: order,
-        item: item,
-        byEmployeeId: widget.currentUserId,
-        byName: _byName,
-      );
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
+  // ---------------------------------------------------------------- chizish
 
   @override
   Widget build(BuildContext context) {
-    // Tarix oqimi buyurtma oqimidan MUSTAQIL: tarix kelmasa ham karta
-    // ochilaveradi, faqat tarix bo'limi bo'sh turadi.
-    return StreamBuilder<List<OrderHistoryEntry>>(
-      stream: _historyStream,
-      builder: (context, historySnap) {
-        _history = historySnap.data ?? const [];
-        return _buildWithOrder(context);
-      },
-    );
-  }
-
-  Widget _buildWithOrder(BuildContext context) {
     return StreamBuilder<Order?>(
       stream: _orderStream,
       builder: (context, snapshot) {
+        final title = '№ ${widget.orderId}';
         if (snapshot.hasError) {
           return Scaffold(
-            appBar: AppBar(title: Text('Buyurtma #${widget.orderId}')),
+            appBar: AppBar(title: Text(title)),
             body: StreamErrorView(error: snapshot.error!),
           );
         }
         if (!snapshot.hasData) {
           return Scaffold(
-            appBar: AppBar(title: Text('Buyurtma #${widget.orderId}')),
+            appBar: AppBar(title: Text(title)),
             body: const Center(child: CircularProgressIndicator()),
           );
         }
         final order = snapshot.data;
         if (order == null) {
           return Scaffold(
-            appBar: AppBar(title: Text('Buyurtma #${widget.orderId}')),
-            body: const Center(child: Text('Bu buyurtma o\'chirilgan')),
+            appBar: AppBar(title: Text(title)),
+            body: const EmptyState(
+              icon: Icons.delete_sweep_outlined,
+              title: 'Bu buyurtma o\'chirilgan',
+            ),
           );
         }
-        return _buildBody(context, order);
+        return ValueListenableBuilder<BusinessPolicies>(
+          valueListenable: PolicyCenter.instance,
+          builder: (context, _, __) => _buildBody(context, order),
+        );
       },
     );
   }
 
   Widget _buildBody(BuildContext context, Order order) {
     final theme = Theme.of(context);
-    final dayText = dayBadgeText(order);
+    final place = placeOf(order, _policies, DateTime.now());
+    final perms = _itemPermissions(order);
+    final section = widget.section;
+    final mine = [
+      for (final i in order.items)
+        if (itemBelongsTo(i, section)) i,
+    ];
+    final others = [
+      for (final i in order.items)
+        if (!itemBelongsTo(i, section)) i,
+    ];
+    final awaitingWash = mine
+        .where((i) => i.status.awaitsWash && !i.isHanded)
+        .where((i) => !(_policies.measureBeforeWash && !i.hasNumericMeasure))
+        .toList();
+    final bottom = MediaQuery.of(context).padding.bottom;
     final canManage = _canManage(order);
-    final bottomInset = MediaQuery.of(context).padding.bottom;
 
     return Scaffold(
       appBar: AppBar(
         title: Text(order.code),
         actions: [
-          if (_canEditDetails(order))
-            IconButton(
-              tooltip: 'Tahrirlash',
-              icon: const Icon(Icons.edit_outlined),
-              onPressed: () => _openEdit(order),
-            ),
-          if (_canDelete(order))
-            IconButton(
-              tooltip: 'O\'chirish',
-              icon: const Icon(Icons.delete_outline_rounded,
-                  color: AppColors.danger),
-              onPressed: () => _confirmDelete(order),
-            ),
+          MoreButton(onPressed: () => _openMenu(order)),
+          const SizedBox(width: 4),
         ],
       ),
       body: AbsorbPointer(
         absorbing: _busy,
-        child: ListView(
-          padding: EdgeInsets.fromLTRB(14, 14, 14, 24 + bottomInset),
+        child: Stack(
           children: [
-            Card(
-              margin: EdgeInsets.zero,
-              child: Padding(
-                padding: const EdgeInsets.all(13),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            order.customerName,
-                            style: theme.textTheme.titleLarge
-                                ?.copyWith(fontWeight: FontWeight.w800),
-                          ),
-                        ),
-                        StatusChip(status: order.status),
-                      ],
-                    ),
-                    const SizedBox(height: 2),
-                    PhoneLink(
-                      phone: order.customerPhone,
-                      style: theme.textTheme.bodyMedium,
-                      iconSize: 16,
-                      masked: !_canSeePhone,
-                    ),
-                    if (order.address.isNotEmpty) ...[
-                      const SizedBox(height: 2),
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Icon(Icons.location_on_outlined,
-                              size: 16, color: context.colorTextSecondary),
-                          const SizedBox(width: 6),
-                          Expanded(
-                              child: Text(order.address,
-                                  style: theme.textTheme.bodyMedium)),
-                        ],
-                      ),
-                    ],
-                    const SizedBox(height: 9),
-                    const Divider(height: 1),
-                    const SizedBox(height: 9),
-                    Row(
-                      children: [
-                        Icon(Icons.event_rounded,
-                            size: 16, color: dayBadgeColor(context, order)),
-                        const SizedBox(width: 6),
-                        Expanded(
-                          child: Text(
-                            order.deadline == null
-                                ? 'Muddat belgilanmagan'
-                                : 'Topshirish: ${orderDateFormat.format(DateTime.fromMillisecondsSinceEpoch(order.deadline!))}'
-                                    '${dayText != null ? ' ($dayText)' : ''}',
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              fontWeight: FontWeight.w700,
-                              color: dayBadgeColor(context, order),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 5),
-                    Text(
-                      'Yaratdi: ${order.createdByName} · ${orderTimeFormat.format(DateTime.fromMillisecondsSinceEpoch(order.createdAt))}',
-                      style: theme.textTheme.bodySmall,
-                    ),
-                    if (order.pickedUpAt != null)
-                      Text(
-                        'Olib kelindi: ${orderTimeFormat.format(DateTime.fromMillisecondsSinceEpoch(order.pickedUpAt!))}',
-                        style: theme.textTheme.bodySmall,
-                      ),
-                    if (order.readyAt != null)
-                      Text(
-                        'Sex ishi tugadi: ${orderTimeFormat.format(DateTime.fromMillisecondsSinceEpoch(order.readyAt!))}',
-                        style: theme.textTheme.bodySmall,
-                      ),
-                    if (order.deliveredAt != null)
-                      Text(
-                        'Yetgazildi: ${orderTimeFormat.format(DateTime.fromMillisecondsSinceEpoch(order.deliveredAt!))}'
-                        '${order.paymentMethod != null ? ' · ${order.paymentMethod} · ${formatSom(order.paymentAmount ?? 0)}' : ''}',
-                        style: theme.textTheme.bodySmall,
-                      ),
-                    if (order.totalPrice > 0) ...[
-                      const SizedBox(height: 9),
-                      const Divider(height: 1),
-                      const SizedBox(height: 9),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text('Jami',
-                              style: theme.textTheme.bodyMedium
-                                  ?.copyWith(fontWeight: FontWeight.w700)),
-                          Text(
-                            formatSom(order.totalPrice),
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              color: AppColors.primary,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            ),
-            if (order.status == OrderStatus.olibKelish &&
-                _canTransportHere) ...[
-              const SizedBox(height: 12),
-              PickupActionCard(
-                hasGps: order.hasPickupLocation,
-                busy: _busy,
-                onSaveGps: () => _saveGps(order),
-                onAccept: () => _acceptPickup(order),
-              ),
-            ],
-            if (order.status == OrderStatus.yetgazishgaTayyor &&
-                _canTransportHere) ...[
-              const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  style: compactButtonStyle,
-                  onPressed: () => _openDirections(order),
-                  icon: const Icon(Icons.directions_rounded, size: 18),
-                  label: const Text('Yo\'lga chiqish'),
-                ),
-              ),
-              const SizedBox(height: 8),
-              TransportActionCard(
-                label: 'Barcha xizmatlar tayyor, yetgazish kutilmoqda.',
-                buttonLabel: 'Yetgazildi',
-                busy: _busy,
-                onPressed: () => _deliver(order),
-              ),
-            ],
-            const SizedBox(height: 14),
-            Row(
+            ListView(
+              padding:
+                  EdgeInsets.fromLTRB(Gap.page, 4, Gap.page, 32 + bottom),
               children: [
-                Text('Xizmatlar',
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w800,
-                      color: AppColors.primary,
-                    )),
-                const Spacer(),
-                if (canManage)
-                  TextButton.icon(
-                    style: TextButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 10),
-                      visualDensity: VisualDensity.compact,
+                _HeaderCard(
+                    order: order, place: place, canSeePhone: _canSeePhone),
+                ..._actionPanel(order, place),
+                const SizedBox(height: 20),
+                SectionHeader(
+                  title: section == null || section == WorkSection.yangi
+                      ? 'Xizmatlar'
+                      : '${section.label} bo\'limida',
+                  subtitle: mine.isEmpty
+                      ? null
+                      : '${mine.length} ta xizmat'
+                          '${order.items.length != mine.length ? ' · jami ${order.items.length}' : ''}',
+                  actionLabel: canManage ? 'Qo\'shish' : null,
+                  onAction: canManage ? () => _addProducts(order) : null,
+                ),
+                if (perms.wash && awaitingWash.length >= 2) ...[
+                  FilledButton.icon(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: StageTone.washing.fill,
+                      minimumSize: const Size.fromHeight(48),
                     ),
-                    onPressed: () => _addProducts(order),
-                    icon: const Icon(Icons.add_rounded, size: 18),
-                    label: const Text('Xizmat qo\'shish'),
+                    onPressed: () => _startWash(order, awaitingWash),
+                    icon: const Icon(Icons.local_laundry_service_rounded),
+                    label: Text('Hammasini yuvish (${awaitingWash.length})'),
                   ),
-              ],
-            ),
-            const SizedBox(height: 2),
-            if (order.items.isEmpty)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 6),
-                child: Text('Xizmat qo\'shilmagan',
-                    style: theme.textTheme.bodyMedium),
-              )
-            else
-              for (final item in order.items)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: OrderItemCard(
+                  const SizedBox(height: 10),
+                ],
+                if (order.items.isEmpty)
+                  AppCard(
+                    child: Row(
+                      children: [
+                        const IconTile(
+                            icon: Icons.playlist_add_rounded,
+                            tone: StageTone.warning),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            canManage
+                                ? 'Xizmat hali qo\'shilmagan. "Qo\'shish" '
+                                    'orqali qo\'shing.'
+                                : 'Xizmat hali qo\'shilmagan.',
+                            style: theme.textTheme.bodyMedium,
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                else if (mine.isEmpty)
+                  AppCard(
+                    child: Text(
+                      'Bu bo\'limda hozir ish yo\'q — xizmatlar boshqa '
+                      'bo\'limlarda.',
+                      style: theme.textTheme.bodyMedium
+                          ?.copyWith(color: context.colorTextSecondary),
+                    ),
+                  ),
+                for (final item in mine) ...[
+                  OrderItemTile(
                     key: ValueKey(item.key),
                     item: item,
-                    inWorkshop: order.status.isInWorkshop,
-                    canWash: _canWashHere,
-                    canPackage: _canPackageHere,
-                    canMeasure: _canMeasure(order),
-                    canRewash: _canPackageHere &&
-                        widget.access.can(StaffPermission.rewash),
-                    canComment: _canComment,
-                    canDelete: canManage && _canManageItems,
-                    itemHistory: _history
-                        .where(
-                            (h) => h.belongsToItem(item.key, item.productName))
-                        .toList(),
-                    onDelete: () => _deleteItem(order, item),
+                    permissions: perms,
+                    busy: _busy,
+                    onWash: () => _startWash(order, [item]),
                     onAdvance: (to) => _advanceItem(order, item, to),
                     onRewash: () => _rewash(order, item),
-                    onEdit: () => _editItem(order, item),
-                    onAddComment: (text) => _addItemComment(order, item, text),
+                    onMeasure: () => _measure(order, item),
+                    onDelete: () => _deleteItem(order, item),
+                    onComments: () => _openComments(item),
+                    onHistory: () => _openItemHistory(item),
                   ),
-                ),
-            const SizedBox(height: 4),
-            DropdownSection(
-              icon: Icons.mode_comment_outlined,
-              label: order.comments.isEmpty
-                  ? 'Izoh qoldirish'
-                  : '${order.comments.length} ta izoh',
-              open: _commentsOpen,
-              onToggle: () => setState(() => _commentsOpen = !_commentsOpen),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  for (final comment in order.comments)
-                    CommentBubble(
-                      authorName: comment.authorName,
-                      text: comment.text,
-                      createdAt: comment.createdAt,
-                    ),
-                  if (_canComment)
-                    Row(
-                      children: [
-                        Expanded(
-                          child: TextField(
-                            controller: _commentCtrl,
-                            textInputAction: TextInputAction.send,
-                            onSubmitted: (_) => _sendComment(order),
-                            decoration: const InputDecoration(
-                              hintText: 'Izoh yozing...',
-                              isDense: true,
-                            ),
-                          ),
-                        ),
-                        IconButton(
-                          icon: _sendingComment
-                              ? const SizedBox(
-                                  width: 16,
-                                  height: 16,
-                                  child:
-                                      CircularProgressIndicator(strokeWidth: 2),
-                                )
-                              : const Icon(Icons.send_rounded, size: 20),
-                          onPressed: _sendingComment
-                              ? null
-                              : () => _sendComment(order),
-                        ),
-                      ],
-                    ),
+                  const SizedBox(height: 10),
                 ],
+                if (others.isNotEmpty) _OtherSectionsCard(items: others),
+                const SizedBox(height: 18),
+                _CommentsCard(
+                  order: order,
+                  canComment: _canComment,
+                  controller: _commentCtrl,
+                  sending: _sendingComment,
+                  onSend: () => _sendComment(order),
+                ),
+                const SizedBox(height: 12),
+                _HistoryCard(
+                  open: _historyOpen,
+                  history: _history,
+                  onToggle: () {
+                    _ensureHistory();
+                    setState(() => _historyOpen = !_historyOpen);
+                  },
+                ),
+              ],
+            ),
+            if (_busy)
+              const Positioned(
+                left: 0,
+                right: 0,
+                top: 0,
+                child: LinearProgressIndicator(minHeight: 2),
               ),
-            ),
-            DropdownSection(
-              icon: Icons.history_rounded,
-              label: _history.isEmpty
-                  ? 'Tarix yo\'q'
-                  : '${_history.length} ta o\'zgarish tarixi',
-              open: _historyOpen,
-              onToggle: () => setState(() => _historyOpen = !_historyOpen),
-              child: HistoryTimeline(entries: _history),
-            ),
           ],
         ),
       ),
     );
   }
+
+  /// Buyurtma darajasidagi amallar: qabul qilish, topshirish, bo'lib
+  /// topshirish. Faqat tegishli bo'limdan ochilganda.
+  List<Widget> _actionPanel(Order order, OrderPlace place) {
+    final out = <Widget>[];
+    if (!_canTransportHere) return out;
+
+    if (order.status == OrderStatus.olibKelish) {
+      final gpsMissing =
+          _policies.pickupGpsRequired && !order.hasPickupLocation;
+      out.add(_ActionCard(
+        tone: StageTone.pickup,
+        icon: Icons.moped_rounded,
+        title: 'Mijozdan olib kelish',
+        message: order.hasPickupLocation
+            ? 'Manzil GPS orqali saqlangan.'
+            : gpsMissing
+                ? 'Qabul qilishdan oldin GPS manzilni saqlang.'
+                : 'Mijoz manzilida GPS manzilni saqlab qo\'ying — keyin '
+                    'topshirishda yo\'l ko\'rsatiladi.',
+        children: [
+          if (!order.hasPickupLocation)
+            OutlinedButton.icon(
+              onPressed: () => _saveGps(order),
+              icon: const Icon(Icons.my_location_rounded),
+              label: const Text('GPS saqlash'),
+            ),
+          FilledButton.icon(
+            onPressed: gpsMissing ? null : () => _acceptPickup(order),
+            icon: const Icon(Icons.move_to_inbox_rounded),
+            label: const Text('Qabul qilindi'),
+          ),
+        ],
+      ));
+    }
+
+    if (place == OrderPlace.ready || place == OrderPlace.warehouse) {
+      final warehouse = place == OrderPlace.warehouse;
+      out.add(_ActionCard(
+        tone: warehouse ? StageTone.warehouse : StageTone.ready,
+        icon: warehouse ? Icons.warehouse_rounded : Icons.check_circle_rounded,
+        title: warehouse ? 'Omborda turibdi' : 'Barcha xizmatlar tayyor',
+        message: order.prepaidAmount > 0
+            ? 'Qolgan to\'lov: ${formatSom(order.remainingDue)}'
+            : order.totalPrice > 0
+                ? 'To\'lov: ${formatSom(order.totalPrice)}'
+                : 'Mijozga topshirish kutilmoqda.',
+        children: [
+          if (order.hasPickupLocation)
+            OutlinedButton.icon(
+              onPressed: () => _openDirections(order),
+              icon: const Icon(Icons.near_me_outlined),
+              label: const Text('Yo\'lga chiqish'),
+            ),
+          FilledButton.icon(
+            onPressed: () => _deliver(order),
+            icon: const Icon(Icons.task_alt_rounded),
+            label: const Text('Topshirish'),
+          ),
+        ],
+      ));
+    }
+
+    if (place == OrderPlace.almostReady && _policies.partialHandoverEnabled) {
+      final ready = order.readyToHandItems.length;
+      final rest = order.unhandedItems.length - ready;
+      out.add(_ActionCard(
+        tone: StageTone.almost,
+        icon: Icons.timelapse_rounded,
+        title: '$ready ta xizmat tayyor',
+        message: 'Qolgan $rest ta xizmat hali sexda. Tayyorlarini hozir '
+            'topshirish mumkin.',
+        children: [
+          FilledButton.icon(
+            style:
+                FilledButton.styleFrom(backgroundColor: StageTone.almost.fill),
+            onPressed: () => _handOver(order),
+            icon: const Icon(Icons.call_split_rounded),
+            label: const Text('Bo\'lib topshirish'),
+          ),
+        ],
+      ));
+    }
+
+    return [
+      for (final w in out) ...[const SizedBox(height: 12), w],
+    ];
+  }
 }
 
-/// Bo'lim amallari uchun ixcham tugma o'lchami - ekranda kamroq joy egallaydi.
+// ---------------------------------------------------------------------------
+
+class _HeaderCard extends StatelessWidget {
+  const _HeaderCard({
+    required this.order,
+    required this.place,
+    required this.canSeePhone,
+  });
+
+  final Order order;
+  final OrderPlace place;
+  final bool canSeePhone;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final visual = placeVisual(place);
+    final badge = deadlineBadge(order);
+    final created = UzDates.fromMillis(order.createdAt);
+
+    return AppCard(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Text(
+                  order.customerName.isEmpty ? 'Mijoz' : order.customerName,
+                  style: theme.textTheme.headlineSmall,
+                ),
+              ),
+              const SizedBox(width: 8),
+              TonePill(label: visual.label, tone: visual.tone, icon: visual.icon),
+            ],
+          ),
+          const SizedBox(height: 6),
+          PhoneLink(
+            phone: order.customerPhone,
+            masked: !canSeePhone,
+            iconSize: 16,
+            style: theme.textTheme.bodyMedium,
+          ),
+          if (order.address.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.place_outlined,
+                    size: 17, color: context.colorTextSecondary),
+                const SizedBox(width: 6),
+                Expanded(
+                  child:
+                      Text(order.address, style: theme.textTheme.bodyMedium),
+                ),
+                if (order.hasPickupLocation)
+                  const Padding(
+                    padding: EdgeInsets.only(left: 6),
+                    child: TonePill(
+                      label: 'GPS',
+                      tone: StageTone.success,
+                      icon: Icons.my_location_rounded,
+                      dense: true,
+                    ),
+                  ),
+              ],
+            ),
+          ],
+          const SizedBox(height: 10),
+          Divider(height: 1, color: context.colorBorder),
+          const SizedBox(height: 6),
+          InfoRow(
+            icon: Icons.event_outlined,
+            label: 'Topshirish muddati',
+            value: order.deadline == null
+                ? 'Belgilanmagan'
+                : '${UzDates.date(UzDates.fromMillis(order.deadline!))}'
+                    '${badge != null ? ' · ${badge.label}' : ''}',
+            valueColor: badge?.tone.ink(context),
+          ),
+          InfoRow(
+            icon: Icons.person_outline_rounded,
+            label: 'Qabul qildi',
+            value:
+                '${order.createdByName.isEmpty ? '—' : order.createdByName} · '
+                '${UzDates.dateTime(created)}',
+          ),
+          if (order.pickedUpAt != null)
+            InfoRow(
+              icon: Icons.move_to_inbox_outlined,
+              label: 'Olib kelindi',
+              value: UzDates.dateTime(UzDates.fromMillis(order.pickedUpAt!)),
+            ),
+          if (order.readyAt != null)
+            InfoRow(
+              icon: Icons.check_circle_outline_rounded,
+              label: 'Tayyor bo\'ldi',
+              value: UzDates.dateTime(UzDates.fromMillis(order.readyAt!)),
+            ),
+          if (order.deliveredAt != null)
+            InfoRow(
+              icon: Icons.task_alt_rounded,
+              label: 'Topshirildi',
+              value:
+                  '${UzDates.dateTime(UzDates.fromMillis(order.deliveredAt!))}'
+                  '${order.delivered!.name.isNotEmpty ? ' · ${order.delivered!.name}' : ''}',
+            ),
+          if (order.totalPrice > 0 || order.status.isClosed) ...[
+            const SizedBox(height: 6),
+            Divider(height: 1, color: context.colorBorder),
+            const SizedBox(height: 6),
+            InfoRow(
+              label: 'Jami',
+              value: formatSom(order.totalPrice),
+              emphasize: true,
+            ),
+            if (order.prepaidAmount > 0 && !order.status.isClosed)
+              InfoRow(
+                label: 'Oldindan to\'langan',
+                value: formatSom(order.prepaidAmount),
+                valueColor: StageTone.success.ink(context),
+              ),
+            if (order.status.isClosed) ...[
+              InfoRow(
+                label:
+                    'To\'langan${order.paymentMethod != null ? ' (${order.paymentMethod})' : ''}',
+                value: formatSom(order.paymentAmount ?? 0),
+                valueColor: StageTone.success.ink(context),
+              ),
+              if (order.debtAmount > 0)
+                InfoRow(
+                  label: 'Qarz',
+                  value: formatSom(order.debtAmount),
+                  valueColor: StageTone.danger.ink(context),
+                ),
+              if (order.discountAmount > 0)
+                InfoRow(label: 'Skidka', value: formatSom(order.discountAmount)),
+            ],
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _ActionCard extends StatelessWidget {
+  const _ActionCard({
+    required this.tone,
+    required this.icon,
+    required this.title,
+    required this.message,
+    required this.children,
+  });
+
+  final StageTone tone;
+  final IconData icon;
+  final String title;
+  final String message;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return AppCard(
+      color: tone.soft(context),
+      borderColor: tone.fill.withValues(alpha: 0.35),
+      padding: const EdgeInsets.all(14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Icon(icon, color: tone.ink(context)),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  title,
+                  style: theme.textTheme.titleSmall
+                      ?.copyWith(color: tone.ink(context)),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Padding(
+            padding: const EdgeInsets.only(left: 34),
+            child: Text(message, style: theme.textTheme.bodySmall),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              for (var i = 0; i < children.length; i++) ...[
+                if (i > 0) const SizedBox(width: 8),
+                Expanded(child: children[i]),
+              ],
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Boshqa bo'limlardagi xizmatlar — faqat belgi va son. Ular boshqa
+/// xodimning ishi: bu yerda batafsil ko'rsatilmaydi.
+class _OtherSectionsCard extends StatelessWidget {
+  const _OtherSectionsCard({required this.items});
+
+  final List<OrderItem> items;
+
+  @override
+  Widget build(BuildContext context) {
+    final counts = <ItemStage, int>{};
+    for (final item in items) {
+      final s = ItemStage.of(item);
+      counts[s] = (counts[s] ?? 0) + 1;
+    }
+    return AppCard(
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      color: context.colorSurfaceMuted,
+      borderColor: Colors.transparent,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Boshqa bo\'limlarda',
+            style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                  color: context.colorTextSecondary,
+                  fontWeight: FontWeight.w700,
+                ),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              for (final stage in ItemStage.values)
+                if (counts.containsKey(stage))
+                  TonePill(
+                    label:
+                        '${counts[stage]} · ${stage.visual.label.toLowerCase()}',
+                    tone: stage.visual.tone,
+                    icon: stage.visual.icon,
+                    dense: true,
+                  ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CommentsCard extends StatelessWidget {
+  const _CommentsCard({
+    required this.order,
+    required this.canComment,
+    required this.controller,
+    required this.sending,
+    required this.onSend,
+  });
+
+  final Order order;
+  final bool canComment;
+  final TextEditingController controller;
+  final bool sending;
+  final VoidCallback onSend;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    if (order.comments.isEmpty && !canComment) return const SizedBox.shrink();
+    return AppCard(
+      padding: const EdgeInsets.fromLTRB(14, 12, 8, 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.forum_outlined,
+                  size: 18, color: context.colorTextSecondary),
+              const SizedBox(width: 8),
+              Text(
+                order.comments.isEmpty
+                    ? 'Izohlar'
+                    : 'Izohlar · ${order.comments.length}',
+                style: theme.textTheme.titleSmall,
+              ),
+            ],
+          ),
+          if (order.comments.isNotEmpty) const SizedBox(height: 8),
+          for (final c in order.comments)
+            CommentBubble(
+              authorName: c.authorName,
+              text: c.text,
+              createdAt: c.createdAt,
+            ),
+          if (canComment) ...[
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: controller,
+                    minLines: 1,
+                    maxLines: 4,
+                    textInputAction: TextInputAction.send,
+                    onSubmitted: (_) => onSend(),
+                    decoration: InputDecoration(
+                      hintText: t('Izoh yozing…'),
+                      isDense: true,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  tooltip: t('Yuborish'),
+                  onPressed: sending ? null : onSend,
+                  icon: sending
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : Icon(Icons.send_rounded,
+                          color: context.colorPrimaryInk),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _HistoryCard extends StatelessWidget {
+  const _HistoryCard({
+    required this.open,
+    required this.history,
+    required this.onToggle,
+  });
+
+  final bool open;
+  final ValueNotifier<List<OrderHistoryEntry>?> history;
+  final VoidCallback onToggle;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return AppCard(
+      padding: EdgeInsets.zero,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          InkWell(
+            onTap: onToggle,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(14, 14, 10, 14),
+              child: Row(
+                children: [
+                  Icon(Icons.history_rounded,
+                      size: 18, color: context.colorTextSecondary),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text('O\'zgarishlar tarixi',
+                        style: theme.textTheme.titleSmall),
+                  ),
+                  Icon(
+                    open
+                        ? Icons.keyboard_arrow_up_rounded
+                        : Icons.keyboard_arrow_down_rounded,
+                    color: context.colorTextSecondary,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (open)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+              child: ValueListenableBuilder<List<OrderHistoryEntry>?>(
+                valueListenable: history,
+                builder: (context, entries, _) => entries == null
+                    ? const Padding(
+                        padding: EdgeInsets.all(12),
+                        child: Center(child: CircularProgressIndicator()),
+                      )
+                    : HistoryTimeline(entries: entries),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}

@@ -1,7 +1,8 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
 import 'package:intl/intl.dart';
 import 'package:table_calendar/table_calendar.dart' hide isSameDay;
 
+import '../l10n/text.dart';
 import '../theme/app_colors.dart';
 import '../utils/date_utils.dart';
 

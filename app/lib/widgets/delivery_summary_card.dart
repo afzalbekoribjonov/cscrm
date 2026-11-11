@@ -1,5 +1,7 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
 
+import '../l10n/text.dart';
+import '../models/app_user.dart';
 import '../models/order.dart';
 import '../models/staff_access.dart';
 import '../models/staff_permission.dart';
@@ -38,9 +40,11 @@ class DeliverySummaryCard extends StatelessWidget {
           MaterialPageRoute(
             builder: (_) => OrderDetailScreen(
               orderId: order.id,
-              currentUserId: currentUserId,
-              currentUserName: currentUserName,
-              access: access,
+              user: AppUser(
+                id: currentUserId,
+                name: currentUserName,
+                access: access,
+              ),
             ),
           ),
         ),

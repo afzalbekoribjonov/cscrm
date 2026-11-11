@@ -74,14 +74,18 @@ IncomeStats incomeForRange(
     add(order.paymentMethod, order.paidAtDelivery);
   }
 
-  // 2) Qarz to'lovlari — o'z sanasi va o'z usuli bilan.
+  // 2) Qarz to'lovlari va bo'lib topshirishda olingan pul — o'z sanasi
+  //    va o'z usuli bilan. Bo'lib topshirishdagi pul oxirgi
+  //    topshirishdagi summaga (`deliveryPaidAmount`) KIRMAYDI, shuning
+  //    uchun ikki marta sanalmaydi.
   for (final entry in history) {
-    if (entry.type != 'debt_settled') continue;
+    final isDebt = entry.type == 'debt_settled';
+    if (!isDebt && entry.type != 'partial_delivery') continue;
     if (!isWithinRange(entry.at, start, end)) continue;
     final amount = entry.amount;
     if (amount == null || amount <= 0) continue;
     add(entry.method, amount);
-    debtPayments += amount;
+    if (isDebt) debtPayments += amount;
   }
 
   return IncomeStats(

@@ -1,4 +1,6 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+
+import '../l10n/text.dart';
 
 /// Ixcham statistik ko'rsatkich kartasi: ikonka, qiymat va yorliq.
 ///

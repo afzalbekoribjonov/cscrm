@@ -8,6 +8,8 @@ import 'package:intl/intl.dart';
 
 import 'branding/app_branding.dart';
 import 'firebase_options.dart';
+import 'l10n/material_cyrillic.dart';
+import 'l10n/script.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/home/home_shell.dart';
 import 'screens/splash/firebase_unavailable_screen.dart';
@@ -28,6 +30,11 @@ void main() async {
   await initializeDateFormatting('uz');
   Intl.defaultLocale = 'uz';
   await ThemeController.instance.load();
+  await ScriptController.instance.load();
+  // Yozuv almashganda butun ilova QAYTA CHIZILADI — ochiq ekranlar va
+  // ularning holati saqlanib qoladi. Oddiy qayta qurish yetmaydi: ko'p
+  // vidjetlar o'zgarmas (const) va o'zlari yangilanmaydi.
+  ScriptController.instance.addListener(_rebuildEverything);
 
   Object? firebaseError;
   try {
@@ -69,6 +76,18 @@ void main() async {
   runApp(CscrmApp(firebaseError: firebaseError));
 }
 
+/// Ilovadagi har bir vidjetni qayta chizishga belgilaydi.
+void _rebuildEverything() {
+  final root = WidgetsBinding.instance.rootElement;
+  if (root == null) return;
+  void mark(Element element) {
+    element.markNeedsBuild();
+    element.visitChildren(mark);
+  }
+
+  root.visitChildren(mark);
+}
+
 class CscrmApp extends StatelessWidget {
   const CscrmApp({super.key, required this.firebaseError});
 
@@ -76,9 +95,13 @@ class CscrmApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder<ThemeMode>(
-      valueListenable: ThemeController.instance,
-      builder: (context, mode, _) {
+    return ListenableBuilder(
+      listenable: Listenable.merge([
+        ThemeController.instance,
+        ScriptController.instance,
+      ]),
+      builder: (context, _) {
+        final cyrillic = ScriptController.instance.isCyrillic;
         return MaterialApp(
           title: AppBranding.name,
           debugShowCheckedModeBanner: false,
@@ -86,14 +109,19 @@ class CscrmApp extends StatelessWidget {
           // o'zbekcha bo'lsin.
           locale: const Locale('uz'),
           supportedLocales: const [Locale('uz'), Locale('en')],
-          localizationsDelegates: const [
-            GlobalMaterialLocalizations.delegate,
+          // Kirill yozuvida tizim matnlari (kalendar, nusxa olish
+          // menyusi, tugmalar) ham kirillda bo'lishi kerak.
+          localizationsDelegates: [
+            if (cyrillic)
+              const UzCyrillicMaterialDelegate()
+            else
+              GlobalMaterialLocalizations.delegate,
             GlobalWidgetsLocalizations.delegate,
             GlobalCupertinoLocalizations.delegate,
           ],
           theme: AppTheme.light(),
           darkTheme: AppTheme.dark(),
-          themeMode: mode,
+          themeMode: ThemeController.instance.value,
           // Qulf ENG TASHQARIDA turadi: u ilovaning istalgan ekranini
           // bekitishi kerak, ichkaridagi biror ekranga bog'lanib
           // qolmasligi kerak.

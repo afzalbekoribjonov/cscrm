@@ -17,6 +17,10 @@ class OrderItem {
     this.rewashReason,
     this.unit,
     this.quantity = 0,
+    this.washStartedAt,
+    this.handedAt,
+    this.handedBy = '',
+    this.handedByName = '',
   });
 
   factory OrderItem.fromMap(String key, Map<dynamic, dynamic> map) {
@@ -42,6 +46,8 @@ class OrderItem {
       }
     }
 
+    final handedAt = (map['handedAt'] as num?)?.toInt();
+
     return OrderItem(
       key: key,
       itemId: map['itemId'] as String? ?? '',
@@ -55,13 +61,17 @@ class OrderItem {
       rewashReason: map['rewashReason'] as String?,
       unit: unit,
       quantity: quantity,
+      washStartedAt: (map['washStartedAt'] as num?)?.toInt(),
+      handedAt: handedAt != null && handedAt > 0 ? handedAt : null,
+      handedBy: map['handedBy'] as String? ?? '',
+      handedByName: map['handedByName'] as String? ?? '',
     );
   }
 
   /// Firebase'dagi items map ichidagi kalit (masalan "1", "2").
   final String key;
 
-  /// Ko'rsatish uchun ID, masalan "12/3" (buyurtma #12ning 3-mahsuloti).
+  /// Ko'rsatish uchun ID, masalan "12/3" (12-buyurtmaning 3-xizmati).
   final String itemId;
   final String productId;
   final String productName;
@@ -69,12 +79,11 @@ class OrderItem {
   final double price;
   final String createdBy;
 
-  /// Mahsulotning sexdagi joriy jarayon holati - buyurtmaning umumiy
-  /// holatidan mustaqil, har bir mahsulot alohida siljiydi.
+  /// Xizmatning sexdagi joriy holati — buyurtma holatidan mustaqil.
   final ItemStatus status;
   final List<Comment> comments;
 
-  /// "Qayta yuvildi" belgilanganda kiritilgan sabab.
+  /// "Qayta yuvish" belgilanganda kiritilgan sabab.
   final String? rewashReason;
 
   /// Statistika uchun raqamli o'lchov birligi va miqdori. O'lchanmagan
@@ -82,7 +91,28 @@ class OrderItem {
   final MeasureUnit? unit;
   final double quantity;
 
+  /// "Yuvish" tugmasi bosilgan payt — "12 daqiqadan beri yuvilmoqda".
+  final int? washStartedAt;
+
+  /// Mijozga topshirilgan payt. Bo'lib topshirishda xizmat buyurtmaning
+  /// qolganidan oldin beriladi; holati "Tayyor" bo'lib qoladi.
+  final int? handedAt;
+  final String handedBy;
+  final String handedByName;
+
+  bool get isHanded => handedAt != null;
+
+  /// Hajm matni kiritilganmi (narx hisoblangan).
   bool get isMeasured => hajm.isNotEmpty;
+
+  /// Hisobot uchun RAQAMLI o'lchov bormi.
+  ///
+  /// Matn bor-u raqam yo'q bo'lsa xizmat hajm hisobotiga tushmaydi —
+  /// shuning uchun "o'lchanmagan" deb sanaladi.
+  bool get hasNumericMeasure => unit != null && quantity > 0;
+
+  /// Mijozga hali berilmagan, tayyor xizmat.
+  bool get isReadyToHand => status == ItemStatus.tayyor && !isHanded;
 
   Map<String, Object?> toMap() => {
         'itemId': itemId,
@@ -95,5 +125,9 @@ class OrderItem {
         if (rewashReason != null) 'rewashReason': rewashReason,
         if (unit != null) 'unit': unit!.key,
         if (quantity > 0) 'quantity': quantity,
+        if (washStartedAt != null) 'washStartedAt': washStartedAt,
+        if (handedAt != null) 'handedAt': handedAt,
+        if (handedBy.isNotEmpty) 'handedBy': handedBy,
+        if (handedByName.isNotEmpty) 'handedByName': handedByName,
       };
 }

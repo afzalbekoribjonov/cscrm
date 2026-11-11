@@ -1,96 +1,47 @@
 import 'package:flutter/material.dart';
 
-import '../../models/staff_access.dart';
+import '../../models/app_user.dart';
+import '../../models/item_status.dart';
 import '../../models/work_section.dart';
 import '../../utils/order_sections.dart';
-import '../../widgets/count_banner.dart';
-import '../../widgets/admin_action.dart';
-import '../../widgets/settings_action.dart';
-import '../../widgets/notification_action.dart';
-import '../../widgets/my_activity_action.dart';
-import '../../widgets/order_card.dart';
-import '../../widgets/order_search_action.dart';
-import '../../widgets/finance_actions.dart';
+import '../../widgets/order_list_view.dart';
+import '../home/section_scaffold.dart';
 
-/// "Qadoqlash" bo'limi - kamida bitta xizmati "Qadoqlashda" holatida
-/// bo'lgan buyurtmalarni ko'rsatadi.
+/// "Qadoqlash" bo'limi — kamida bitta xizmati qadoqlashda turgan
+/// buyurtmalar.
 class PackagingScreen extends StatelessWidget {
   const PackagingScreen({
     super.key,
     required this.sections,
-    required this.currentUserId,
-    required this.currentUserName,
-    required this.access,
+    required this.user,
   });
 
-  /// Bo'limlar HomeShell'da bir marta hisoblanadi - bu ekran filtrlamaydi.
   final OrderSections sections;
-  final String currentUserId;
-  final String currentUserName;
-  final StaffAccess access;
+  final AppUser user;
 
   @override
   Widget build(BuildContext context) {
-    final filtered = sections.packaging;
+    final orders = sections.packaging;
+    final items = orders.fold<int>(
+        0,
+        (s, o) =>
+            s + o.items.where((i) => i.status == ItemStatus.qadoqlashda).length);
 
-    return Scaffold(
-      appBar: AppBar(
-        leading: const SettingsAction(),
-        title: const Text('Qadoqlash'),
-        actions: [
-          NotificationAction(
-            currentUserId: currentUserId,
-            currentUserName: currentUserName,
-            access: access,
-          ),
-          OrderSearchAction(
-            orders: sections.all,
-            currentUserId: currentUserId,
-            currentUserName: currentUserName,
-            access: access,
-            section: WorkSection.qadoqlash,
-          ),
-          ...financeActions(
-            access: access,
-            currentUserId: currentUserId,
-            currentUserName: currentUserName,
-          ),
-          if (!access.isAdmin && access.has(WorkSection.yetgazma))
-            MyActivityAction(
-              currentUserId: currentUserId,
-              currentUserName: currentUserName,
-              access: access,
-            ),
-          AdminAction(
-            isAdmin: access.isAdmin,
-            currentUserId: currentUserId,
-            currentUserName: currentUserName,
-          ),
-        ],
+    return SectionScaffold(
+      user: user,
+      section: WorkSection.qadoqlash,
+      sections: sections,
+      subtitle: orders.isEmpty
+          ? 'Navbat bo\'sh'
+          : '${orders.length} ta buyurtma · $items ta xizmat',
+      body: OrderListView(
+        orders: orders,
+        user: user,
+        section: WorkSection.qadoqlash,
+        emptyIcon: Icons.inventory_2_outlined,
+        emptyTitle: 'Qadoqlash navbatida buyurtma yo\'q',
+        emptyMessage: 'Yuvilgan xizmatlar shu yerga tushadi.',
       ),
-      body: filtered.isEmpty
-          ? Center(
-              child: Text(
-                'Qadoqlash navbatida buyurtma yo\'q',
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
-            )
-          : ListView.separated(
-              padding: EdgeInsets.fromLTRB(
-                  16, 12, 16, 16 + MediaQuery.of(context).padding.bottom),
-              itemCount: filtered.length + 1,
-              separatorBuilder: (_, __) => const SizedBox(height: 10),
-              itemBuilder: (context, index) {
-                if (index == 0) return CountBanner(count: filtered.length);
-                return OrderCard(
-                  order: filtered[index - 1],
-                  currentUserId: currentUserId,
-                  currentUserName: currentUserName,
-                  access: access,
-                  section: WorkSection.qadoqlash,
-                );
-              },
-            ),
     );
   }
 }

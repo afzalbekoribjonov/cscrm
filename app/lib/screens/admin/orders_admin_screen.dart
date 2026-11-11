@@ -1,5 +1,7 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
 
+import '../../l10n/text.dart';
+import '../../models/app_user.dart';
 import '../../models/order.dart';
 import '../../models/staff_access.dart';
 import '../../services/order_service.dart';
@@ -138,9 +140,12 @@ class _OrdersAdminScreenState extends State<OrdersAdminScreen> {
                         padding: const EdgeInsets.only(bottom: 10),
                         child: OrderCard(
                           order: order,
-                          currentUserId: widget.currentUserId,
-                          currentUserName: widget.currentUserName,
-                          access: const StaffAccess.admin(),
+                          user: AppUser(
+                            id: widget.currentUserId,
+                            name: widget.currentUserName,
+                            access: const StaffAccess.admin(),
+                          ),
+                          showPrice: true,
                         ),
                       ),
                     ),

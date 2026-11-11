@@ -1,18 +1,15 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import 'package:flutter/services.dart';
 
+import '../l10n/text.dart';
 import '../theme/app_colors.dart';
+import '../theme/app_theme.dart';
+import '../ui/sheets.dart';
+import '../ui/surfaces.dart';
+import '../utils/delivery_stats.dart';
 import '../utils/money.dart';
-import 'item_measurement_form.dart' show fmtSom;
 
-/// To'liq olinmagan summa nima deb yozilishi.
-enum ShortfallKind {
-  /// Mijoz keyin to'laydi - buyurtma "Qarzdorlar" ro'yxatiga tushadi.
-  debt,
-
-  /// Kechirildi - hech qachon olinmaydi.
-  discount,
-}
-
+/// Topshirish natijasi.
 class PaymentResult {
   const PaymentResult({
     required this.method,
@@ -20,69 +17,109 @@ class PaymentResult {
     required this.shortfallIsDiscount,
   });
 
+  /// "Naqd pul" yoki "Karta" — hisobotlar shu matnga tayanadi.
   final String method;
-
-  /// Mijozdan olingan summa.
   final double amount;
 
-  /// Yetmagan qismni kechirishmi (`true`) yoki qarz deb yozishmi (`false`).
-  ///
-  /// Summaning O'ZI bu yerda hisoblanmaydi - uni server, o'zidagi joriy
-  /// narxdan kelib chiqib belgilaydi. Sabab: oyna ochiq turganda sexdagi
-  /// xodim buyurtmaga yangi xizmat qo'shishi mumkin, va oynadagi eski
-  /// narxdan hisoblansa farq yo'qolib ketardi.
+  /// To'liq olinmagan qism: `true` — kechirildi (skidka), `false` — qarz.
   final bool shortfallIsDiscount;
 }
 
-/// Yetgazma bo'limida "Yetgazildi" bosilganda ochiladigan to'lov oynasi.
+/// To'lov usuli tanlovi — ilova bo'ylab bir xil.
+class PaymentMethodPicker extends StatelessWidget {
+  const PaymentMethodPicker({
+    super.key,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final String value;
+  final ValueChanged<String> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return SegmentedButton<String>(
+      showSelectedIcon: false,
+      segments: const [
+        ButtonSegment(
+          value: cashPaymentLabel,
+          icon: Icon(Icons.payments_outlined),
+          label: Text('Naqd pul'),
+        ),
+        ButtonSegment(
+          value: cardPaymentLabel,
+          icon: Icon(Icons.credit_card_rounded),
+          label: Text('Karta'),
+        ),
+      ],
+      selected: {value},
+      onSelectionChanged: (s) => onChanged(s.first),
+    );
+  }
+}
+
+/// Buyurtmani mijozga TOPSHIRISH oynasi.
 ///
-/// Kam summa kiritilsa farq avtomatik "skidka" deb yozilmaydi - dastavchik
-/// uni aniq tanlaydi: **Qarz** (mijoz keyin to'laydi) yoki **Skidka**
-/// (kechirildi). Skidka tanlash faqat tegishli vakolat bo'lganda ochiq.
+/// Bo'lib topshirishda oldindan olingan pul alohida ko'rsatiladi va
+/// mijozdan faqat QOLGAN qism so'raladi. Kam olinsa — farq qarz yoki
+/// skidka sifatida yoziladi (qaysi biri ruxsat etilgan bo'lsa).
 class PaymentDialog extends StatefulWidget {
   const PaymentDialog({
     super.key,
     required this.orderTotal,
     required this.allowDiscount,
+    this.prepaid = 0,
+    this.allowDebt = true,
   });
 
-  /// Buyurtmaning umumiy narxi. 0 bo'lsa (xizmatlar hali o'lchanmagan)
-  /// farqni hisoblashning ma'nosi yo'q - summa erkin kiritiladi.
+  /// Buyurtmaning to'liq narxi.
   final double orderTotal;
 
-  /// "Skidka berish" vakolati. Yo'q bo'lsa farq faqat qarz bo'la oladi.
+  /// Oldindan (bo'lib topshirishda) olingan pul.
+  final double prepaid;
+
+  /// "Skidka berish" vakolati.
   final bool allowDiscount;
+
+  /// "Ilova qonuniyatlari": qarzga topshirishga ruxsat.
+  final bool allowDebt;
 
   @override
   State<PaymentDialog> createState() => _PaymentDialogState();
 }
 
+enum _Shortfall { debt, discount }
+
 class _PaymentDialogState extends State<PaymentDialog> {
-  String _method = 'Naqd pul';
+  String _method = cashPaymentLabel;
   final _amountCtrl = TextEditingController();
-  ShortfallKind _shortfallKind = ShortfallKind.debt;
+  late _Shortfall _shortfallKind =
+      widget.allowDebt ? _Shortfall.debt : _Shortfall.discount;
   String? _error;
 
+  /// Narx ma'lum emas (xizmatlar o'lchanmagan) — summa erkin kiritiladi.
   bool get _knownTotal => widget.orderTotal > 0;
 
-  double get _entered =>
-      parseMoney(_amountCtrl.text);
+  double get _due {
+    final d = widget.orderTotal - widget.prepaid;
+    return d > 0 ? d : 0;
+  }
 
-  /// To'lanmagan qism. Ortiqcha to'lansa 0 bo'ladi.
+  double get _entered => parseMoney(_amountCtrl.text);
+
   double get _shortfall {
     if (!_knownTotal) return 0;
-    final diff = widget.orderTotal - _entered;
+    final diff = _due - _entered;
     return diff > 0 ? diff : 0;
   }
+
+  bool get _canLeaveShortfall => widget.allowDebt || widget.allowDiscount;
 
   @override
   void initState() {
     super.initState();
-    // Odatda to'liq summa olinadi - shu sabab maydon oldindan to'ldiriladi
-    // va dastavchik faqat kam olgan holatda o'zgartiradi.
-    if (_knownTotal) {
-      _amountCtrl.text = formatMoney(widget.orderTotal);
-    }
+    // Odatda to'liq summa olinadi — maydon oldindan to'ldiriladi.
+    if (_knownTotal && _due > 0) _amountCtrl.text = formatMoney(_due);
   }
 
   @override
@@ -93,19 +130,24 @@ class _PaymentDialogState extends State<PaymentDialog> {
 
   void _submit() {
     final amount = _entered;
-    if (amount <= 0) {
-      setState(() => _error = 'Summani to\'g\'ri kiriting');
+    if (_knownTotal && amount > _due) {
+      setState(() => _error = 'Summa qolgan to\'lovdan ko\'p bo\'lmasin');
       return;
     }
-    if (_knownTotal && amount > widget.orderTotal) {
-      setState(() => _error = 'Summa buyurtma narxidan ko\'p bo\'lmasin');
+    if (!_knownTotal && amount <= 0) {
+      setState(() => _error = 'Olingan summani kiriting');
       return;
     }
-    // Vakolat SHU YERDA ham qayta tekshiriladi. Ilgari faqat ko'rinish
-    // darajasida ("skidka" tugmasi ko'rsatilmasligi bilan) himoyalangan
-    // edi - bu yetarli emas.
-    final isDiscount =
-        widget.allowDiscount && _shortfallKind == ShortfallKind.discount;
+    if (_shortfall > 0 && !_canLeaveShortfall) {
+      setState(() => _error = 'To\'liq summani oling — qarzga topshirish '
+          'qoidalarda o\'chirilgan');
+      return;
+    }
+    // Vakolat SHU YERDA ham qayta tekshiriladi — faqat tugmani
+    // yashirish yetarli emas.
+    final isDiscount = _shortfall > 0 &&
+        (_shortfallKind == _Shortfall.discount || !widget.allowDebt) &&
+        widget.allowDiscount;
 
     Navigator.of(context).pop(PaymentResult(
       method: _method,
@@ -119,229 +161,110 @@ class _PaymentDialogState extends State<PaymentDialog> {
     final theme = Theme.of(context);
     final shortfall = _shortfall;
 
-    return Padding(
-      padding: EdgeInsets.only(
-        left: 20,
-        right: 20,
-        top: 12,
-        bottom: MediaQuery.of(context).viewInsets.bottom +
-            MediaQuery.of(context).padding.bottom +
-            20,
-      ),
-      child: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text('To\'lov', style: theme.textTheme.titleMedium),
-                ),
-                IconButton(
-                  tooltip: 'Yopish',
-                  icon: const Icon(Icons.close_rounded),
-                  onPressed: () => Navigator.of(context).pop(),
-                ),
-              ],
-            ),
-            if (_knownTotal) ...[
-              const SizedBox(height: 2),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text('Buyurtma narxi', style: theme.textTheme.bodyMedium),
-                  Text(
-                    fmtSom(widget.orderTotal),
-                    style: theme.textTheme.bodyMedium
-                        ?.copyWith(fontWeight: FontWeight.w800),
-                  ),
-                ],
-              ),
-            ],
-            const SizedBox(height: 12),
-            SegmentedButton<String>(
-              segments: const [
-                ButtonSegment(
-                  value: 'Naqd pul',
-                  label: Text('Naqd pul'),
-                  icon: Icon(Icons.payments_outlined),
-                ),
-                ButtonSegment(
-                  value: 'Karta',
-                  label: Text('Karta'),
-                  icon: Icon(Icons.credit_card_rounded),
-                ),
-              ],
-              selected: {_method},
-              onSelectionChanged: (s) => setState(() => _method = s.first),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _amountCtrl,
-              keyboardType: TextInputType.number,
-              inputFormatters: const [MoneyInputFormatter()],
-              onChanged: (_) => setState(() => _error = null),
-              decoration: const InputDecoration(
-                labelText: 'Qabul qilingan summa',
-                suffixText: 'so\'m',
-              ),
-            ),
-            if (shortfall > 0) ...[
-              const SizedBox(height: 16),
-              _ShortfallSection(
-                shortfall: shortfall,
-                kind: _shortfallKind,
-                allowDiscount: widget.allowDiscount,
-                onChanged: (k) => setState(() => _shortfallKind = k),
-              ),
-            ],
-            if (_error != null) ...[
-              const SizedBox(height: 10),
-              Text(_error!, style: TextStyle(color: theme.colorScheme.error)),
-            ],
-            const SizedBox(height: 20),
-            ElevatedButton(
-                onPressed: _submit, child: const Text('Topshirildi')),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// Kam olingan summa uchun "Qarz / Skidka" tanlovi.
-class _ShortfallSection extends StatelessWidget {
-  const _ShortfallSection({
-    required this.shortfall,
-    required this.kind,
-    required this.allowDiscount,
-    required this.onChanged,
-  });
-
-  final double shortfall;
-  final ShortfallKind kind;
-  final bool allowDiscount;
-  final ValueChanged<ShortfallKind> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Container(
-      padding: const EdgeInsets.all(13),
-      decoration: BoxDecoration(
-        color: AppColors.warning.withValues(alpha: 0.10),
-        borderRadius: BorderRadius.circular(13),
+    return SheetFrame(
+      title: 'Topshirish',
+      subtitle: 'Mijozdan olingan to\'lovni kiriting',
+      actions: FilledButton.icon(
+        onPressed: _submit,
+        icon: const Icon(Icons.task_alt_rounded),
+        label: const Text('Topshirildi'),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text('To\'lanmagan farq', style: theme.textTheme.bodyMedium),
-              Text(
-                fmtSom(shortfall),
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w800,
-                  color: AppColors.warning,
-                ),
+          if (_knownTotal)
+            AppCard(
+              padding: const EdgeInsets.fromLTRB(14, 8, 14, 8),
+              color: context.colorSurfaceMuted,
+              borderColor: Colors.transparent,
+              child: Column(
+                children: [
+                  InfoRow(label: 'Buyurtma narxi', value: formatSom(widget.orderTotal)),
+                  if (widget.prepaid > 0)
+                    InfoRow(
+                      label: 'Oldindan to\'langan',
+                      value: '− ${formatSom(widget.prepaid)}',
+                      valueColor: StageTone.success.ink(context),
+                    ),
+                  const Divider(height: 12),
+                  InfoRow(
+                    label: 'Olinishi kerak',
+                    value: formatSom(_due),
+                    emphasize: true,
+                  ),
+                ],
               ),
+            ),
+          const SizedBox(height: 16),
+          PaymentMethodPicker(
+            value: _method,
+            onChanged: (m) => setState(() => _method = m),
+          ),
+          const SizedBox(height: 14),
+          TextField(
+            controller: _amountCtrl,
+            keyboardType: TextInputType.number,
+            inputFormatters: [
+              FilteringTextInputFormatter.digitsOnly,
+              const MoneyInputFormatter(),
             ],
-          ),
-          const SizedBox(height: 10),
-          _KindOption(
-            selected: kind == ShortfallKind.debt,
-            icon: Icons.schedule_rounded,
-            color: AppColors.danger,
-            title: 'Qarz',
-            subtitle: 'Mijoz keyin to\'laydi, qarzdorlarga tushadi',
-            onTap: () => onChanged(ShortfallKind.debt),
-          ),
-          const SizedBox(height: 8),
-          _KindOption(
-            selected: kind == ShortfallKind.discount,
-            icon: Icons.percent_rounded,
-            color: AppColors.success,
-            title: 'Skidka',
-            subtitle: allowDiscount
-                ? 'Kechiriladi, boshqa olinmaydi'
-                : 'Bu vakolat sizga berilmagan',
-            enabled: allowDiscount,
-            onTap: () => onChanged(ShortfallKind.discount),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _KindOption extends StatelessWidget {
-  const _KindOption({
-    required this.selected,
-    required this.icon,
-    required this.color,
-    required this.title,
-    required this.subtitle,
-    required this.onTap,
-    this.enabled = true,
-  });
-
-  final bool selected;
-  final IconData icon;
-  final Color color;
-  final String title;
-  final String subtitle;
-  final VoidCallback onTap;
-  final bool enabled;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final active = selected && enabled;
-    return Opacity(
-      opacity: enabled ? 1 : 0.45,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(11),
-        onTap: enabled ? onTap : null,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 10),
-          decoration: BoxDecoration(
-            color: context.colorSurface,
-            borderRadius: BorderRadius.circular(11),
-            border: Border.all(
-              color: active ? color : context.colorBorder,
-              width: active ? 1.6 : 1,
+            style: theme.textTheme.titleLarge?.copyWith(
+              fontFeatures: AppFonts.tabular,
+            ),
+            onChanged: (_) => setState(() => _error = null),
+            decoration: InputDecoration(
+              labelText: t('Olingan summa'),
+              suffixText: t('so\'m'),
+              errorText: _error == null ? null : t(_error!),
             ),
           ),
-          child: Row(
-            children: [
-              Icon(
-                active
-                    ? Icons.radio_button_checked_rounded
-                    : Icons.radio_button_unchecked_rounded,
-                size: 19,
-                color: active ? color : context.colorTextSecondary,
-              ),
-              const SizedBox(width: 10),
-              Icon(icon, size: 17, color: color),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: theme.textTheme.titleSmall
-                          ?.copyWith(fontWeight: FontWeight.w700),
+          if (shortfall > 0) ...[
+            const SizedBox(height: 14),
+            Text(
+              '${formatSom(shortfall)} olinmadi. Bu summa:',
+              style: theme.textTheme.bodyMedium
+                  ?.copyWith(fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 8),
+            if (_canLeaveShortfall)
+              SegmentedButton<_Shortfall>(
+                showSelectedIcon: false,
+                segments: [
+                  if (widget.allowDebt)
+                    const ButtonSegment(
+                      value: _Shortfall.debt,
+                      icon: Icon(Icons.request_quote_outlined),
+                      label: Text('Qarzga'),
                     ),
-                    Text(subtitle, style: theme.textTheme.bodySmall),
-                  ],
-                ),
+                  if (widget.allowDiscount)
+                    const ButtonSegment(
+                      value: _Shortfall.discount,
+                      icon: Icon(Icons.percent_rounded),
+                      label: Text('Skidka'),
+                    ),
+                ],
+                selected: {
+                  widget.allowDebt ? _shortfallKind : _Shortfall.discount,
+                },
+                onSelectionChanged: (s) =>
+                    setState(() => _shortfallKind = s.first),
+              )
+            else
+              Text(
+                'Qarzga topshirish o\'chirilgan — to\'liq summani oling.',
+                style: theme.textTheme.bodySmall
+                    ?.copyWith(color: StageTone.danger.ink(context)),
               ),
-            ],
-          ),
-        ),
+            const SizedBox(height: 6),
+            Text(
+              _shortfallKind == _Shortfall.discount && widget.allowDiscount ||
+                      !widget.allowDebt
+                  ? 'Skidka — mijozdan boshqa olinmaydi.'
+                  : 'Qarz — mijoz keyinroq to\'laydi, "Qarzdorlar"ga tushadi.',
+              style: theme.textTheme.bodySmall,
+            ),
+          ],
+        ],
       ),
     );
   }

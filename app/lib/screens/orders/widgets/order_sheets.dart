@@ -1,5 +1,6 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
 
+import '../../../l10n/text.dart';
 import '../../../models/comment.dart';
 import '../../../models/order_history_entry.dart';
 import '../../../theme/app_colors.dart';
@@ -226,9 +227,16 @@ class SheetScaffold extends StatelessWidget {
 /// bo'lishi mumkin, shu sabab mahsulot ma'lumoti ham qaytariladi.
 
 class RewashReasonDialog extends StatefulWidget {
-  const RewashReasonDialog({super.key, required this.productName});
+  const RewashReasonDialog({
+    super.key,
+    required this.productName,
+    this.reasonRequired = true,
+  });
 
   final String productName;
+
+  /// "Ilova qonuniyatlari": sabab yozish majburiymi.
+  final bool reasonRequired;
 
   @override
   State<RewashReasonDialog> createState() => RewashReasonDialogState();
@@ -261,9 +269,10 @@ class RewashReasonDialogState extends State<RewashReasonDialog> {
             autofocus: true,
             maxLines: 3,
             onChanged: (_) => setState(() {}),
-            decoration: const InputDecoration(
-              labelText: 'Sababi',
-              hintText: 'Sababni yozing...',
+            decoration: InputDecoration(
+              labelText:
+                  t(widget.reasonRequired ? 'Sababi' : 'Sababi (ixtiyoriy)'),
+              hintText: t('Masalan: dog\' ketmagan'),
             ),
           ),
         ],
@@ -275,7 +284,7 @@ class RewashReasonDialogState extends State<RewashReasonDialog> {
         ),
         FilledButton(
           style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
-          onPressed: _ctrl.text.trim().isEmpty
+          onPressed: widget.reasonRequired && _ctrl.text.trim().isEmpty
               ? null
               : () => Navigator.of(context).pop(_ctrl.text.trim()),
           child: const Text('Qaytarish'),

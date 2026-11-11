@@ -7,92 +7,66 @@
 // Ikkalasi ham `flutter test` orqali ishlaydi, chunki matnni rasmga
 // aylantirishni faqat Flutter dvigateli qila oladi.
 
+import 'dart:convert';
 import 'dart:io';
 import 'dart:ui' as ui;
 
+import 'package:cscrm/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-/// Sinov muhitida matn uchun ishlatiladigan shrift oilasi.
-const renderFont = 'Roboto';
+/// Sinov muhitida matn uchun ishlatiladigan shrift oilasi — ilovaning
+/// O'ZINIKI.
+const renderFont = AppFonts.sans;
 
-/// Roboto faylini Flutter SDK'sidan topadi.
-///
-/// NEGA KERAK: `flutter test` haqiqiy shrift o'rniga sinov shriftini
-/// qo'yadi — u har bir harfni to'ldirilgan to'rtburchak qilib chizadi.
-/// Shunday holda rasmda matn o'rniga qora bloklar chiqadi.
-///
-/// Roboto ataylab tanlangan: Android tizim shrifti ham aynan shu, ya'ni
-/// rasmdagi yozuv haqiqiy qurilmadagi bilan bir xil ko'rinadi.
-File? _robotoFile(String weightFile) {
+/// Material ikonkalari faylini Flutter SDK'sidan topadi (zaxira yo'l).
+File? _sdkFont(String file) {
   // `dart.exe` SDK ichida: <flutter>/bin/cache/dart-sdk/bin/dart.exe
   final dartBin = File(Platform.resolvedExecutable).parent; // .../bin
   final candidates = <String>[
-    '${dartBin.parent.parent.path}/artifacts/material_fonts/$weightFile',
+    '${dartBin.parent.parent.path}/artifacts/material_fonts/$file',
     if (Platform.environment['FLUTTER_ROOT'] case final root?)
-      '$root/bin/cache/artifacts/material_fonts/$weightFile',
+      '$root/bin/cache/artifacts/material_fonts/$file',
   ];
-
   for (final path in candidates) {
-    final file = File(path);
-    if (file.existsSync()) return file;
+    final f = File(path);
+    if (f.existsSync()) return f;
   }
   return null;
 }
 
-/// Shriftlarni sinov muhitiga yuklaydi.
+/// Ilovaning barcha shriftlarini sinov muhitiga yuklaydi.
 ///
-/// Ikkitasi yuklanadi:
-///   * umumiy matn uchun Roboto (Flutter SDK'dan);
-///   * LOGOTIP uchun ilovaning o'z shrifti (`assets/fonts/`) — shunda
-///     chizilgan ikonka ilovadagi logotip bilan AYNAN bir xil chiqadi.
-///     Ilgari ikonka Roboto bilan chizilar, ilovadagi logotip esa
-///     boshqa shriftda edi.
+/// NEGA KERAK: `flutter test` haqiqiy shrift o'rniga sinov shriftini
+/// qo'yadi — u har bir harfni to'ldirilgan to'rtburchak qilib chizadi.
+/// Bu yerda `pubspec.yaml` dagi shriftlar (FontManifest) aynan
+/// ilovadagidek yuklanadi — rasm telefondagi ko'rinish bilan bir xil.
 Future<void> loadRenderFont() async {
-  const weights = [
-    'roboto-regular.ttf',
-    'roboto-medium.ttf',
-    'roboto-bold.ttf',
-    'roboto-black.ttf',
-  ];
-
-  final loader = FontLoader(renderFont);
-  var found = 0;
-
-  for (final weight in weights) {
-    final file = _robotoFile(weight);
-    if (file == null) continue;
-    found++;
-    loader.addFont(Future.value(ByteData.view(file.readAsBytesSync().buffer)));
+  final manifest = jsonDecode(await rootBundle.loadString('FontManifest.json'))
+      as List<dynamic>;
+  var loadedIcons = false;
+  for (final entry in manifest) {
+    final family = (entry as Map<String, dynamic>)['family'] as String;
+    final loader = FontLoader(family);
+    for (final font in entry['fonts'] as List<dynamic>) {
+      loader.addFont(rootBundle.load((font as Map)['asset'] as String));
+    }
+    await loader.load();
+    if (family == 'MaterialIcons') loadedIcons = true;
   }
-
-  if (found == 0) {
-    fail(
-      'Roboto shrifti topilmadi. Usiz rasmda harflar o\'rniga '
-      'to\'rtburchaklar chiqadi — shuning uchun jimgina davom etmaymiz.',
-    );
-  }
-  await loader.load();
-
-  final logo = File('assets/fonts/cscrm-logo.ttf');
-  if (!logo.existsSync()) {
-    fail('Logotip shrifti topilmadi: ${logo.path}');
-  }
-  await (FontLoader('CscrmLogo')
-        ..addFont(Future.value(ByteData.view(logo.readAsBytesSync().buffer))))
-      .load();
 
   // Material ikonkalari ham shriftdan chiziladi. Usiz rasmda har bir
-  // ikonka o'rniga bo'sh kvadrat chiqadi va "ikonka noto'g'ri" degan
-  // yolg'on taassurot qoladi.
-  final icons = _robotoFile('materialicons-regular.otf');
-  if (icons != null) {
-    await (FontLoader('MaterialIcons')
-          ..addFont(
-              Future.value(ByteData.view(icons.readAsBytesSync().buffer))))
-        .load();
+  // ikonka o'rniga bo'sh kvadrat chiqadi.
+  if (!loadedIcons) {
+    final icons = _sdkFont('materialicons-regular.otf');
+    if (icons != null) {
+      await (FontLoader('MaterialIcons')
+            ..addFont(
+                Future.value(ByteData.view(icons.readAsBytesSync().buffer))))
+          .load();
+    }
   }
 }
 
@@ -114,9 +88,6 @@ Future<void> renderToPng(
   await tester.pumpWidget(
     Directionality(
       textDirection: TextDirection.ltr,
-      // Vidjetlar shrift oilasini ATAYLAB belgilamaydi — ilovada ular
-      // tizim shriftini oladi. Sinov muhitida tizim shrifti yo'q,
-      // shuning uchun uni shu yerda beramiz.
       child: DefaultTextStyle(
         style: const TextStyle(fontFamily: renderFont),
         child: Center(
@@ -128,18 +99,21 @@ Future<void> renderToPng(
       ),
     ),
   );
-  await tester.pumpAndSettle();
+  // `pumpAndSettle` ATAYLAB ishlatilmaydi: ba'zi ekranlarda to'xtovsiz
+  // animatsiya bor ("Yuvilmoqda" belgisi) — u hech qachon "tinchimaydi".
+  for (var i = 0; i < 8; i++) {
+    await tester.pump(const Duration(milliseconds: 100));
+  }
 
   // Platforma kanallari (SharedPreferences va h.k.) javobini kutamiz.
   //
   // `pumpAndSettle` soxta vaqtni oldinga suradi, lekin kanal javoblari
   // HAQIQIY hodisalar navbatidan keladi. Usiz ekran o'z ma'lumotini
-  // yuklashga ulgurmay chizilardi — masalan sozlamalardagi hisob
-  // kartasi umuman ko'rinmasdi.
+  // yuklashga ulgurmay chizilardi.
   await tester.runAsync(
     () => Future<void>.delayed(const Duration(milliseconds: 60)),
   );
-  await tester.pumpAndSettle();
+  await tester.pump(const Duration(milliseconds: 400));
 
   final boundary =
       key.currentContext!.findRenderObject()! as RenderRepaintBoundary;

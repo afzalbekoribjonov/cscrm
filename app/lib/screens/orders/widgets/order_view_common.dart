@@ -5,29 +5,20 @@ import '../../../models/item_status.dart';
 import '../../../models/order_history_entry.dart';
 import '../../../models/order_status.dart';
 import '../../../theme/app_colors.dart';
+import '../../../utils/money.dart';
 
-/// Buyurtma ko'rinishi uchun umumiy formatlar, ranglar va matnlar.
-///
-/// Bular ilgari `order_detail_screen.dart` ichida edi. Ekran bo'laklarga
-/// ajratilgach, ular bir nechta faylga kerak bo'lib qoldi - shuning uchun
-/// shu yerga chiqarildi.
+/// Buyurtma ko'rinishi uchun umumiy formatlar va tarix yozuvlarining
+/// "odam tilidagi" ko'rinishi.
 
 final orderTimeFormat = DateFormat('dd.MM.yyyy, HH:mm');
 final orderDateFormat = DateFormat('dd.MM.yyyy');
-
-const Map<ItemStatus, Color> itemStatusColor = {
-  ItemStatus.yuvilmoqda: AppColors.statusWashing,
-  ItemStatus.qadoqlashda: AppColors.statusReadyDelivery,
-  ItemStatus.tayyor: AppColors.statusDelivered,
-  ItemStatus.qaytaYuvildi: AppColors.danger,
-};
 
 String statusLabel(String? key) {
   if (key == null) return '—';
   for (final s in OrderStatus.values) {
     if (s.key == key) return s.label;
   }
-  return key;
+  return '—';
 }
 
 String itemStatusLabel(String? key) {
@@ -35,7 +26,7 @@ String itemStatusLabel(String? key) {
   for (final s in ItemStatus.values) {
     if (s.key == key) return s.label;
   }
-  return key;
+  return '—';
 }
 
 ItemStatus? tryItemStatus(String? key) {
@@ -46,13 +37,15 @@ ItemStatus? tryItemStatus(String? key) {
   return null;
 }
 
-/// Bitta tarix yozuvining ko'rinishi: ikonka, rang va inson tiliga
-/// o'girilgan tavsif.
+/// Bitta tarix yozuvining ko'rinishi: ikonka, rang va tavsif.
 class HistoryVisual {
-  const HistoryVisual(this.icon, this.color, this.text);
+  const HistoryVisual(this.icon, this.tone, this.text);
   final IconData icon;
-  final Color color;
+  final StageTone tone;
   final String text;
+
+  /// Eski kod uchun — to'ldirish rangi.
+  Color get color => tone.fill;
 }
 
 HistoryVisual historyVisual(OrderHistoryEntry h) {
@@ -60,51 +53,90 @@ HistoryVisual historyVisual(OrderHistoryEntry h) {
     case 'order_created':
       return HistoryVisual(
         Icons.note_add_rounded,
-        AppColors.primary,
+        StageTone.brand,
         'Buyurtma yaratildi (${statusLabel(h.toStatus)})',
       );
     case 'item_status_changed':
       final product = h.itemProductName ?? 'Xizmat';
-      final toStatus = tryItemStatus(h.toStatus);
-      final color = toStatus == ItemStatus.qaytaYuvildi
-          ? AppColors.danger
-          : toStatus == ItemStatus.tayyor
-              ? AppColors.statusDelivered
-              : AppColors.statusReadyDelivery;
-      final icon = toStatus == ItemStatus.qaytaYuvildi
-          ? Icons.replay_rounded
-          : toStatus == ItemStatus.tayyor
-              ? Icons.check_circle_rounded
-              : Icons.swap_horiz_rounded;
-      final reason = h.note != null ? ' — sabab: ${h.note}' : '';
-      return HistoryVisual(
-        icon,
-        color,
-        '$product: ${itemStatusLabel(h.fromStatus)} → ${itemStatusLabel(h.toStatus)}$reason',
-      );
+      final to = tryItemStatus(h.toStatus);
+      final reason = (h.note ?? '').isNotEmpty ? ' — sabab: ${h.note}' : '';
+      final (icon, tone, verb) = switch (to) {
+        ItemStatus.yuvilmoqda => (
+            Icons.local_laundry_service_rounded,
+            StageTone.washing,
+            'yuvish boshlandi'
+          ),
+        ItemStatus.qadoqlashda => (
+            Icons.inventory_2_rounded,
+            StageTone.packaging,
+            'qadoqlashga o\'tdi'
+          ),
+        ItemStatus.tayyor => (
+            Icons.check_circle_rounded,
+            StageTone.ready,
+            'qadoqlandi, tayyor'
+          ),
+        ItemStatus.qaytaYuvildi => (
+            Icons.replay_rounded,
+            StageTone.rewash,
+            'qayta yuvishga qaytarildi'
+          ),
+        _ => (
+            Icons.swap_horiz_rounded,
+            StageTone.neutral,
+            '${itemStatusLabel(h.fromStatus)} → ${itemStatusLabel(h.toStatus)}'
+          ),
+      };
+      return HistoryVisual(icon, tone, '$product: $verb$reason');
     case 'item_updated':
       return HistoryVisual(
         Icons.edit_rounded,
-        AppColors.warning,
+        StageTone.warning,
         '${h.itemProductName ?? 'Xizmat'} yangilandi'
-        '${h.note != null ? ': ${h.note}' : ''}',
+        '${(h.note ?? '').isNotEmpty ? ': ${h.note}' : ''}',
+      );
+    case 'item_deleted':
+      return HistoryVisual(
+        Icons.delete_outline_rounded,
+        StageTone.danger,
+        h.note ?? '${h.itemProductName ?? 'Xizmat'} o\'chirildi',
+      );
+    case 'partial_delivery':
+      return HistoryVisual(
+        Icons.call_split_rounded,
+        StageTone.almost,
+        h.note ?? 'Xizmatlarning bir qismi topshirildi',
+      );
+    case 'debt_settled':
+      return HistoryVisual(
+        Icons.payments_rounded,
+        StageTone.success,
+        'Qarz to\'landi: ${formatSom(h.amount ?? 0)}'
+        '${(h.method ?? '').isNotEmpty ? ' (${h.method})' : ''}',
       );
     default:
-      if (h.note != null) {
+      if (h.toStatus == OrderStatus.yetgazildi.key) {
         return HistoryVisual(
-            Icons.local_shipping_rounded, AppColors.statusDelivered, h.note!);
+          Icons.task_alt_rounded,
+          StageTone.delivered,
+          'Mijozga topshirildi${(h.note ?? '').isNotEmpty ? ' · ${h.note}' : ''}',
+        );
+      }
+      if (h.fromStatus == OrderStatus.olibKelish.key &&
+          h.toStatus == OrderStatus.yuvishda.key) {
+        return const HistoryVisual(
+          Icons.move_to_inbox_rounded,
+          StageTone.pickup,
+          'Mijozdan olib kelindi, sexga qabul qilindi',
+        );
+      }
+      if ((h.note ?? '').isNotEmpty) {
+        return HistoryVisual(Icons.info_outline_rounded, StageTone.neutral, h.note!);
       }
       return HistoryVisual(
         Icons.swap_horiz_rounded,
-        AppColors.statusReadyDelivery,
+        StageTone.neutral,
         '${statusLabel(h.fromStatus)} → ${statusLabel(h.toStatus)}',
       );
   }
 }
-
-/// Buyurtmaning to'liq ko'rinishi. Jonli stream orqali ishlaydi.
-///
-/// Amallar ikki bosqichda cheklanadi: xodimda tegishli bo'lim vakolati
-/// bo'lishi VA buyurtma aynan o'sha bo'limdan ochilgan bo'lishi shart
-/// (qarang: [StaffAccess.canActIn]). Vakolat bo'lmasa tugmalar umuman
-/// ko'rsatilmaydi - ekran faqat ko'rish rejimida ochiladi.

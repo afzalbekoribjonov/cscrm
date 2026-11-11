@@ -1,3 +1,4 @@
+// ignore_for_file: invalid_use_of_visible_for_testing_member
 // Ekranlarni PNG qilib chizadi — ko'z bilan tekshirish uchun.
 //
 // Ishga tushirish (`app/` papkasidan):
@@ -9,151 +10,245 @@
 // bir-birining ustiga tushishi, tor ekranda siqilib qolishi — sinov
 // tekshiruvlarida KO'RINMAYDI. Ular faqat chizilgan rasmda ko'rinadi.
 //
-// Fayl `test/` papkasidan tashqarida: bu tekshiruv emas, vosita.
+// Ma'lumot namunaviy (tool/sample_data.dart) — bazaga ulanilmaydi.
 
-import 'package:cscrm/screens/auth/register_business_screen.dart';
-import 'package:cscrm/models/employee.dart';
-import 'package:cscrm/models/order.dart';
-import 'package:cscrm/models/order_status.dart';
+import 'package:cscrm/l10n/material_cyrillic.dart';
+import 'package:cscrm/l10n/script.dart';
+import 'package:cscrm/models/app_user.dart';
 import 'package:cscrm/models/staff_access.dart';
+import 'package:cscrm/models/work_section.dart';
+import 'package:cscrm/screens/dashboard/dashboard_screen.dart';
+import 'package:cscrm/screens/dashboard/employee_day_screen.dart';
 import 'package:cscrm/screens/delivery/yetgazma_screen.dart';
-import 'package:cscrm/utils/order_sections.dart';
-import 'package:cscrm/screens/admin/profile_screen.dart';
-import 'package:cscrm/screens/settings/settings_screen.dart';
+import 'package:cscrm/screens/new_order/new_order_screen.dart';
+import 'package:cscrm/screens/new_order/today_orders_screen.dart';
+import 'package:cscrm/screens/orders/order_detail_screen.dart';
+import 'package:cscrm/screens/packaging/packaging_screen.dart';
+import 'package:cscrm/screens/search/order_search_screen.dart';
+import 'package:cscrm/screens/wash/wash_screen.dart';
+import 'package:cscrm/screens/warehouse/warehouse_screen.dart';
 import 'package:cscrm/theme/app_theme.dart';
+import 'package:cscrm/ui/app_nav_bar.dart';
+import 'package:cscrm/ui/uz_date_picker.dart';
+import 'package:cscrm/utils/order_sections.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'render.dart';
+import 'sample_data.dart';
 
-/// Odatiy telefon o'lchami (mantiqiy piksel).
 const _phone = Size(390, 844);
-
-/// Eng tor tarqalgan telefon — siqilish shu yerda ko'rinadi.
 const _narrow = Size(320, 640);
+const _tall = Size(390, 1500);
 
 Widget _app(Widget home, {bool dark = false}) => MaterialApp(
-      theme: dark ? AppTheme.dark() : AppTheme.light(),
-      // Burchakdagi qizil "DEBUG" lentasi rasmni bekitadi.
+      theme: AppTheme.light(),
+      darkTheme: AppTheme.dark(),
+      themeMode: dark ? ThemeMode.dark : ThemeMode.light,
       debugShowCheckedModeBanner: false,
+      locale: const Locale('uz'),
+      supportedLocales: const [Locale('uz')],
+      localizationsDelegates: [
+        if (ScriptController.instance.isCyrillic)
+          const UzCyrillicMaterialDelegate()
+        else
+          GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
       home: home,
     );
 
+final _manager = AppUser(
+  id: 'owner',
+  name: 'Afzalbek',
+  access: const StaffAccess.admin(),
+  businessName: 'Nihol gilam yuvish',
+);
+
+final _washer = AppUser(
+  id: 'e2',
+  name: 'Jasur Toshmatov',
+  access: StaffAccess.fromKeys(
+    const ['yuvish', 'qadoqlash'],
+    permissionKeys: const ['measure', 'rewash', 'comment', 'view_phone'],
+  ),
+);
+
+final _courier = AppUser(
+  id: 'e3',
+  name: 'Sardor Aliyev',
+  access: StaffAccess.fromKeys(
+    const ['yetgazma', 'ombor', 'yangi'],
+    permissionKeys: const ['view_phone', 'comment'],
+  ),
+);
+
+/// Ochilishi bilan kalendarni ko'rsatadigan yordamchi sahifa.
+class _PickerHarness extends StatefulWidget {
+  const _PickerHarness();
+
+  @override
+  State<_PickerHarness> createState() => _PickerHarnessState();
+}
+
+class _PickerHarnessState extends State<_PickerHarness> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      showUzDatePicker(
+        context,
+        title: 'Topshirish sanasi',
+        initial: DateTime.now().add(const Duration(days: 3)),
+        first: DateTime.now(),
+      );
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) => const Scaffold();
+}
+
 void main() {
   testWidgets('ekranlar chiziladi', (tester) async {
-    // Mavzu tarmoqqa chiqmasin: ilovaning asosiy shrifti (Manrope)
-    // internetdan yuklanadi, bu yerda esa tarmoq yo'q. O'rniga
-    // yuqorida yuklangan Roboto ishlatiladi — joylashuvni tekshirish
-    // uchun shu yetarli.
-    //
-    // LOGOTIP bundan mustasno: uning shrifti ilovaga qo'shib
-    // yuborilgan, shuning uchun u haqiqiy ko'rinishida chiziladi.
-    AppTheme.textThemeSource = () => Typography.blackMountainView.apply(
-          fontFamily: renderFont,
-        );
-
-    // Sozlamalar ekrani qurilma xotirasini o'qiydi — sinovda u yo'q.
-    // ignore: invalid_use_of_visible_for_testing_member
     SharedPreferences.setMockInitialValues({
-      // Namuna sessiya — sozlamalar ekranining hisob kartasi uchun.
       'session_role': 'owner',
       'session_tenant_id': 't1',
       'session_tenant_name': 'Nihol gilam yuvish',
       'session_user_id': 'u1',
-      'session_display_name': 'Afzalbek Oribjonov',
+      'session_display_name': 'Afzalbek',
     });
+    await initializeDateFormatting('uz');
     await loadRenderFont();
 
-    await renderToPng(
-      tester,
-      child: _app(const RegisterBusinessScreen()),
-      path: 'build/screens/register-1-biznes.png',
-      size: _phone,
-    );
+    final sections = OrderSections.from(sampleOrders, now: sampleNow);
+    final sources = SampleDashboardSources();
+    final today = sampleOrders
+        .where((o) => o.createdAt >= DateTime(sampleNow.year, sampleNow.month, sampleNow.day).millisecondsSinceEpoch)
+        .toList();
 
-    await renderToPng(
-      tester,
-      child: _app(const RegisterBusinessScreen(), dark: true),
-      path: 'build/screens/register-1-biznes-tun.png',
-      size: _phone,
-    );
+    Future<void> shot(String name, Widget screen,
+        {Size size = _phone, bool dark = false}) async {
+      await renderToPng(
+        tester,
+        child: _app(screen, dark: dark),
+        path: 'build/screens/$name.png',
+        size: size,
+      );
+    }
 
-    await renderToPng(
-      tester,
-      child: _app(const RegisterBusinessScreen()),
-      path: 'build/screens/register-1-tor.png',
-      size: _narrow,
-    );
+    for (final cyr in [false, true]) {
+      ScriptController.instance.value =
+          cyr ? UzScript.cyrillic : UzScript.latin;
+      final p = cyr ? 'kirill-' : '';
 
-    await renderToPng(
-      tester,
-      child: _app(const SettingsScreen()),
-      path: 'build/screens/sozlamalar.png',
-      size: _phone,
-    );
+      await shot('${p}asosiy', DashboardScreen(
+        user: _manager,
+        sections: sections,
+        onOpenSection: (_) {},
+        sources: sources,
+      ), size: _tall);
 
-    await renderToPng(
-      tester,
-      child: _app(const SettingsScreen(), dark: true),
-      path: 'build/screens/sozlamalar-tun.png',
-      size: _phone,
-    );
+      await shot('${p}yuvish', WashScreen(sections: sections, user: _washer));
+      await shot('${p}buyurtma-yuvish', OrderDetailScreen(
+        orderId: 1282,
+        user: _washer,
+        section: WorkSection.yuvish,
+        orderStream: Stream.value(sampleOrders[1]),
+      ), size: _tall);
+      await shot('${p}yetgazma', YetgazmaScreen(sections: sections, user: _courier));
+    }
+    ScriptController.instance.value = UzScript.latin;
 
-    await renderToPng(
-      tester,
-      child: _app(ProfileScreen(
-        businessName: 'Nihol gilam yuvish',
-        employees: Stream.value(const <Employee>[]),
-      )),
-      path: 'build/screens/profil.png',
-      size: _phone,
-    );
+    // Kunduzgi/tungi va tor ekran.
+    await shot('asosiy-tun', DashboardScreen(
+      user: _manager,
+      sections: sections,
+      onOpenSection: (_) {},
+      sources: sources,
+    ), size: _tall, dark: true);
+    await shot('asosiy-tor', DashboardScreen(
+      user: _manager,
+      sections: sections,
+      onOpenSection: (_) {},
+      sources: sources,
+    ), size: const Size(320, 1400));
 
-    await renderToPng(
-      tester,
-      child: _app(ProfileScreen(
-        businessName: 'Nihol gilam yuvish',
-        employees: Stream.value(const <Employee>[]),
-      )),
-      path: 'build/screens/profil-tor.png',
-      size: _narrow,
-    );
+    await shot('qadoqlash', PackagingScreen(sections: sections, user: _washer));
+    await shot('qadoqlash-tun',
+        PackagingScreen(sections: sections, user: _washer), dark: true);
+    await shot('omborxona', WarehouseScreen(sections: sections, user: _courier));
+    await shot('yangi', TodayOrdersScreen(
+      sections: sections,
+      user: _courier,
+      todaysOrders: today,
+    ));
+    await shot('vakolat-yoq',
+        YetgazmaScreen(sections: sections, user: _washer));
+    await shot('yuvish-tor', WashScreen(sections: sections, user: _washer),
+        size: _narrow);
 
-    await renderToPng(
-      tester,
-      child: _app(YetgazmaScreen(
-        sections: OrderSections.from(_deliveryOrders),
-        currentUserId: 'e1',
-        currentUserName: 'Sardor',
-        access: const StaffAccess.admin(),
-      )),
-      path: 'build/screens/yetgazma.png',
-      size: _phone,
-    );
+    await shot('buyurtma-deyarli-tayyor', OrderDetailScreen(
+      orderId: 1283,
+      user: _courier,
+      section: WorkSection.yetgazma,
+      orderStream: Stream.value(sampleOrders[2]),
+    ), size: _tall);
+    await shot('buyurtma-qadoqlash', OrderDetailScreen(
+      orderId: 1284,
+      user: _washer,
+      section: WorkSection.qadoqlash,
+      orderStream: Stream.value(sampleOrders[3]),
+    ), size: _tall);
+    await shot('buyurtma-boshqaruvchi', OrderDetailScreen(
+      orderId: 1283,
+      user: _manager,
+      orderStream: Stream.value(sampleOrders[2]),
+    ), size: _tall);
+    await shot('buyurtma-tun', OrderDetailScreen(
+      orderId: 1282,
+      user: _washer,
+      section: WorkSection.yuvish,
+      orderStream: Stream.value(sampleOrders[1]),
+    ), size: _tall, dark: true);
+
+    await shot('qidiruv', OrderSearchScreen(sections: sections, user: _manager));
+    await shot('yangi-buyurtma', NewOrderScreen(user: _courier, sections: sections));
+    await shot('xodim-kuni', EmployeeDayScreen(
+      employees: sampleEmployees,
+      user: _manager,
+      initialEmployeeId: 'e2',
+      sources: sources,
+    ));
+    await shot('kalendar', const _PickerHarness());
+
+    for (final width in [320.0, 390.0]) {
+      await shot('menyu-${width.toInt()}', Scaffold(
+        body: const SizedBox.shrink(),
+        bottomNavigationBar: AppNavBar(
+          currentIndex: 2,
+          onTap: (_) {},
+          destinations: [
+            const NavDestination(
+              icon: Icons.space_dashboard_outlined,
+              selectedIcon: Icons.space_dashboard_rounded,
+              label: 'Asosiy',
+            ),
+            for (final s in WorkSection.values)
+              NavDestination(
+                icon: s.icon,
+                selectedIcon: s.selectedIcon,
+                label: s.shortLabel,
+                badge: s == WorkSection.yuvish ? 4 : 0,
+                locked: s == WorkSection.ombor,
+              ),
+          ],
+        ),
+      ), size: Size(width, 160));
+    }
   });
 }
-
-/// Yetgazma ekrani uchun namuna buyurtmalar.
-final _deliveryOrders = [
-  for (var i = 0; i < 3; i++)
-    Order(
-      id: 1280 + i,
-      customerName: ['Nodira opa', 'Sardor aka', 'Malika'][i],
-      customerPhone: '99890123456$i',
-      address: [
-        'Beshariq ishonch oldi',
-        'Chilonzor 9-kvartal, 14-uy',
-        'Yunusobod 4-mavze',
-      ][i],
-      deadline: null,
-      deliveryType: DeliveryType.olibKelish,
-      status: OrderStatus.yetgazishgaTayyor,
-      createdBy: 'e1',
-      createdByName: 'Sardor',
-      createdAt: 1700000000000 + i * 1000,
-      items: const [],
-      totalPrice: [356000.0, 180000.0, 540000.0][i],
-      comments: const [],
-    ),
-];

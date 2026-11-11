@@ -83,6 +83,8 @@ class _FakeWriter implements OrderWriter {
     required String createdByName,
     String? comment,
     int? createdAt,
+    double? pickupLat,
+    double? pickupLng,
   }) async {
     if (failWrite) throw StateError('yozuv yiqildi');
     written.add(orderId);

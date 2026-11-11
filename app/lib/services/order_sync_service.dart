@@ -178,6 +178,8 @@ class OrderSyncService {
         createdByName: order.createdByName,
         comment: order.comment,
         createdAt: order.createdAt,
+        pickupLat: order.pickupLat,
+        pickupLng: order.pickupLng,
       );
       return true;
     } catch (e) {

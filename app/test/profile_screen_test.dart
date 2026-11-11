@@ -5,6 +5,7 @@ import 'package:cscrm/services/license_controller.dart';
 import 'package:cscrm/services/license_service.dart';
 import 'package:cscrm/theme/app_theme.dart';
 import 'package:flutter/material.dart';
+import 'package:cscrm/l10n/script.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// "Profilim" sahifasi.
@@ -114,23 +115,23 @@ void main() {
     await tester.pumpWidget(screen(licence: status()));
     await tester.pumpAndSettle();
 
-    expect(find.text('Nihol gilam yuvish'), findsOneWidget);
+    expect(find.text(t('Nihol gilam yuvish')), findsOneWidget);
   });
 
   testWidgets('xodimlar soni va faollari alohida sanaladi', (tester) async {
     await tester.pumpWidget(screen(licence: status()));
     await tester.pumpAndSettle();
 
-    expect(find.text('2'), findsOneWidget, reason: 'jami xodim');
-    expect(find.text('1'), findsOneWidget, reason: 'faol xodim');
+    expect(find.text(t('2')), findsOneWidget, reason: 'jami xodim');
+    expect(find.text(t('1')), findsOneWidget, reason: 'faol xodim');
   });
 
   testWidgets('joriy tarif nomi va qolgan muddat ko\'rinadi', (tester) async {
     await tester.pumpWidget(screen(licence: status()));
     await tester.pumpAndSettle();
 
-    expect(find.text('JORIY TARIF'), findsOneWidget);
-    expect(find.text('12 kun'), findsOneWidget);
+    expect(find.text(t('JORIY TARIF')), findsOneWidget);
+    expect(find.text(t('12 kun')), findsOneWidget);
   });
 
   testWidgets('muddat o\'tgan bo\'lsa MANFIY kun ko\'rsatilmaydi',
@@ -141,15 +142,15 @@ void main() {
     ));
     await tester.pumpAndSettle();
 
-    expect(find.text('Muddat o\'tgan'), findsOneWidget);
-    expect(find.textContaining('-3'), findsNothing);
+    expect(find.text(t('Muddat o\'tgan')), findsOneWidget);
+    expect(find.textContaining(t('-3')), findsNothing);
   });
 
   testWidgets('joriy tarif ro\'yxatda belgilanadi', (tester) async {
     await tester.pumpWidget(screen(licence: status(planId: 'm3')));
     await tester.pumpAndSettle();
 
-    expect(find.text('Joriy'), findsOneWidget);
+    expect(find.text(t('Joriy')), findsOneWidget);
   });
 
   testWidgets('tejash foizi to\'g\'ri hisoblanadi', (tester) async {
@@ -158,7 +159,7 @@ void main() {
     await tester.pumpWidget(screen(licence: status()));
     await tester.pumpAndSettle();
 
-    expect(find.text('10% tejash'), findsOneWidget);
+    expect(find.text(t('10% tejash')), findsOneWidget);
     // Ajratgich belgisi lokaldan kelib chiqadi (oddiy bo'shliqmi yoki
     // uzilmaydiganmi) — sinov unga bog'lanmasligi kerak.
     expect(
@@ -173,7 +174,7 @@ void main() {
     await tester.pumpWidget(screen());
     await tester.pumpAndSettle();
 
-    expect(find.text('Nihol gilam yuvish'), findsOneWidget);
-    expect(find.text('JORIY TARIF'), findsNothing);
+    expect(find.text(t('Nihol gilam yuvish')), findsOneWidget);
+    expect(find.text(t('JORIY TARIF')), findsNothing);
   });
 }

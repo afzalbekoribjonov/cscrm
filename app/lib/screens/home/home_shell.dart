@@ -2,19 +2,23 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../models/app_user.dart';
+import '../../models/business_policies.dart';
 import '../../models/employee.dart';
 import '../../models/order.dart';
-import '../../models/staff_access.dart';
+import '../../models/work_section.dart';
 import '../../services/auth_service.dart';
 import '../../services/employee_service.dart';
 import '../../services/message_center.dart';
-import '../../services/push_service.dart';
-import '../../services/notification_center.dart';
 import '../../services/order_service.dart';
 import '../../services/order_sync_service.dart';
+import '../../services/policy_service.dart';
+import '../../services/push_service.dart';
 import '../../services/session_service.dart';
 import '../../services/sound_service.dart';
-import '../../theme/app_colors.dart';
+import '../../ui/app_nav_bar.dart';
+import '../../ui/sheets.dart';
+import '../../utils/date_utils.dart';
 import '../../utils/offline_write.dart';
 import '../../utils/order_change_detector.dart';
 import '../../utils/order_sections.dart';
@@ -22,21 +26,24 @@ import '../../widgets/offline_banner.dart';
 import '../../widgets/stream_error_view.dart';
 import '../../widgets/subscription_banner.dart';
 import '../auth/login_screen.dart';
+import '../dashboard/dashboard_screen.dart';
 import '../delivery/yetgazma_screen.dart';
-import '../new_order/new_order_screen.dart';
+import '../new_order/today_orders_screen.dart';
 import '../packaging/packaging_screen.dart';
 import '../wash/wash_screen.dart';
+import '../warehouse/warehouse_screen.dart';
 
-/// Asosiy ilova qobig'i: pastki navigatsiya + 4 operatsion bo'lim
-/// (Yangi / Yuvish / Qadoqlash / Yetgazma).
+/// Ilova qobig'i: pastki menyu va bo'limlar.
 ///
-/// Pastki menyu HAMMADA bir xil. Boshqaruv bo'limi — alohida sahifa
-/// va u har bir ekranning yuqori o'ng burchagidagi ikonka orqali
-/// ochiladi (qarang: [AdminAction]).
+///  * Boshqaruvchida birinchi bo'lim — **Asosiy** (biznesning to'liq
+///    holati). Ilova har ochilganda shu sahifadan boshlanadi.
+///  * Xodimda — ish bo'limlari; ilova u vakolatli BIRINCHI bo'limda
+///    ochiladi. Vakolati yo'q bo'lim menyuda qulf belgisi bilan turadi va
+///    ichida "Sizda vakolat mavjud emas" ko'rinadi.
+///  * "Omborxona" qoidalarda o'chirilgan bo'lsa — menyuda umuman yo'q.
 class HomeShell extends StatefulWidget {
   const HomeShell({super.key, required this.session});
 
-  /// Joriy sessiya: kim kirgan, qaysi biznesga va qanday vakolat bilan.
   final Session session;
 
   @override
@@ -44,53 +51,50 @@ class HomeShell extends StatefulWidget {
 }
 
 class _HomeShellState extends State<HomeShell> {
-  int _index = 0;
-
   OrderService _orderService = OrderService();
 
-  // Oqim StreamBuilder o'rniga SHU YERDA tinglanadi.
-  //
-  // Sabab: ovozli signal va bo'limlarni hisoblash - bular yon ta'sir va
-  // holat o'zgarishi. Ilgari ular `build()` ichida bajarilardi, bu esa
-  // Flutter'da noto'g'ri: build faqat chizishi kerak, hech narsani
-  // o'zgartirmasligi kerak.
   StreamSubscription<List<Order>>? _ordersSub;
   StreamSubscription<Employee?>? _employeeSub;
   StreamSubscription<LateWriteFailure>? _writeFailureSub;
+  Timer? _ticker;
 
-  OrderSections _sections = const OrderSections.empty();
+  late AppUser _user = AppUser(
+    id: widget.session.actorId,
+    name: widget.session.displayName ?? '',
+    access: widget.session.access,
+    businessName: widget.session.tenantName ?? '',
+  );
 
-  /// Bugun yaratilgan buyurtmalar.
-  ///
-  /// SHU YERDA hisoblanadi, ekranda emas: `build()` har bir kadrda
-  /// chaqiriladi va ro'yxatni har safar qaytadan filtrlash bekorchi
-  /// ish bo'lardi.
+  List<Order> _orders = const [];
+  OrderSections _sections = OrderSections.empty();
   List<Order> _todaysOrders = const [];
   Object? _ordersError;
   var _loaded = false;
 
+  /// Tanlangan bo'lim (dashboard uchun `null`).
+  WorkSection? _current;
+  var _initialPicked = false;
+
   late final _changeDetector =
       OrderChangeDetector(currentActorId: widget.session.actorId);
 
-  /// Vakolatlar sessiyadan olinadi, lekin xodim yozuvi o'zgarsa jonli
-  /// yangilanadi (qarang: [_listenToEmployee]).
-  late StaffAccess _access = widget.session.access;
+  bool get _isManager => _user.isManager;
 
   @override
   void initState() {
     super.initState();
-    NotificationCenter.instance.start(widget.session.actorId);
-    // CSCRM xabarlarini bir marta olib qo'yamiz - qo'ng'iroq ustidagi
-    // raqam ekran ochilishini kutmasdan to'g'ri ko'rinsin.
+    // CSCRM xabarlari — qo'ng'iroq ustidagi raqam darhol to'g'ri bo'lsin.
     MessageCenter.instance.refresh();
-    // Push - faqat CSCRM xabarlari uchun (qarang: PushService).
     PushService.instance.start();
-    // Yuborilmagan buyurtmalar navbati: aloqa tiklanishi bilan o'zi
-    // bo'shaydi.
     OrderSyncService.instance.start();
+    PolicyCenter.instance.start();
+    PolicyCenter.instance.addListener(_recompute);
     _listenToOrders();
     _listenToEmployee();
     _listenToWriteFailures();
+    // Vaqtga bog'liq ro'yxatlar (omborxonaga o'tish, muddat belgilari,
+    // "bugun") vaqt o'tishi bilan o'zi yangilanadi.
+    _ticker = Timer.periodic(const Duration(minutes: 10), (_) => _recompute());
   }
 
   @override
@@ -98,45 +102,52 @@ class _HomeShellState extends State<HomeShell> {
     _ordersSub?.cancel();
     _employeeSub?.cancel();
     _writeFailureSub?.cancel();
+    _ticker?.cancel();
+    PolicyCenter.instance.removeListener(_recompute);
     super.dispose();
   }
 
-  // -------------------------------------------------------------------
-  // Buyurtmalar oqimi
-  // -------------------------------------------------------------------
+  // ------------------------------------------------------------ buyurtmalar
 
   void _listenToOrders() {
     _ordersSub?.cancel();
-    _ordersSub = _orderService.streamOperational().listen(
+    // Boshqaruvchiga bugun topshirilganlar ham kerak (bosh sahifadagi
+    // bugungi tushum). Xodimga — faqat faol buyurtmalar: ortiqcha so'rov
+    // yo'q.
+    final stream = _isManager
+        ? _orderService.streamOperational()
+        : _orderService.streamActiveOrders();
+    _ordersSub = stream.listen(
       (orders) {
-        // Ovoz build'dan TASHQARIDA chalinadi va faqat BOSHQA odam qilgan
-        // o'zgarishda - xodim o'z tugmasini bosganda o'ziga ovoz
-        // eshittirmaydi.
+        // Ovoz faqat BOSHQA odam qilgan o'zgarishda.
         if (_changeDetector.shouldNotify(orders)) {
           SoundService.instance.playNotification();
         }
-        // Bildirishnomalar ham shu oqimdan hisoblanadi - alohida
-        // so'rov yoki alohida tugun kerak emas.
-        NotificationCenter.instance.update(orders);
-
         if (!mounted) return;
-        final since = DateTime.now();
-        final dayStart =
-            DateTime(since.year, since.month, since.day).millisecondsSinceEpoch;
-
-        setState(() {
-          _sections = OrderSections.from(orders);
-          _todaysOrders =
-              orders.where((o) => o.createdAt >= dayStart).toList();
-          _ordersError = null;
-          _loaded = true;
-        });
+        _orders = orders;
+        _ordersError = null;
+        _loaded = true;
+        _recompute();
       },
       onError: (Object error) {
         if (!mounted) return;
         setState(() => _ordersError = error);
       },
     );
+  }
+
+  void _recompute() {
+    if (!mounted) return;
+    final now = DateTime.now();
+    final dayStart = startOfDay(now).millisecondsSinceEpoch;
+    setState(() {
+      _sections = OrderSections.from(
+        _orders,
+        policies: PolicyCenter.instance.value,
+        now: now,
+      );
+      _todaysOrders = _orders.where((o) => o.createdAt >= dayStart).toList();
+    });
   }
 
   void _retryOrdersStream() {
@@ -149,57 +160,38 @@ class _HomeShellState extends State<HomeShell> {
     _listenToOrders();
   }
 
-  // -------------------------------------------------------------------
-  // Vakolatlarni jonli kuzatish
-  // -------------------------------------------------------------------
+  // ------------------------------------------------------------ vakolatlar
 
-  /// Xodim yozuvini kuzatadi.
-  ///
-  /// Ilgari vakolatlar faqat KIRISH paytida o'qilib, qurilmada saqlanardi:
-  /// boshqaruvchi vakolatni olib qo'ysa yoki xodimni bloklasa, xodim
-  /// chiqib qayta kirmaguncha eski huquqlar bilan ishlayverardi.
-  ///
-  /// Endi o'zgarish darhol kuchga kiradi, xodim bloklansa esa tizimdan
-  /// chiqariladi.
+  /// Xodim yozuvi jonli kuzatiladi: vakolat o'zgarsa darhol kuchga
+  /// kiradi, bloklansa — tizimdan chiqariladi.
   void _listenToEmployee() {
     final employeeId = widget.session.employeeId;
-    if (employeeId == null) return; // ega - kuzatish kerak emas
+    if (employeeId == null) return;
 
     _employeeSub = EmployeeService().streamEmployee(employeeId).listen(
       (employee) async {
         if (!mounted) return;
-
-        // Xodim o'chirilgan yoki bloklangan.
         if (employee == null || !employee.active) {
-          await _forceSignOut(
-            employee == null
-                ? 'Hisobingiz o\'chirilgan.'
-                : 'Hisobingiz bloklangan. Boshqaruvchiga murojaat qiling.',
-          );
+          await _forceSignOut(employee == null
+              ? 'Hisobingiz o\'chirilgan.'
+              : 'Hisobingiz bloklangan. Boshqaruvchiga murojaat qiling.');
           return;
         }
-
-        if (employee.access.sectionKeys.join(',') !=
-                _access.sectionKeys.join(',') ||
-            employee.access.permissionKeys.join(',') !=
-                _access.permissionKeys.join(',')) {
-          setState(() => _access = employee.access);
-          // Sessiyani ham yangilaymiz - ilova qayta ochilganda to'g'ri
-          // vakolat bilan boshlanadi.
-          await SessionService().save(
-            Session.employee(
-              tenantId: widget.session.tenantId!,
-              tenantName: widget.session.tenantName ?? '',
-              userId: widget.session.userId ?? '',
-              employeeId: employeeId,
-              displayName: widget.session.displayName ?? '',
-              access: employee.access,
-            ),
-          );
+        final access = employee.access;
+        if (access.sectionKeys.join(',') != _user.access.sectionKeys.join(',') ||
+            access.permissionKeys.join(',') !=
+                _user.access.permissionKeys.join(',')) {
+          setState(() => _user = _user.withAccess(access));
+          await SessionService().save(Session.employee(
+            tenantId: widget.session.tenantId!,
+            tenantName: widget.session.tenantName ?? '',
+            userId: widget.session.userId ?? '',
+            employeeId: employeeId,
+            displayName: widget.session.displayName ?? '',
+            access: access,
+          ));
         }
       },
-      // Vakolat o'qilmasa ish to'xtamasin - mavjud vakolat bilan davom
-      // etadi, haqiqiy cheklov baribir Database qoidalarida.
       onError: (Object error) => debugPrint('Xodim yozuvi o\'qilmadi: $error'),
     );
   }
@@ -207,160 +199,123 @@ class _HomeShellState extends State<HomeShell> {
   Future<void> _forceSignOut(String reason) async {
     await AuthService().signOut();
     await SessionService().clearSession();
+    await PolicyCenter.instance.stop();
     if (!mounted) return;
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(reason),
-        backgroundColor: AppColors.danger,
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 6),
-      ),
-    );
+    showResult(context, reason, error: true);
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(builder: (_) => const LoginScreen()),
       (route) => false,
     );
   }
 
-  // -------------------------------------------------------------------
-  // Yozuv xatoliklari
-  // -------------------------------------------------------------------
-
   void _listenToWriteFailures() {
-    // Rad etilgan yozuv (masalan `permission-denied`) javobi ekran
-    // yopilgandan keyin kelsa ham foydalanuvchiga yetkaziladi.
     _writeFailureSub = WriteFailures.stream.listen((failure) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(failure.message),
-          backgroundColor: AppColors.danger,
-          behavior: SnackBarBehavior.floating,
-          duration: const Duration(seconds: 6),
-        ),
-      );
+      if (mounted) showResult(context, failure.message, error: true);
     });
   }
 
-  // -------------------------------------------------------------------
-  // Navigatsiya
-  // -------------------------------------------------------------------
+  // ------------------------------------------------------------ navigatsiya
 
-  /// Buyurtma tarixida "kim qildi" deb yoziladigan ID.
-  String get _actorId => widget.session.actorId;
-  String get _actorName => widget.session.displayName ?? '';
+  List<WorkSection> _sectionsFor(BusinessPolicies p) => [
+        WorkSection.yangi,
+        WorkSection.yuvish,
+        WorkSection.qadoqlash,
+        WorkSection.yetgazma,
+        if (p.warehouseEnabled) WorkSection.ombor,
+      ];
+
+  int _badgeFor(WorkSection s) => switch (s) {
+        WorkSection.yangi => 0,
+        WorkSection.yuvish => _sections.wash.length,
+        WorkSection.qadoqlash => _sections.packaging.length,
+        WorkSection.yetgazma => _sections.deliveryBadgeCount,
+        WorkSection.ombor => _sections.warehouse.length,
+      };
+
+  Widget _screenFor(WorkSection s) => switch (s) {
+        WorkSection.yangi => TodayOrdersScreen(
+            sections: _sections,
+            user: _user,
+            todaysOrders: _todaysOrders,
+          ),
+        WorkSection.yuvish => WashScreen(sections: _sections, user: _user),
+        WorkSection.qadoqlash =>
+          PackagingScreen(sections: _sections, user: _user),
+        WorkSection.yetgazma => YetgazmaScreen(sections: _sections, user: _user),
+        WorkSection.ombor => WarehouseScreen(sections: _sections, user: _user),
+      };
 
   @override
   Widget build(BuildContext context) {
     if (_ordersError != null) {
       return Scaffold(
-        body: StreamErrorView(
-          error: _ordersError!,
-          onRetry: _retryOrdersStream,
-        ),
+        body: StreamErrorView(error: _ordersError!, onRetry: _retryOrdersStream),
       );
     }
-
     if (!_loaded) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
-    // Bo'limlar oqim kelganda BIR MARTA hisoblangan - bu yerda faqat
-    // tayyor ro'yxatlar tarqatiladi. Ilgari har bir ekran va har bir
-    // nishoncha ro'yxatni qaytadan filtrlardi.
-    final screens = [
-      NewOrderScreen(
-        currentUserId: _actorId,
-        currentUserName: _actorName,
-        access: _access,
-        todaysOrders: _todaysOrders,
-      ),
-      WashScreen(
-        sections: _sections,
-        currentUserId: _actorId,
-        currentUserName: _actorName,
-        access: _access,
-      ),
-      PackagingScreen(
-        sections: _sections,
-        currentUserId: _actorId,
-        currentUserName: _actorName,
-        access: _access,
-      ),
-      YetgazmaScreen(
-        sections: _sections,
-        currentUserId: _actorId,
-        currentUserName: _actorName,
-        access: _access,
-      ),
-    ];
+    final sections = _sectionsFor(_sections.policies);
+    if (!_initialPicked) {
+      _initialPicked = true;
+      // Xodim — vakolatli birinchi bo'limda; boshqaruvchi — "Asosiy"da.
+      if (!_isManager) {
+        _current = sections.firstWhere(_user.access.has,
+            orElse: () => sections.first);
+      }
+    }
+    // Omborxona o'chirilgan bo'lsa va xodim u yerda turgan bo'lsa.
+    if (_current != null && !sections.contains(_current)) {
+      _current = _isManager ? null : sections.first;
+    }
+
+    final tabs = <WorkSection?>[if (_isManager) null, ...sections];
+    final index = tabs.indexOf(_current).clamp(0, tabs.length - 1);
 
     return Scaffold(
       body: Column(
         children: [
           const OfflineBanner(),
-          // Muddat tugashiga oz qolganda eslatma. Holat tinch bo'lsa
-          // hech narsa chizmaydi.
           SubscriptionBanner(isOwner: widget.session.isOwner),
           Expanded(
-            child: IndexedStack(index: _index, children: screens),
+            child: IndexedStack(
+              index: index,
+              children: [
+                for (final tab in tabs)
+                  tab == null
+                      ? DashboardScreen(
+                          user: _user,
+                          sections: _sections,
+                          onOpenSection: (s) => setState(() => _current = s),
+                        )
+                      : _screenFor(tab),
+              ],
+            ),
           ),
         ],
       ),
-      bottomNavigationBar: SafeArea(
-        top: false,
-        child: BottomNavigationBar(
-          currentIndex: _index,
-          onTap: (index) => setState(() => _index = index),
-          type: BottomNavigationBarType.fixed,
-          items: [
-            const BottomNavigationBarItem(
-              icon: Icon(Icons.note_add_rounded),
-              label: 'Yangi',
-            ),
-            BottomNavigationBarItem(
-              icon: _NavBadge(
-                count: _sections.wash.length,
-                icon: Icons.local_laundry_service_rounded,
+      bottomNavigationBar: AppNavBar(
+        currentIndex: index,
+        onTap: (i) => setState(() => _current = tabs[i]),
+        destinations: [
+          for (final tab in tabs)
+            if (tab == null)
+              const NavDestination(
+                icon: Icons.space_dashboard_outlined,
+                selectedIcon: Icons.space_dashboard_rounded,
+                label: 'Asosiy',
+              )
+            else
+              NavDestination(
+                icon: tab.icon,
+                selectedIcon: tab.selectedIcon,
+                label: tab.shortLabel,
+                locked: !_user.access.has(tab),
+                badge: _user.access.has(tab) ? _badgeFor(tab) : 0,
               ),
-              label: 'Yuvish',
-            ),
-            BottomNavigationBarItem(
-              icon: _NavBadge(
-                count: _sections.packaging.length,
-                icon: Icons.inventory_2_rounded,
-              ),
-              label: 'Qadoqlash',
-            ),
-            BottomNavigationBarItem(
-              icon: _NavBadge(
-                count: _sections.deliveryBadgeCount,
-                icon: Icons.local_shipping_rounded,
-              ),
-              label: 'Yetgazma',
-            ),
-          ],
-        ),
+        ],
       ),
-    );
-  }
-}
-
-class _NavBadge extends StatelessWidget {
-  const _NavBadge({required this.count, required this.icon});
-
-  final int count;
-  final IconData icon;
-
-  @override
-  Widget build(BuildContext context) {
-    return Badge(
-      label: Text('$count'),
-      isLabelVisible: count > 0,
-      child: Icon(icon),
     );
   }
 }

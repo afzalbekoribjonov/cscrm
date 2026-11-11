@@ -1,4 +1,6 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+
+import '../l10n/text.dart';
 
 /// CS CRM logotipi — faqat matn, hech qanday tasvirsiz.
 ///

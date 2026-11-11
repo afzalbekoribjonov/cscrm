@@ -1,17 +1,12 @@
 import 'dart:async';
 
-import 'package:google_fonts/google_fonts.dart';
+import 'package:cscrm/l10n/script.dart';
 
 /// Testlardan OLDIN bir marta ishga tushadi (Flutter buni o'zi topadi).
 ///
-/// `google_fonts` shriftni birinchi ishlatilganda internetdan yuklaydi.
-/// Testda bu ikki muammo tug'diradi: testlar tarmoqqa bog'lanib qoladi va
-/// yuklash muvaffaqiyatsiz tugasa istisno tashlanadi.
-///
-/// Shu sabab testlarda yuklash o'chiriladi — vidjetlar tizim shrifti
-/// bilan chiziladi, bu esa mantiqni tekshirishga hech qanday xalaqit
-/// bermaydi.
+/// Ilova matni ekranda to'g'ri tipografiya bilan chiziladi ("Bo‘lim",
+/// "ma’lumot"). Sinovlarda ham aynan shu holat — lotin yozuvi — standart.
 Future<void> testExecutable(FutureOr<void> Function() testMain) async {
-  GoogleFonts.config.allowRuntimeFetching = false;
+  ScriptController.instance.value = UzScript.latin;
   await testMain();
 }

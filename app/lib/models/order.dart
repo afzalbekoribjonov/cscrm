@@ -67,6 +67,7 @@ class Order {
     this.deliveryPaidAmount,
     this.debtAmount = 0,
     this.discountAmount = 0,
+    this.prepaidAmount = 0,
     this.pickupLat,
     this.pickupLng,
   });
@@ -116,6 +117,7 @@ class Order {
           (map['deliveryPaidAmount'] as num?)?.toDouble(),
       debtAmount: (map['debtAmount'] as num?)?.toDouble() ?? 0,
       discountAmount: (map['discountAmount'] as num?)?.toDouble() ?? 0,
+      prepaidAmount: (map['prepaidAmount'] as num?)?.toDouble() ?? 0,
       pickupLat: (map['pickupLat'] as num?)?.toDouble(),
       pickupLng: (map['pickupLng'] as num?)?.toDouble(),
     );
@@ -196,6 +198,16 @@ class Order {
 
   bool get hasDebt => debtAmount > 0;
 
+  /// Bo'lib topshirishda OLDINDAN olingan pul. Oxirgi topshirishda
+  /// mijozdan faqat qolgan qismi so'raladi.
+  final double prepaidAmount;
+
+  /// Oxirgi topshirishda olinishi kerak bo'lgan summa.
+  double get remainingDue {
+    final due = totalPrice - prepaidAmount;
+    return due > 0 ? due : 0;
+  }
+
   /// Dastavchik "Olib kelish" bosqichida saqlagan manzil koordinatalari -
   /// "Yo'lga chiqish" tugmasi shu orqali xaritani ochadi.
   final double? pickupLat;
@@ -203,7 +215,9 @@ class Order {
 
   bool get hasPickupLocation => pickupLat != null && pickupLng != null;
 
-  String get code => '#$id';
+  /// Buyurtma raqami: "№ 125". Belgi va raqam orasida ajralmas bo'shliq —
+  /// tor joyda ham ikki qatorga bo'linib ketmaydi.
+  String get code => '№ $id';
 
   /// Ishlov jarayonidagi (sexga tushgan) mahsulotlar orasida "Tayyor"
   /// bo'lganlar nisbati - buyurtma cardida progress sifatida ko'rsatiladi.
@@ -212,4 +226,15 @@ class Order {
 
   bool get allItemsReady =>
       items.isNotEmpty && items.every((i) => i.status == ItemStatus.tayyor);
+
+  /// Mijozga hali berilmagan xizmatlar.
+  List<OrderItem> get unhandedItems =>
+      items.where((i) => !i.isHanded).toList();
+
+  /// Tayyor, lekin hali berilmagan xizmatlar — topshirish mumkin.
+  List<OrderItem> get readyToHandItems =>
+      items.where((i) => i.isReadyToHand).toList();
+
+  /// Kamida bitta xizmat mijozga berilgan.
+  bool get isPartiallyHanded => items.any((i) => i.isHanded);
 }

@@ -1,7 +1,8 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
+import '../l10n/text.dart';
 import '../models/order.dart';
 import '../models/order_status.dart';
 import '../services/order_service.dart';
