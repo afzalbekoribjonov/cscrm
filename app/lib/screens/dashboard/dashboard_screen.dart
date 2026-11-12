@@ -327,7 +327,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           tone: StageTone.warehouse,
           icon: Icons.warehouse_rounded,
           text: '${s.warehouse.length} ta buyurtma omborda',
-          onTap: () => widget.onOpenSection(WorkSection.ombor),
+          onTap: () => openWarehouse(context, widget.user),
         ),
     ];
     if (alerts.isEmpty) return const [];
@@ -368,7 +368,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       if (s.policies.warehouseEnabled)
         _Stage('Omborda', Icons.warehouse_rounded, StageTone.warehouse,
             s.warehouse.length, 'buyurtma',
-            () => widget.onOpenSection(WorkSection.ombor)),
+            () => openWarehouse(context, widget.user)),
     ];
     final total = rows.fold<int>(0, (n, r) => n + r.count);
 
@@ -864,9 +864,9 @@ class _Hero extends StatelessWidget {
                     padding: const EdgeInsets.only(right: 12),
                     child: Row(
                       children: [
-                        Expanded(child: _GlassStat(value: '$active', label: 'Faol buyurtma')),
+                        Expanded(child: _GlassStat(value: '$active', label: 'Ishda')),
                         const SizedBox(width: 10),
-                        Expanded(child: _GlassStat(value: '$createdToday', label: 'Bugun qabul')),
+                        Expanded(child: _GlassStat(value: '$createdToday', label: 'Qabul')),
                         const SizedBox(width: 10),
                         Expanded(child: _GlassStat(value: '$deliveredToday', label: 'Topshirildi')),
                       ],
@@ -1128,18 +1128,34 @@ class _StageRow extends StatelessWidget {
           children: [
             IconTile(icon: stage.icon, tone: stage.tone, size: 36, radius: 10),
             const SizedBox(width: 12),
-            Expanded(child: Text(stage.label, style: theme.textTheme.bodyLarge)),
-            Text(
-              '${stage.count}',
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontFeatures: AppFonts.tabular,
-                color: stage.count == 0 ? context.colorTextTertiary : null,
+            Expanded(
+              child: Text(
+                stage.label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.bodyLarge,
               ),
             ),
-            const SizedBox(width: 4),
-            SizedBox(
-              width: 58,
-              child: Text(stage.unit, style: theme.textTheme.bodySmall),
+            const SizedBox(width: 8),
+            // Son va birlik BITTA qatorda — "1 buyurtma". Ilgari birlik
+            // tor ustunga qo'yilgan edi va katta shriftli telefonda so'z
+            // ikkiga bo'linib, oxirgi harfi pastga tushib qolardi.
+            Text.rich(
+              TextSpan(children: [
+                TextSpan(
+                  text: '${stage.count}',
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontFeatures: AppFonts.tabular,
+                    color: stage.count == 0 ? context.colorTextTertiary : null,
+                  ),
+                ),
+                TextSpan(
+                  text: ' ${stage.unit}',
+                  style: theme.textTheme.bodySmall,
+                ),
+              ]),
+              maxLines: 1,
+              softWrap: false,
             ),
             Icon(Icons.chevron_right_rounded, color: context.colorTextTertiary),
           ],

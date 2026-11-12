@@ -99,6 +99,19 @@ final _courier = AppUser(
   ),
 );
 
+/// Telefon sozlamasidagi kattalashtirilgan shrift (115%).
+class _BigText extends StatelessWidget {
+  const _BigText(this.child);
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => MediaQuery(
+        data: MediaQuery.of(context)
+            .copyWith(textScaler: const TextScaler.linear(1.15)),
+        child: child,
+      );
+}
+
 /// Ochilishi bilan kalendarni ko'rsatadigan yordamchi sahifa.
 class _PickerHarness extends StatefulWidget {
   const _PickerHarness();
@@ -238,6 +251,20 @@ void main() {
     ));
     await shot('kalendar', const _PickerHarness());
 
+    // Katta shrift (telefon sozlamasida 115%) va tor ekran — so'zlar
+    // bo'linib ketmasligini tekshirish uchun.
+    ScriptController.instance.value = UzScript.cyrillic;
+    await shot('kirill-asosiy-katta-shrift', _BigText(DashboardScreen(
+      user: _manager,
+      sections: sections,
+      onOpenSection: (_) {},
+      sources: sources,
+    )), size: const Size(360, 1500));
+    await shot('kirill-yuvish-katta-shrift',
+        _BigText(WashScreen(sections: sections, user: _washer)),
+        size: const Size(360, 780));
+    ScriptController.instance.value = UzScript.latin;
+
     // --- Boshqaruv bo'limlari ---
     LicenseController.instance.value =
         LicenseResolution(status: sampleLicense(), fromCache: false);
@@ -295,13 +322,13 @@ void main() {
               selectedIcon: Icons.space_dashboard_rounded,
               label: 'Asosiy',
             ),
-            for (final s in WorkSection.values)
+            for (final s in WorkSection.values.where((s) => s != WorkSection.ombor))
               NavDestination(
                 icon: s.icon,
                 selectedIcon: s.selectedIcon,
                 label: s.shortLabel,
                 badge: s == WorkSection.yuvish ? 4 : 0,
-                locked: s == WorkSection.ombor,
+                locked: s == WorkSection.yetgazma,
               ),
           ],
         ),

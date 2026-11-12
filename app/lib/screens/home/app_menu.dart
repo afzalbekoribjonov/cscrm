@@ -5,15 +5,19 @@ import '../../models/app_user.dart';
 import '../../models/staff_access.dart';
 import '../../models/staff_permission.dart';
 import '../../models/work_section.dart';
+import '../../services/live_sections.dart';
+import '../../services/policy_service.dart';
 import '../../theme/app_colors.dart';
 import '../../ui/action_menu.dart';
 import '../../ui/surfaces.dart';
+import '../../utils/order_sections.dart';
 import '../activity/my_activity_screen.dart';
 import '../admin/admin_home_screen.dart';
 import '../admin/debtors_screen.dart';
 import '../admin/expenses_screen.dart';
 import '../admin/income_activity_screen.dart';
 import '../settings/settings_screen.dart';
+import '../warehouse/warehouse_screen.dart';
 
 /// "⋮" menyusi — foydalanuvchiga ochiq barcha qo'shimcha imkoniyatlar
 /// bitta joyda, nomi va izohi bilan.
@@ -27,6 +31,8 @@ Future<void> openAppMenu(BuildContext context, AppUser user) {
       Navigator.of(context).push(MaterialPageRoute(builder: builder));
 
   final access = user.access;
+  final warehouseOn = PolicyCenter.instance.value.warehouseEnabled;
+  final inWarehouse = LiveSections.instance.value.warehouse.length;
   final work = <MenuAction>[
     if (user.isManager)
       MenuAction(
@@ -37,6 +43,17 @@ Future<void> openAppMenu(BuildContext context, AppUser user) {
               currentUserId: user.id,
               currentUserName: user.name,
             )),
+      ),
+    if (warehouseOn && access.has(WorkSection.ombor))
+      MenuAction(
+        icon: Icons.warehouse_outlined,
+        label: 'Omborxona',
+        subtitle: inWarehouse == 0
+            ? 'Uzoq olib ketilmagan buyurtmalar'
+            : '$inWarehouse ta buyurtma omborda',
+        tone: StageTone.warehouse,
+        badge: inWarehouse,
+        onTap: () => openWarehouse(context, user),
       ),
     if (!user.isManager && access.has(WorkSection.yetgazma))
       MenuAction(
@@ -186,6 +203,18 @@ class UserAvatar extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Omborxona sahifasi — "⋮" menyudan ochiladi. Ma'lumot jonli: qobiq
+/// buyurtmalarni yangilashi bilan sahifa ham yangilanadi.
+void openWarehouse(BuildContext context, AppUser user) {
+  Navigator.of(context).push(MaterialPageRoute(
+    builder: (_) => ValueListenableBuilder<OrderSections>(
+      valueListenable: LiveSections.instance,
+      builder: (_, sections, __) =>
+          WarehouseScreen(sections: sections, user: user),
+    ),
+  ));
 }
 
 /// Vakolatni tekshirib, bo'lim sahifasi yoki "vakolat yo'q" ko'rinishini

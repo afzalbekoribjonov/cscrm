@@ -3,7 +3,6 @@ import 'package:flutter/material.dart' hide Text;
 import '../l10n/text.dart';
 import '../models/app_user.dart';
 import '../models/order.dart';
-import '../models/order_item.dart';
 import '../models/staff_permission.dart';
 import '../models/work_section.dart';
 import '../screens/orders/order_detail_screen.dart';
@@ -18,10 +17,11 @@ import 'stage_visuals.dart';
 
 /// Ro'yxatdagi buyurtma kartasi.
 ///
-/// Bo'limdan ochilganda kartada FAQAT shu bo'limga tegishli xizmatlar
-/// nomi bilan ko'rinadi. Boshqa bo'limlardagi xizmatlar pastda kichik
-/// belgilar bilan ("2 ta qadoqlashda, 1 ta tayyor") — ular boshqa
-/// xodimning ishi va ro'yxatni to'ldirib yubormasligi kerak.
+/// Karta HAR DOIM bir xil balandlikda: raqam va mijoz, manzil (bitta
+/// qator), telefon va pastda xizmatlar — faqat BELGI va SON bilan
+/// ("navbatda 2, qadoqlashda 3, tayyor 1"). Xizmatlarning nomi, o'lchami
+/// va holati buyurtma ichida ko'rinadi: ro'yxatda ular kartalarni har xil
+/// uzunlikka cho'zib, ro'yxatni o'qib bo'lmas holga keltirardi.
 class OrderCard extends StatelessWidget {
   const OrderCard({
     super.key,
@@ -53,14 +53,6 @@ class OrderCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final badge = deadlineBadge(order);
-    final mine = [
-      for (final i in order.items)
-        if (itemBelongsTo(i, section, order)) i,
-    ];
-    final others = [
-      for (final i in order.items)
-        if (!itemBelongsTo(i, section, order)) i,
-    ];
 
     return AppCard(
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
@@ -106,15 +98,16 @@ class OrderCard extends StatelessWidget {
               ],
             ],
           ),
-          if (order.address.isNotEmpty) ...[
-            const SizedBox(height: 6),
-            _IconLine(
-              icon: Icons.place_outlined,
-              text: distanceMeters == null
-                  ? order.address
-                  : '${order.address} · ${formatDistance(distanceMeters!)}',
-            ),
-          ],
+          const SizedBox(height: 6),
+          _IconLine(
+            icon: Icons.place_outlined,
+            text: order.address.isEmpty
+                ? 'Manzil kiritilmagan'
+                : distanceMeters == null
+                    ? order.address
+                    : '${order.address} · ${formatDistance(distanceMeters!)}',
+            muted: order.address.isEmpty,
+          ),
           const SizedBox(height: 4),
           Row(
             children: [
@@ -140,27 +133,8 @@ class OrderCard extends StatelessWidget {
                 ),
             ],
           ),
-          if (order.items.isEmpty) ...[
-            const SizedBox(height: 10),
-            const TonePill(
-              label: 'Xizmat hali qo\'shilmagan',
-              tone: StageTone.warning,
-              icon: Icons.playlist_add_rounded,
-              dense: true,
-            ),
-          ] else if (section != null) ...[
-            if (mine.isNotEmpty) ...[
-              const SizedBox(height: 10),
-              _ItemLines(items: mine),
-            ],
-            if (others.isNotEmpty) ...[
-              const SizedBox(height: 10),
-              _OtherStages(items: others),
-            ],
-          ] else ...[
-            const SizedBox(height: 10),
-            _OtherStages(items: order.items, showAll: true),
-          ],
+          const SizedBox(height: 10),
+          StageCounts(order: order, section: section),
         ],
       ),
     );
@@ -173,27 +147,25 @@ class OrderCard extends StatelessWidget {
 }
 
 class _IconLine extends StatelessWidget {
-  const _IconLine({required this.icon, required this.text});
+  const _IconLine({required this.icon, required this.text, this.muted = false});
 
   final IconData icon;
   final String text;
+  final bool muted;
 
   @override
   Widget build(BuildContext context) {
+    final color = muted ? context.colorTextTertiary : context.colorTextSecondary;
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
-          padding: const EdgeInsets.only(top: 1),
-          child: Icon(icon, size: 15, color: context.colorTextSecondary),
-        ),
+        Icon(icon, size: 15, color: color),
         const SizedBox(width: 6),
         Expanded(
           child: Text(
             text,
-            maxLines: 2,
+            maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.bodySmall,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(color: color),
           ),
         ),
       ],
@@ -201,132 +173,99 @@ class _IconLine extends StatelessWidget {
   }
 }
 
-/// Shu bo'limdagi xizmatlar — har biri bitta qatorda.
-class _ItemLines extends StatelessWidget {
-  const _ItemLines({required this.items});
+/// Xizmatlar — faqat belgi va soni, bitta qatorda.
+///
+/// Yuvish bo'limida o'lchanmagan xizmatlar soni alohida qizil belgi bilan
+/// ko'rsatiladi — bu ro'yxatda ham kerakli ma'lumot.
+class StageCounts extends StatelessWidget {
+  const StageCounts({super.key, required this.order, this.section});
 
-  final List<OrderItem> items;
-
-  static const _maxLines = 3;
+  final Order order;
+  final WorkSection? section;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final shown = items.take(_maxLines).toList();
-    final hidden = items.length - shown.length;
-
-    return Container(
-      padding: const EdgeInsets.fromLTRB(10, 7, 10, 7),
-      decoration: BoxDecoration(
-        color: context.colorSurfaceMuted,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        children: [
-          for (final item in shown) _line(context, theme, item),
-          if (hidden > 0)
-            Padding(
-              padding: const EdgeInsets.only(top: 2),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Text('yana $hidden ta xizmat',
-                    style: theme.textTheme.bodySmall),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _line(BuildContext context, ThemeData theme, OrderItem item) {
-    final visual = ItemStage.of(item).visual;
-    final ink = visual.tone.ink(context);
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 3),
-      child: Row(
-        children: [
-          Icon(visual.icon, size: 15, color: ink),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              item.productName,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.bodyMedium
-                  ?.copyWith(fontWeight: FontWeight.w500),
-            ),
+    if (order.items.isEmpty) {
+      return const TonePill(
+        label: 'Xizmat qo\'shilmagan',
+        tone: StageTone.warning,
+        icon: Icons.playlist_add_rounded,
+        dense: true,
+      );
+    }
+    final counts = <ItemStage, int>{};
+    var unmeasured = 0;
+    for (final item in order.items) {
+      final stage = ItemStage.of(item);
+      counts[stage] = (counts[stage] ?? 0) + 1;
+      if (item.status.isWashStage && !item.hasNumericMeasure && !item.isHanded) {
+        unmeasured++;
+      }
+    }
+    final chips = <Widget>[
+      for (final stage in ItemStage.values)
+        if (counts.containsKey(stage))
+          _CountChip(
+            icon: stage.visual.icon,
+            tone: stage.visual.tone,
+            count: counts[stage]!,
+            tooltip: '${counts[stage]} ta: ${stage.visual.label.toLowerCase()}',
           ),
-          const SizedBox(width: 8),
-          if (!item.hasNumericMeasure && item.status.isWashStage)
-            const TonePill(
-              label: 'O\'lchanmagan',
-              tone: StageTone.danger,
-              dense: true,
-            )
-          else if (item.hajm.isNotEmpty)
-            Flexible(
-              child: Text(
-                item.hajm,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.bodySmall
-                    ?.copyWith(fontFeatures: AppFonts.tabular),
-              ),
-            ),
-          const SizedBox(width: 8),
-          Text(
-            visual.label,
-            style: theme.textTheme.labelMedium?.copyWith(
-              color: ink,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ],
-      ),
-    );
+      if (section == WorkSection.yuvish && unmeasured > 0)
+        _CountChip(
+          icon: Icons.straighten_rounded,
+          tone: StageTone.danger,
+          count: unmeasured,
+          tooltip: '$unmeasured ta o\'lchanmagan',
+        ),
+    ];
+    return Wrap(spacing: 6, runSpacing: 6, children: chips);
   }
 }
 
-/// Boshqa bo'limlardagi xizmatlar — faqat belgi va soni.
-class _OtherStages extends StatelessWidget {
-  const _OtherStages({required this.items, this.showAll = false});
+class _CountChip extends StatelessWidget {
+  const _CountChip({
+    required this.icon,
+    required this.tone,
+    required this.count,
+    required this.tooltip,
+  });
 
-  final List<OrderItem> items;
-  final bool showAll;
+  final IconData icon;
+  final StageTone tone;
+  final int count;
+  final String tooltip;
 
   @override
   Widget build(BuildContext context) {
-    final counts = <ItemStage, int>{};
-    for (final item in items) {
-      final stage = ItemStage.of(item);
-      counts[stage] = (counts[stage] ?? 0) + 1;
-    }
-    final stages = ItemStage.values.where(counts.containsKey).toList();
-
-    return Wrap(
-      spacing: 6,
-      runSpacing: 6,
-      crossAxisAlignment: WrapCrossAlignment.center,
-      children: [
-        if (!showAll)
-          Text(
-            'Boshqa bo\'limda:',
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
-        for (final stage in stages)
-          Tooltip(
-            message:
-                t('${counts[stage]} ta: ${stage.visual.label.toLowerCase()}'),
-            child: TonePill(
-              label: showAll
-                  ? '${counts[stage]} ${stage.visual.label.toLowerCase()}'
-                  : '${counts[stage]}',
-              tone: stage.visual.tone,
-              icon: stage.visual.icon,
-              dense: true,
+    final ink = tone.ink(context);
+    return Tooltip(
+      message: t(tooltip),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(7, 4, 9, 4),
+        decoration: BoxDecoration(
+          color: tone.soft(context),
+          borderRadius: BorderRadius.circular(Radii.pill),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 15, color: ink),
+            const SizedBox(width: 4),
+            Text(
+              '$count',
+              style: TextStyle(
+                fontFamily: AppFonts.sans,
+                color: ink,
+                fontWeight: FontWeight.w700,
+                fontSize: 13,
+                height: 1.1,
+                fontFeatures: AppFonts.tabular,
+              ),
             ),
-          ),
-      ],
+          ],
+        ),
+      ),
     );
   }
 }

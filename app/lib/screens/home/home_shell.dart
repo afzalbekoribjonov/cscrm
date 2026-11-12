@@ -3,12 +3,12 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../models/app_user.dart';
-import '../../models/business_policies.dart';
 import '../../models/employee.dart';
 import '../../models/order.dart';
 import '../../models/work_section.dart';
 import '../../services/auth_service.dart';
 import '../../services/employee_service.dart';
+import '../../services/live_sections.dart';
 import '../../services/message_center.dart';
 import '../../services/order_service.dart';
 import '../../services/order_sync_service.dart';
@@ -40,7 +40,7 @@ import '../warehouse/warehouse_screen.dart';
 ///  * Xodimda — ish bo'limlari; ilova u vakolatli BIRINCHI bo'limda
 ///    ochiladi. Vakolati yo'q bo'lim menyuda qulf belgisi bilan turadi va
 ///    ichida "Sizda vakolat mavjud emas" ko'rinadi.
-///  * "Omborxona" qoidalarda o'chirilgan bo'lsa — menyuda umuman yo'q.
+///  * "Omborxona" — "⋮" menyuda (qoidalarda o'chirilgan bo'lsa — yo'q).
 class HomeShell extends StatefulWidget {
   const HomeShell({super.key, required this.session});
 
@@ -148,6 +148,8 @@ class _HomeShellState extends State<HomeShell> {
       );
       _todaysOrders = _orders.where((o) => o.createdAt >= dayStart).toList();
     });
+    // "⋮" menyudan ochiladigan sahifalar (Omborxona) ham jonli bo'lsin.
+    LiveSections.instance.value = _sections;
   }
 
   void _retryOrdersStream() {
@@ -216,13 +218,14 @@ class _HomeShellState extends State<HomeShell> {
 
   // ------------------------------------------------------------ navigatsiya
 
-  List<WorkSection> _sectionsFor(BusinessPolicies p) => [
-        WorkSection.yangi,
-        WorkSection.yuvish,
-        WorkSection.qadoqlash,
-        WorkSection.yetgazma,
-        if (p.warehouseEnabled) WorkSection.ombor,
-      ];
+  /// Pastki menyudagi bo'limlar. Omborxona bu yerda YO'Q — u "⋮"
+  /// menyuda: kundalik ish bo'limi emas, kamdan-kam ochiladi.
+  static const _tabSections = [
+    WorkSection.yangi,
+    WorkSection.yuvish,
+    WorkSection.qadoqlash,
+    WorkSection.yetgazma,
+  ];
 
   int _badgeFor(WorkSection s) => switch (s) {
         WorkSection.yangi => 0,
@@ -256,7 +259,7 @@ class _HomeShellState extends State<HomeShell> {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
-    final sections = _sectionsFor(_sections.policies);
+    const sections = _tabSections;
     if (!_initialPicked) {
       _initialPicked = true;
       // Xodim — vakolatli birinchi bo'limda; boshqaruvchi — "Asosiy"da.
