@@ -12,6 +12,18 @@
 //
 // Ma'lumot namunaviy (tool/sample_data.dart) — bazaga ulanilmaydi.
 
+import 'package:cscrm/screens/admin/admin_home_screen.dart';
+import 'package:cscrm/screens/admin/debtors_screen.dart';
+import 'package:cscrm/screens/admin/employee_detail_screen.dart';
+import 'package:cscrm/screens/admin/employees_list_screen.dart';
+import 'package:cscrm/screens/admin/expenses_screen.dart';
+import 'package:cscrm/screens/admin/policies_screen.dart';
+import 'package:cscrm/screens/admin/products_admin_screen.dart';
+import 'package:cscrm/screens/admin/profile_screen.dart';
+import 'package:cscrm/screens/settings/settings_screen.dart';
+import 'package:cscrm/services/license_controller.dart';
+import 'package:cscrm/services/license_service.dart';
+import 'package:cscrm/services/policy_service.dart';
 import 'package:cscrm/l10n/material_cyrillic.dart';
 import 'package:cscrm/l10n/script.dart';
 import 'package:cscrm/models/app_user.dart';
@@ -225,6 +237,51 @@ void main() {
       sources: sources,
     ));
     await shot('kalendar', const _PickerHarness());
+
+    // --- Boshqaruv bo'limlari ---
+    LicenseController.instance.value =
+        LicenseResolution(status: sampleLicense(), fromCache: false);
+    PolicyCenter.instance.serverReady.value = true;
+    await shot('boshqaruv', const AdminHomeScreen(
+      currentUserId: 'owner',
+      currentUserName: 'afzalbek',
+    ), size: _tall);
+    await shot('qonuniyatlar', const PoliciesScreen(), size: const Size(390, 1900));
+    await shot('sozlamalar', const SettingsScreen(), size: _tall);
+    await shot('profil', ProfileScreen(
+      businessName: 'Nihol gilam yuvish',
+      service: SampleLicenseService(),
+      now: () => sampleNow,
+    ), size: _tall);
+    await shot('chiqimlar', ExpensesScreen(
+      currentUserId: 'owner',
+      currentUserName: 'Boshqaruvchi',
+      expensesOf: (_, __) => Stream.value(sampleExpensesMonths),
+    ));
+    await shot('qarzdorlar', DebtorsScreen(
+      currentUserId: 'owner',
+      currentUserName: 'Boshqaruvchi',
+      access: const StaffAccess.admin(),
+      debtors: Stream.value(sampleDebtors),
+    ));
+    await shot('xizmatlar', ProductsAdminScreen(products: Stream.value(sampleProducts)));
+    await shot('xodimlar', EmployeesListScreen(employees: Stream.value(sampleEmployees)));
+    await shot('xodim', EmployeeDetailScreen(
+      employee: sampleEmployees[1],
+      sources: sources,
+      employeeStream: Stream.value(sampleEmployees[1]),
+    ), size: const Size(390, 2100));
+    ScriptController.instance.value = UzScript.cyrillic;
+    await shot('kirill-sozlamalar', const SettingsScreen(), size: _tall);
+    await shot('kirill-qarzdorlar', DebtorsScreen(
+      currentUserId: 'owner',
+      currentUserName: 'Boshqaruvchi',
+      access: const StaffAccess.admin(),
+      debtors: Stream.value(sampleDebtors),
+    ));
+    ScriptController.instance.value = UzScript.latin;
+    LicenseController.instance.value = null;
+
 
     for (final width in [320.0, 390.0]) {
       await shot('menyu-${width.toInt()}', Scaffold(

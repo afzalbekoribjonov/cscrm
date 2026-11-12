@@ -2,115 +2,117 @@ import 'package:flutter/material.dart' hide Text;
 import 'package:flutter/services.dart';
 
 import '../../l10n/text.dart';
+import '../../l10n/transliterate.dart';
 import '../../models/calculation_method.dart';
 import '../../models/product.dart';
 import '../../services/product_service.dart';
 import '../../theme/app_colors.dart';
+import '../../theme/app_theme.dart';
+import '../../ui/sheets.dart';
+import '../../ui/surfaces.dart';
 import '../../utils/money.dart';
+import '../../widgets/stream_error_view.dart';
 
+/// Xizmatlar va narxlar ro'yxati — qo'shish, tahrirlash, o'chirish.
 class ProductsAdminScreen extends StatefulWidget {
-  const ProductsAdminScreen({super.key});
+  const ProductsAdminScreen({super.key, @visibleForTesting this.products});
+
+  /// Faqat sinov/rasm uchun.
+  final Stream<List<Product>>? products;
 
   @override
   State<ProductsAdminScreen> createState() => _ProductsAdminScreenState();
 }
 
 class _ProductsAdminScreenState extends State<ProductsAdminScreen> {
-  final _service = ProductService();
-  // Bir marta yaratilib saqlanadi - build() ichida chaqirilsa, ekrandagi
-  // har qanday kelajakdagi mahalliy setState() ro'yxatni "waiting" holatiga
-  // qaytarib flicker qilishiga sabab bo'lardi.
-  late final _productsStream = _service.streamProducts();
+  late final _service = ProductService();
+  late final _stream = widget.products ?? _service.streamProducts();
+  final _search = TextEditingController();
 
-  Future<void> _openForm({Product? product}) async {
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      builder: (_) => _ProductFormSheet(service: _service, product: product),
-    );
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
   }
 
-  Future<void> _confirmDelete(Product product) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Xizmatni o\'chirish'),
-        content: Text('"${product.name}" o\'chirilsinmi?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Bekor qilish'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: Text(
-              'O\'chirish',
-              style: TextStyle(color: Theme.of(context).colorScheme.error),
-            ),
-          ),
-        ],
-      ),
+  Future<void> _openForm({Product? product}) async {
+    final result = await showAppSheet<String>(
+      context,
+      (_) => _ProductFormSheet(service: _service, product: product),
     );
-    if (confirmed == true) {
-      await _service.deleteProduct(product.id);
-    }
+    if (result != null && mounted) showResult(context, result);
   }
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Scaffold(
-      appBar: AppBar(title: const Text('Xizmatlar')),
+      appBar: AppBar(title: const Text('Xizmatlar va narxlar')),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _openForm(),
         icon: const Icon(Icons.add_rounded),
         label: const Text('Yangi xizmat'),
       ),
       body: StreamBuilder<List<Product>>(
-        stream: _productsStream,
+        stream: _stream,
         builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
+          if (snapshot.hasError) return StreamErrorView(error: snapshot.error!);
+          if (!snapshot.hasData) {
             return const Center(child: CircularProgressIndicator());
           }
-          final products = snapshot.data ?? [];
-          if (products.isEmpty) {
-            return Center(
-              child: Text(
-                'Hali xizmat qo\'shilmagan',
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
+          final all = [...snapshot.data!]
+            ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+          if (all.isEmpty) {
+            return const EmptyState(
+              icon: Icons.local_laundry_service_outlined,
+              tone: StageTone.brand,
+              title: 'Hali xizmat qo\'shilmagan',
+              message: 'Gilam, parda, ko\'rpa — har bir xizmatni narxi va '
+                  'hisoblash usuli bilan qo\'shing.',
             );
           }
-          return ListView.separated(
-            padding: EdgeInsets.fromLTRB(
-                16, 16, 16, 96 + MediaQuery.of(context).padding.bottom),
-            itemCount: products.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 10),
-            itemBuilder: (context, index) {
-              final product = products[index];
-              return Card(
-                clipBehavior: Clip.antiAlias,
-                child: ListTile(
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 14),
-                  leading: Container(
-                    width: 42,
-                    height: 42,
-                    decoration: BoxDecoration(
-                      color: AppColors.accent.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Icon(product.method.icon, color: AppColors.accent),
-                  ),
-                  title: Text(product.name),
-                  subtitle:
-                      Text('${product.method.label} · ${product.priceLabel}'),
-                  onTap: () => _openForm(product: product),
-                  trailing: IconButton(
-                    icon: const Icon(Icons.delete_outline_rounded),
-                    onPressed: () => _confirmDelete(product),
+          final q = searchKey(_search.text);
+          final products = q.isEmpty
+              ? all
+              : all.where((p) => searchKey(p.name).contains(q)).toList();
+
+          return ListView(
+            padding: EdgeInsets.fromLTRB(Gap.page, 4, Gap.page,
+                100 + MediaQuery.of(context).padding.bottom),
+            children: [
+              if (all.length > 6) ...[
+                TextField(
+                  controller: _search,
+                  onChanged: (_) => setState(() {}),
+                  decoration: InputDecoration(
+                    hintText: t('Xizmatni qidirish'),
+                    prefixIcon: const Icon(Icons.search_rounded),
                   ),
                 ),
-              );
-            },
+                const SizedBox(height: 12),
+              ],
+              Padding(
+                padding: const EdgeInsets.fromLTRB(4, 0, 4, 8),
+                child: Text(
+                  '${all.length} ta xizmat · bosib tahrirlang',
+                  style: theme.textTheme.bodySmall,
+                ),
+              ),
+              AppCard(
+                padding: EdgeInsets.zero,
+                child: Column(
+                  children: [
+                    for (var i = 0; i < products.length; i++) ...[
+                      if (i > 0) Divider(height: 1, indent: 70, color: context.colorBorder),
+                      _ProductRow(
+                        product: products[i],
+                        onTap: () => _openForm(product: products[i]),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
           );
         },
       ),
@@ -118,6 +120,53 @@ class _ProductsAdminScreenState extends State<ProductsAdminScreen> {
   }
 }
 
+class _ProductRow extends StatelessWidget {
+  const _ProductRow({required this.product, required this.onTap});
+
+  final Product product;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
+        child: Row(
+          children: [
+            IconTile(icon: product.method.icon, tone: StageTone.brand, size: 42),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(product.name, style: theme.textTheme.titleSmall),
+                  const SizedBox(height: 2),
+                  Text(product.method.label, style: theme.textTheme.bodySmall),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(
+                product.priceLabel,
+                textAlign: TextAlign.end,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  fontFeatures: AppFonts.tabular,
+                ),
+              ),
+            ),
+            Icon(Icons.chevron_right_rounded, color: context.colorTextTertiary),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Xizmat qo'shish/tahrirlash. Natija — natija xabari (yoki `null`).
 class _ProductFormSheet extends StatefulWidget {
   const _ProductFormSheet({required this.service, this.product});
 
@@ -129,199 +178,304 @@ class _ProductFormSheet extends StatefulWidget {
 }
 
 class _ProductFormSheetState extends State<_ProductFormSheet> {
-  final _formKey = GlobalKey<FormState>();
-  late final _nameCtrl =
-      TextEditingController(text: widget.product?.name ?? '');
-  late final _priceCtrl = TextEditingController(
-    text: widget.product != null && widget.product!.price > 0
-        ? formatMoney(widget.product!.price)
-        : '',
-  );
-  late final _priceSmallCtrl = TextEditingController(
-    text: widget.product != null && widget.product!.priceSmall > 0
-        ? formatMoney(widget.product!.priceSmall)
-        : '',
-  );
-  late final _priceLargeCtrl = TextEditingController(
-    text: widget.product != null && widget.product!.priceLarge > 0
-        ? formatMoney(widget.product!.priceLarge)
-        : '',
-  );
+  late final _nameCtrl = TextEditingController(text: widget.product?.name ?? '');
+  late final _priceCtrl = TextEditingController(text: _money(widget.product?.price));
+  late final _smallCtrl =
+      TextEditingController(text: _money(widget.product?.priceSmall));
+  late final _largeCtrl =
+      TextEditingController(text: _money(widget.product?.priceLarge));
   late CalculationMethod _method =
-      widget.product?.method ?? CalculationMethod.dona;
-  bool _saving = false;
+      widget.product?.method ?? CalculationMethod.m2;
+  var _saving = false;
+  var _showErrors = false;
 
   bool get _isEdit => widget.product != null;
+
+  static String _money(double? v) => v == null || v <= 0 ? '' : formatMoney(v);
+
+  static const _suggestions = [
+    'Gilam', 'Palos', 'Ko\'rpa', 'Adyol', 'Parda', 'Yostiq', 'Divan',
+    'Kurtka', 'Kostyum',
+  ];
+
+  static String _methodHint(CalculationMethod m) => switch (m) {
+        CalculationMethod.m2 => 'Eni × bo\'yi o\'lchanadi, m² ga ko\'paytiriladi',
+        CalculationMethod.dona => 'Har bir dona uchun bir xil narx',
+        CalculationMethod.metr => 'Uzunligi o\'lchanadi, metrga ko\'paytiriladi',
+        CalculationMethod.kg => 'Tortiladi, kilogrammga ko\'paytiriladi',
+        CalculationMethod.kichikKatta => 'Ikki narx: kichik va katta o\'lcham',
+      };
+
+  /// Narx qanday hisoblanishini misol bilan ko'rsatadi.
+  String? get _example {
+    final price = parseMoney(_priceCtrl.text);
+    return switch (_method) {
+      CalculationMethod.m2 when price > 0 =>
+        'Masalan: 2 × 3 m = 6 m² × ${formatMoney(price)} = ${formatSom(price * 6)}',
+      CalculationMethod.metr when price > 0 =>
+        'Masalan: 4 m × ${formatMoney(price)} = ${formatSom(price * 4)}',
+      CalculationMethod.kg when price > 0 =>
+        'Masalan: 5 kg × ${formatMoney(price)} = ${formatSom(price * 5)}',
+      CalculationMethod.dona when price > 0 =>
+        'Masalan: 3 dona × ${formatMoney(price)} = ${formatSom(price * 3)}',
+      _ => null,
+    };
+  }
 
   @override
   void dispose() {
     _nameCtrl.dispose();
     _priceCtrl.dispose();
-    _priceSmallCtrl.dispose();
-    _priceLargeCtrl.dispose();
+    _smallCtrl.dispose();
+    _largeCtrl.dispose();
     super.dispose();
   }
 
-  Future<void> _submit() async {
-    if (!_formKey.currentState!.validate()) return;
-    setState(() => _saving = true);
-    final price = parseMoney(_priceCtrl.text);
-    final priceSmall = parseMoney(_priceSmallCtrl.text);
-    final priceLarge = parseMoney(_priceLargeCtrl.text);
-    if (_isEdit) {
-      await widget.service.updateProduct(
-        id: widget.product!.id,
-        name: _nameCtrl.text,
-        method: _method,
-        price: price,
-        priceSmall: priceSmall,
-        priceLarge: priceLarge,
-      );
-    } else {
-      await widget.service.createProduct(
-        name: _nameCtrl.text,
-        method: _method,
-        price: price,
-        priceSmall: priceSmall,
-        priceLarge: priceLarge,
-      );
+  bool get _valid {
+    if (_nameCtrl.text.trim().isEmpty) return false;
+    if (_method.hasTwoSizes) {
+      return parseMoney(_smallCtrl.text) > 0 && parseMoney(_largeCtrl.text) > 0;
     }
-    if (mounted) Navigator.of(context).pop();
+    return parseMoney(_priceCtrl.text) > 0;
+  }
+
+  Future<void> _save() async {
+    if (!_valid) {
+      setState(() => _showErrors = true);
+      return;
+    }
+    setState(() => _saving = true);
+    final two = _method.hasTwoSizes;
+    try {
+      if (_isEdit) {
+        await widget.service.updateProduct(
+          id: widget.product!.id,
+          name: _nameCtrl.text,
+          method: _method,
+          price: two ? 0 : parseMoney(_priceCtrl.text),
+          priceSmall: two ? parseMoney(_smallCtrl.text) : 0,
+          priceLarge: two ? parseMoney(_largeCtrl.text) : 0,
+        );
+      } else {
+        await widget.service.createProduct(
+          name: _nameCtrl.text,
+          method: _method,
+          price: two ? 0 : parseMoney(_priceCtrl.text),
+          priceSmall: two ? parseMoney(_smallCtrl.text) : 0,
+          priceLarge: two ? parseMoney(_largeCtrl.text) : 0,
+        );
+      }
+      if (mounted) {
+        Navigator.of(context).pop(_isEdit ? 'Xizmat saqlandi' : 'Xizmat qo\'shildi');
+      }
+    } catch (_) {
+      if (mounted) {
+        showResult(context, 'Saqlab bo\'lmadi. Qayta urinib ko\'ring.', error: true);
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _delete() async {
+    final ok = await confirmAction(
+      context,
+      title: 'Xizmatni o\'chirish',
+      message: '"${widget.product!.name}" yangi buyurtmalarda tanlanmaydi. '
+          'Avvalgi buyurtmalar o\'zgarmaydi.',
+      confirmLabel: 'O\'chirish',
+      destructive: true,
+    );
+    if (!ok || !mounted) return;
+    await widget.service.deleteProduct(widget.product!.id);
+    if (mounted) Navigator.of(context).pop('Xizmat o\'chirildi');
+  }
+
+  Widget _priceField(TextEditingController c, String label, String suffix) {
+    return TextField(
+      controller: c,
+      keyboardType: TextInputType.number,
+      inputFormatters: [
+        FilteringTextInputFormatter.digitsOnly,
+        const MoneyInputFormatter(),
+      ],
+      onChanged: (_) => setState(() {}),
+      style: Theme.of(context)
+          .textTheme
+          .titleMedium
+          ?.copyWith(fontFeatures: AppFonts.tabular),
+      decoration: InputDecoration(
+        labelText: t(label),
+        suffixText: t(suffix),
+        errorText: _showErrors && parseMoney(c.text) <= 0 ? t('Narxni kiriting') : null,
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      padding: EdgeInsets.only(
-        left: 20,
-        right: 20,
-        top: 20,
-        bottom: MediaQuery.of(context).viewInsets.bottom +
-            MediaQuery.of(context).padding.bottom +
-            20,
+    final theme = Theme.of(context);
+    final unit = _method.unitSymbol;
+    return SheetFrame(
+      title: _isEdit ? 'Xizmatni tahrirlash' : 'Yangi xizmat',
+      actions: Row(
+        children: [
+          if (_isEdit) ...[
+            IconButton.outlined(
+              tooltip: t('O\'chirish'),
+              onPressed: _saving ? null : _delete,
+              icon: const Icon(Icons.delete_outline_rounded, color: AppColors.danger),
+            ),
+            const SizedBox(width: 10),
+          ],
+          Expanded(
+            child: FilledButton.icon(
+              onPressed: _saving ? null : _save,
+              icon: const Icon(Icons.check_rounded),
+              label: Text(_isEdit ? 'Saqlash' : 'Qo\'shish'),
+            ),
+          ),
+        ],
       ),
-      child: Form(
-        key: _formKey,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              _isEdit ? 'Xizmatni tahrirlash' : 'Yangi xizmat',
-              style: Theme.of(context).textTheme.titleMedium,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          TextField(
+            controller: _nameCtrl,
+            textCapitalization: TextCapitalization.sentences,
+            onChanged: (_) => setState(() {}),
+            decoration: InputDecoration(
+              labelText: t('Xizmat nomi'),
+              prefixIcon: const Icon(Icons.local_laundry_service_outlined),
+              errorText: _showErrors && _nameCtrl.text.trim().isEmpty
+                  ? t('Nomini kiriting')
+                  : null,
             ),
-            const SizedBox(height: 16),
-            TextFormField(
-              controller: _nameCtrl,
-              textInputAction: TextInputAction.next,
-              decoration: const InputDecoration(
-                labelText: 'Nomi',
-                hintText: 'masalan: Gilam',
-              ),
-              validator: (v) =>
-                  (v?.trim().isEmpty ?? true) ? 'Nomini kiriting' : null,
-            ),
-            const SizedBox(height: 16),
-            Text('Hisoblash usuli',
-                style: Theme.of(context).textTheme.bodySmall),
+          ),
+          if (!_isEdit) ...[
             const SizedBox(height: 8),
             Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: CalculationMethod.values.map((m) {
-                final selected = _method == m;
-                return ChoiceChip(
-                  selected: selected,
-                  onSelected: (_) => setState(() => _method = m),
-                  avatar: Icon(
-                    m.icon,
-                    size: 17,
-                    color: selected ? Colors.white : AppColors.primary,
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                for (final s in _suggestions)
+                  ActionChip(
+                    label: Text(s),
+                    onPressed: () => setState(() => _nameCtrl.text = s),
                   ),
-                  label: Text(m.label),
-                  selectedColor: AppColors.primary,
-                  labelStyle: TextStyle(
-                    color: selected ? Colors.white : context.colorTextPrimary,
-                    fontWeight: FontWeight.w600,
-                  ),
-                );
-              }).toList(),
-            ),
-            const SizedBox(height: 16),
-            if (_method.hasTwoSizes)
-              Row(
-                children: [
-                  Expanded(
-                    child: TextFormField(
-                      controller: _priceSmallCtrl,
-                      keyboardType: TextInputType.number,
-                      inputFormatters: const [MoneyInputFormatter()],
-                      decoration: const InputDecoration(
-                        labelText: 'Kichik narxi',
-                        suffixText: 'so\'m',
-                      ),
-                      validator: (v) => parseMoney(v ?? '') <= 0
-                          ? 'Narx kiriting'
-                          : null,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: TextFormField(
-                      controller: _priceLargeCtrl,
-                      keyboardType:
-                          const TextInputType.numberWithOptions(decimal: true),
-                      textInputAction: TextInputAction.done,
-                      inputFormatters: [
-                        FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
-                      ],
-                      decoration: const InputDecoration(
-                        labelText: 'Katta narxi',
-                        suffixText: 'so\'m',
-                      ),
-                      validator: (v) => parseMoney(v ?? '') <= 0
-                          ? 'Narx kiriting'
-                          : null,
-                      onFieldSubmitted: (_) => _submit(),
-                    ),
-                  ),
-                ],
-              )
-            else
-              TextFormField(
-                controller: _priceCtrl,
-                keyboardType:
-                    const TextInputType.numberWithOptions(decimal: true),
-                textInputAction: TextInputAction.done,
-                inputFormatters: [
-                  FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
-                ],
-                decoration: InputDecoration(
-                  labelText: 'Narxi',
-                  suffixText: _method.unitSymbol.isEmpty
-                      ? 'so\'m'
-                      : 'so\'m/${_method.unitSymbol}',
-                ),
-                validator: (v) => parseMoney(v ?? '') <= 0
-                    ? 'Narx kiriting'
-                    : null,
-                onFieldSubmitted: (_) => _submit(),
-              ),
-            const SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: _saving ? null : _submit,
-              child: _saving
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2.2,
-                        color: Colors.white,
-                      ),
-                    )
-                  : Text(_isEdit ? 'Saqlash' : 'Qo\'shish'),
+              ],
             ),
           ],
+          const SizedBox(height: 18),
+          Text('Narx qanday hisoblanadi', style: theme.textTheme.titleSmall),
+          const SizedBox(height: 8),
+          for (final m in CalculationMethod.values)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: _MethodOption(
+                method: m,
+                hint: _methodHint(m),
+                selected: m == _method,
+                onTap: () => setState(() => _method = m),
+              ),
+            ),
+          const SizedBox(height: 10),
+          if (_method.hasTwoSizes)
+            Row(
+              children: [
+                Expanded(child: _priceField(_smallCtrl, 'Kichik', 'so\'m')),
+                const SizedBox(width: 10),
+                Expanded(child: _priceField(_largeCtrl, 'Katta', 'so\'m')),
+              ],
+            )
+          else
+            _priceField(_priceCtrl, 'Narxi', unit.isEmpty ? 'so\'m' : 'so\'m/$unit'),
+          if (_example != null) ...[
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: context.colorSurfaceMuted,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.calculate_outlined,
+                      size: 18, color: context.colorTextSecondary),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(_example!,
+                        style: theme.textTheme.bodySmall
+                            ?.copyWith(fontFeatures: AppFonts.tabular)),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _MethodOption extends StatelessWidget {
+  const _MethodOption({
+    required this.method,
+    required this.hint,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final CalculationMethod method;
+  final String hint;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Material(
+      color: selected ? context.colorPrimarySoft : context.colorSurfaceMuted,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(Radii.md),
+        side: BorderSide(
+          color: selected ? AppColors.primary : Colors.transparent,
+          width: 1.4,
+        ),
+      ),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(Radii.md),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+          child: Row(
+            children: [
+              Icon(method.icon,
+                  color: selected ? context.colorPrimaryInk : context.colorTextSecondary),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      method.label,
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        color: selected ? context.colorPrimaryInk : null,
+                      ),
+                    ),
+                    Text(hint, style: theme.textTheme.bodySmall),
+                  ],
+                ),
+              ),
+              Icon(
+                selected
+                    ? Icons.radio_button_checked_rounded
+                    : Icons.radio_button_off_rounded,
+                size: 20,
+                color: selected ? AppColors.primary : context.colorTextTertiary,
+              ),
+            ],
+          ),
         ),
       ),
     );

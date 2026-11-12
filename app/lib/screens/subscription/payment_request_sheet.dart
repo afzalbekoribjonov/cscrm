@@ -146,7 +146,7 @@ class _PaymentRequestSheetState extends State<_PaymentRequestSheet> {
 
               DropdownButtonFormField<String>(
                 value: _plan?.id,
-                decoration: const InputDecoration(labelText: 'Qaysi reja'),
+                decoration: InputDecoration(labelText: t('Qaysi reja')),
                 items: [
                   for (final p in widget.plans)
                     DropdownMenuItem(
@@ -173,7 +173,7 @@ class _PaymentRequestSheetState extends State<_PaymentRequestSheet> {
                 keyboardType: TextInputType.number,
                 inputFormatters: const [MoneyInputFormatter()],
                 enabled: !_sending,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   labelText: 'To\'langan summa',
                   suffixText: 'so\'m',
                 ),
@@ -186,7 +186,7 @@ class _PaymentRequestSheetState extends State<_PaymentRequestSheet> {
                 controller: _reference,
                 enabled: !_sending,
                 maxLength: 120,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   labelText: 'O\'tkazma raqami',
                   helperText: 'Chekdagi raqam — to\'lovni tezroq topamiz',
                   counterText: '',
@@ -199,8 +199,8 @@ class _PaymentRequestSheetState extends State<_PaymentRequestSheet> {
                 enabled: !_sending,
                 maxLines: 2,
                 maxLength: 500,
-                decoration: const InputDecoration(
-                  labelText: 'Izoh',
+                decoration: InputDecoration(
+                  labelText: t('Izoh'),
                   counterText: '',
                 ),
               ),

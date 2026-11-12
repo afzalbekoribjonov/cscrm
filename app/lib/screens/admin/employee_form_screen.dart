@@ -138,7 +138,7 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
                   ],
                   decoration: InputDecoration(
                     label: requiredLabel('Telefon raqami'),
-                    hintText: '+998 90 123 45 67',
+                    hintText: t('+998 90 123 45 67'),
                     helperText: _isEdit
                         ? 'Raqamni o\'zgartirib bo\'lmaydi'
                         : null,

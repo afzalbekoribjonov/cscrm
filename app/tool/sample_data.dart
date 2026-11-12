@@ -4,7 +4,9 @@
 // qadoqlashda, deyarli tayyor (bo'lib topshirilgani bilan), tayyor,
 // omborda va bugun topshirilgan.
 
+import 'package:cscrm/models/calculation_method.dart';
 import 'package:cscrm/models/employee.dart';
+import 'package:cscrm/models/license_status.dart';
 import 'package:cscrm/models/expense.dart';
 import 'package:cscrm/models/item_status.dart';
 import 'package:cscrm/models/measure_unit.dart';
@@ -12,8 +14,10 @@ import 'package:cscrm/models/order.dart';
 import 'package:cscrm/models/order_history_entry.dart';
 import 'package:cscrm/models/order_item.dart';
 import 'package:cscrm/models/order_status.dart';
+import 'package:cscrm/models/product.dart';
 import 'package:cscrm/models/work_section.dart';
 import 'package:cscrm/screens/dashboard/dashboard_sources.dart';
+import 'package:cscrm/services/license_service.dart';
 
 final sampleNow = DateTime.now();
 int _ago({int days = 0, int hours = 0, int minutes = 0}) => sampleNow
@@ -214,3 +218,92 @@ class SampleDashboardSources implements DashboardSources {
   @override
   Stream<List<Employee>> employees() => Stream.value(sampleEmployees);
 }
+
+// ---------------------------------------------------------------------------
+// Boshqaruv sahifalari uchun.
+
+final sampleExpensesMonths = <Expense>[
+  for (var i = 0; i < 6; i++)
+    Expense(
+      id: 'm$i',
+      title: ['Kimyo vositalari', 'Elektr', 'Ijara', 'Yoqilg\'i', 'Suv', 'Ish haqi'][i],
+      amount: [180000.0, 95000.0, 1500000.0, 120000.0, 40000.0, 2400000.0][i],
+      spentAt: _ago(days: i * 9),
+      note: i == 2 ? 'Noyabr oyi uchun' : '',
+      createdBy: 'owner',
+      createdByName: 'Boshqaruvchi',
+      createdAt: _ago(days: i * 9),
+    ),
+];
+
+Order _debtor(int id, String name, int daysAgo, double total, double debt) => Order(
+      id: id,
+      customerName: name,
+      customerPhone: '99893${(5551200 + id) % 10000000}',
+      address: '',
+      deadline: null,
+      deliveryType: DeliveryType.oziKeldi,
+      status: OrderStatus.yetgazildi,
+      createdBy: 'e1',
+      createdByName: 'Malika',
+      createdAt: _ago(days: daysAgo + 3),
+      items: const [],
+      totalPrice: total,
+      comments: const [],
+      delivered: ActorStamp(at: _ago(days: daysAgo), employeeId: 'e3', name: 'Sardor'),
+      paymentMethod: 'Naqd pul',
+      paymentAmount: total - debt,
+      debtAmount: debt,
+    );
+
+final sampleDebtors = <Order>[
+  _debtor(1201, 'Bahodir', 2, 240000, 90000),
+  _debtor(1188, 'Gulnora', 6, 180000, 180000),
+  _debtor(1102, 'Rustam aka', 34, 420000, 120000),
+  _debtor(1090, 'Zarina', 40, 96000, 46000),
+];
+
+final sampleProducts = <Product>[
+  const Product(id: 'p1', name: 'Gilam', method: CalculationMethod.m2, price: 12000, priceSmall: 0, priceLarge: 0, createdAt: 0),
+  const Product(id: 'p2', name: 'Palos', method: CalculationMethod.m2, price: 10000, priceSmall: 0, priceLarge: 0, createdAt: 0),
+  const Product(id: 'p3', name: 'Ko\'rpa', method: CalculationMethod.kichikKatta, price: 0, priceSmall: 35000, priceLarge: 55000, createdAt: 0),
+  const Product(id: 'p4', name: 'Parda', method: CalculationMethod.metr, price: 15000, priceSmall: 0, priceLarge: 0, createdAt: 0),
+  const Product(id: 'p5', name: 'Yostiq', method: CalculationMethod.dona, price: 20000, priceSmall: 0, priceLarge: 0, createdAt: 0),
+];
+
+class SampleLicenseService extends LicenseService {
+  @override
+  Future<({List<SubscriptionPlan> plans, PaymentInfo payment})> fetchPlans() async => (
+        plans: const [
+          SubscriptionPlan(id: 'm1', name: '1 oylik', price: 199000, description: '', kind: 'subscription', months: 1, highlight: false),
+          SubscriptionPlan(id: 'm3', name: '3 oylik', price: 537000, description: '', kind: 'subscription', months: 3, highlight: true),
+          SubscriptionPlan(id: 'y1', name: '1 yillik', price: 1790000, description: '', kind: 'subscription', months: 12, highlight: false),
+        ],
+        payment: const PaymentInfo(
+          cards: [],
+          cardHolder: '',
+          phone: '998901234567',
+          email: '',
+          telegram: 'cscrm_uz',
+          note: '',
+          configured: true,
+        ),
+      );
+
+  @override
+  Future<PaymentRequest?> fetchPaymentRequest() async => null;
+}
+
+LicenseStatus sampleLicense({Duration left = const Duration(hours: 5, minutes: 20)}) =>
+    LicenseStatus(
+      tenantId: 't1',
+      state: LicenseState.expiring,
+      planId: 'm1',
+      kind: 'subscription',
+      expiresAt: sampleNow.add(left).millisecondsSinceEpoch,
+      daysLeft: 1,
+      checkedAt: sampleNow.millisecondsSinceEpoch,
+      ttlSeconds: 21600,
+      message: '',
+      blocked: false,
+    );

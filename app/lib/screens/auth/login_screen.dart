@@ -276,9 +276,9 @@ class _EmployeeLoginFormState extends State<_EmployeeLoginForm> {
           inputFormatters: [
             FilteringTextInputFormatter.allow(RegExp(r'[0-9+ ]'))
           ],
-          decoration: const InputDecoration(
+          decoration: InputDecoration(
             labelText: 'Telefon raqami',
-            hintText: '+998 90 123 45 67',
+            hintText: t('+998 90 123 45 67'),
           ),
         ),
         const SizedBox(height: 22),
@@ -405,7 +405,7 @@ class _OwnerLoginFormState extends State<_OwnerLoginForm> {
           controller: _loginCtrl,
           textInputAction: TextInputAction.next,
           autocorrect: false,
-          decoration: const InputDecoration(labelText: 'Login'),
+          decoration: InputDecoration(labelText: 'Login'),
         ),
         const SizedBox(height: 14),
         TextField(
@@ -414,7 +414,7 @@ class _OwnerLoginFormState extends State<_OwnerLoginForm> {
           textInputAction: TextInputAction.done,
           onSubmitted: (_) => _submit(),
           decoration: InputDecoration(
-            labelText: 'Parol',
+            labelText: t('Parol'),
             suffixIcon: IconButton(
               icon: Icon(_obscure
                   ? Icons.visibility_outlined

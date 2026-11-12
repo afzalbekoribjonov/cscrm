@@ -248,3 +248,31 @@ butun bazani yuklashi — shu jumladan).
   `noindex`. Qoldi: sahifalarni oldindan render qilish (prerender) —
   Telegram JS ishlatmaydi, shuning uchun hamma sahifa havolasi bosh sahifa
   sarlavhasi bilan chiqadi.
+
+## ✅ 9-bosqich — ilovaning yangi ko'rinishi va ish oqimi (2026-11)
+
+- **Shrift va yozuv:** shriftlar ilova ichida (Roboto + Montserrat) —
+  o'zbek kirill harflari (Ў Қ Ғ Ҳ) to'liq; sozlamalarda **Lotin / Kirill**
+  tanlovi (`lib/l10n/`), kalendarlar o'zbekcha (`showUzDatePicker`).
+- **Boshqaruvchi uchun "Asosiy" sahifa** — ilova shu yerda ochiladi:
+  bugungi tushum, ogohlantirishlar, ish oqimi, bugungi ish, jamoa, moliya,
+  haftalik grafik (so'ralganda). Xodimning istalgan kundagi ishi.
+- **Bo'limlar:** Yangi (bugungi buyurtmalar + "+"), Yuvish (bannerlar
+  o'rniga "N ta o'lchanmagan"), Qadoqlash, Yetgazma (Olib kelish · Deyarli
+  tayyor · Tayyor), **Omborxona** (vakolat bilan). Vakolatsiz bo'limda
+  "Sizda vakolat mavjud emas".
+- **Xizmat oqimi:** Navbatda → "Yuvish" → Yuvilmoqda (jonli) →
+  Qadoqlashga → Tayyor. **Bo'lib topshirish** (oldindan to'lov bilan).
+- **Ilova qonuniyatlari** (`tenants/{t}/settings/policies`): topshirish
+  muddati, omborxona, majburiy/ixtiyoriy qadamlar.
+- Yangi buyurtmada telefon birinchi — doimiy mijoz avtomatik to'ldiriladi.
+- Filtrli qidiruv, № raqamlar, ⋮ menyu, Bildirishnomalarda faqat Xabarlar,
+  Chiqim/Qarzdorlar oylar bo'yicha, yangi Profilim (aniq qolgan vaqt),
+  Sozlamalar, Xizmatlar, Xodimlar, Boshqaruv paneli (bannerlarsiz).
+- **Trafik:** panel bannerlari va "Faoliyat" olib tashlandi; xodim faqat
+  faol buyurtmalarni oladi; buyurtma tarixi faqat ochilganda yuklanadi.
+
+**Diqqat:** yangi qoidalar (`settings` tuguni, `orders.customerPhone`
+indeksi) JOYLANGANDAN keyin "Ilova qonuniyatlari"ni saqlash va doimiy
+mijozni bazadan topish ishlaydi. Ungacha ilova standart qoidalar bilan
+ishlayveradi (mijoz faqat qurilmadagi faol buyurtmalardan topiladi).

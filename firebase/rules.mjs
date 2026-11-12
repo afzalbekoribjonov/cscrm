@@ -150,10 +150,32 @@ export const rules = {
         },
 
         orders: {
-          '//': "Yozish har bir BUYURTMA darajasida: butun ro'yxatni bitta so'rov bilan o'chirib bo'lmaydi.",
+          '//': "Yozish har bir BUYURTMA darajasida: butun ro'yxatni bitta so'rov bilan o'chirib bo'lmaydi. `customerPhone` indeksi — yangi buyurtmada doimiy mijozni telefon bo'yicha topish uchun (bitta yozuv so'raladi; indekssiz bunday so'rov butun ro'yxatni yuklardi).",
           '.read': MEMBER,
-          '.indexOn': ['active', 'status', 'createdAt', 'deliveredAt', 'createdBy', 'debtAmount'],
+          '.indexOn': ['active', 'status', 'createdAt', 'deliveredAt', 'createdBy', 'debtAmount', 'customerPhone'],
           $orderId: { '.write': `${MEMBER} && ${NOT_SUSPENDED}` },
+        },
+
+        settings: {
+          '//': "Biznes sozlamalari (\"Ilova qonuniyatlari\" — `policies`). Hamma a'zo O'QIYDI (xodim ilovasi qoidaga amal qiladi), faqat EGA yozadi. Kalitlar ro'yxati qat'iy — boshqa narsa yozilmaydi.",
+          '.read': MEMBER,
+          '.write': `${OWNER} && ${NOT_SUSPENDED}`,
+          policies: {
+            '.validate': 'newData.hasChildren()',
+            deadlineDays: { '.validate': 'newData.isNumber() && newData.val() >= 0 && newData.val() <= 30' },
+            warehouseDays: { '.validate': 'newData.isNumber() && newData.val() >= 3 && newData.val() <= 90' },
+            deadlineRequired: { '.validate': 'newData.isBoolean()' },
+            addressRequired: { '.validate': 'newData.isBoolean()' },
+            pickupGpsRequired: { '.validate': 'newData.isBoolean()' },
+            debtAllowed: { '.validate': 'newData.isBoolean()' },
+            measureBeforeWash: { '.validate': 'newData.isBoolean()' },
+            measureBeforePackaging: { '.validate': 'newData.isBoolean()' },
+            rewashReasonRequired: { '.validate': 'newData.isBoolean()' },
+            partialHandoverEnabled: { '.validate': 'newData.isBoolean()' },
+            warehouseEnabled: { '.validate': 'newData.isBoolean()' },
+            $other: { '.validate': false },
+          },
+          $other: { '.validate': false },
         },
 
         expenses: {

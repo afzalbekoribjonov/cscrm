@@ -4,6 +4,7 @@ import 'package:table_calendar/table_calendar.dart' hide isSameDay;
 
 import '../l10n/text.dart';
 import '../theme/app_colors.dart';
+import '../utils/uz_dates.dart';
 import '../utils/date_utils.dart';
 
 enum StatsPeriod { kunlik, haftalik, oylik }
@@ -253,6 +254,28 @@ class _PeriodCalendarDialogState extends State<_PeriodCalendarDialog> {
                   headerStyle: const HeaderStyle(
                     formatButtonVisible: false,
                     titleCentered: true,
+                  ),
+                  // Sarlavha va kun nomlari ilovaning o'zida yoziladi:
+                  // shunda ular kirill yozuvida ham to'g'ri chiqadi va
+                  // oy nomi bosh harf bilan ("Noyabr 2026").
+                  calendarBuilders: CalendarBuilders(
+                    headerTitleBuilder: (context, day) => Center(
+                      child: Text(
+                        UzDates.monthYear(day),
+                        style: theme.textTheme.titleMedium,
+                      ),
+                    ),
+                    dowBuilder: (context, day) => Center(
+                      child: Text(
+                        UzDates.weekdaysShort[day.weekday - 1],
+                        style: theme.textTheme.labelMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                          color: day.weekday >= 6
+                              ? AppColors.danger
+                              : context.colorTextSecondary,
+                        ),
+                      ),
+                    ),
                   ),
                   calendarStyle: const CalendarStyle(
                     selectedDecoration: BoxDecoration(

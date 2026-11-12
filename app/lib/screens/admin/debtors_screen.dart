@@ -1,132 +1,221 @@
 import 'package:flutter/material.dart' hide Text;
-import 'package:intl/intl.dart';
+import 'package:flutter/services.dart';
 
 import '../../l10n/text.dart';
+import '../../l10n/transliterate.dart';
+import '../../models/app_user.dart';
 import '../../models/order.dart';
 import '../../models/staff_access.dart';
 import '../../models/staff_permission.dart';
 import '../../services/order_service.dart';
 import '../../theme/app_colors.dart';
-import '../../utils/date_utils.dart';
-import '../../widgets/item_measurement_form.dart' show fmtSom;
-import '../../widgets/period_calendar.dart';
+import '../../theme/app_theme.dart';
+import '../../ui/month_section.dart';
+import '../../ui/sheets.dart';
+import '../../ui/surfaces.dart';
+import '../../utils/delivery_stats.dart';
+import '../../utils/money.dart';
+import '../../utils/month_groups.dart';
+import '../../utils/phone.dart';
+import '../../utils/uz_dates.dart';
+import '../../widgets/payment_dialog.dart';
 import '../../widgets/phone_link.dart';
 import '../../widgets/stream_error_view.dart';
-import '../../utils/money.dart';
+import '../orders/order_detail_screen.dart';
 
-final _dateFormat = DateFormat('dd.MM.yyyy');
-
-/// To'liq to'lanmagan buyurtmalar. Dastavchik topshirish paytida farqni
-/// "Qarz" deb belgilaganda buyurtma shu ro'yxatga tushadi.
+/// Qarzdorlar — OYLAR bo'yicha.
+///
+/// Ilgari ro'yxat davr tanlagich bilan ochilardi va standart "bugun"
+/// edi: eski qarzlar ko'rinmay qolardi. Endi barcha qarzdorlar bir
+/// sahifada, qarz paydo bo'lgan (buyurtma topshirilgan) oy bo'yicha
+/// guruhlangan — har bir oyning jami summasi sarlavhada.
 class DebtorsScreen extends StatefulWidget {
   const DebtorsScreen({
     super.key,
     required this.currentUserId,
     required this.currentUserName,
     required this.access,
+    @visibleForTesting this.debtors,
   });
 
   final String currentUserId;
   final String currentUserName;
   final StaffAccess access;
 
+  /// Faqat sinov/rasm uchun — bazasiz namunaviy ro'yxat.
+  final Stream<List<Order>>? debtors;
+
   @override
   State<DebtorsScreen> createState() => _DebtorsScreenState();
 }
 
 class _DebtorsScreenState extends State<DebtorsScreen> {
-  final _service = OrderService();
-  // Faqat qarzi bor buyurtmalar - `debtAmount` indeksi bo'yicha.
-  late final _ordersStream = _service.streamDebtors();
+  late final _service = OrderService();
+  // Faqat qarzi bor buyurtmalar — `debtAmount` indeksi bo'yicha.
+  late final _stream = widget.debtors ?? _service.streamDebtors();
+  final _search = TextEditingController();
 
-  /// Standart: BUGUN. Tanlov ekran holatida - aylantirganda qaytmaydi.
-  PeriodSelection _selection = PeriodSelection.today();
-
-  DateTime get _start => _selection.range.$1;
-  DateTime get _end => _selection.range.$2;
+  AppUser get _user => AppUser(
+        id: widget.currentUserId,
+        name: widget.currentUserName,
+        access: widget.access,
+      );
 
   bool get _canSeePhone => widget.access.can(StaffPermission.viewPhone);
 
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
+
   Future<void> _settle(Order order) async {
-    final result = await showModalBottomSheet<({double amount, String method})>(
-      context: context,
-      isScrollControlled: true,
-      builder: (_) => _SettleDebtSheet(order: order),
+    final result = await showAppSheet<({double amount, String method})>(
+      context,
+      (_) => _SettleDebtSheet(order: order),
     );
     if (result == null || !mounted) return;
-    await _service.settleDebt(
-      order: order,
-      amount: result.amount,
-      method: result.method,
-      byEmployeeId: widget.currentUserId,
-      byName: widget.access.isAdmin ? 'Admin' : widget.currentUserName,
-    );
+    try {
+      await _service.settleDebt(
+        order: order,
+        amount: result.amount,
+        method: result.method,
+        byEmployeeId: widget.currentUserId,
+        byName: _user.historyName,
+      );
+      if (mounted) showResult(context, 'To\'lov qabul qilindi');
+    } catch (_) {
+      if (mounted) {
+        showResult(context, 'To\'lovni saqlab bo\'lmadi. Qayta urinib ko\'ring.',
+            error: true);
+      }
+    }
+  }
+
+  bool _matches(Order o, String q) {
+    if (q.isEmpty) return true;
+    final digits = digitsOnly(q);
+    if (digits.isNotEmpty && digits.length == q.replaceAll(RegExp(r'[\s+№#]'), '').length) {
+      return '${o.id}'.startsWith(digits) ||
+          (digits.length >= 4 && digitsOnly(o.customerPhone).contains(digits));
+    }
+    return searchKey('${o.customerName} ${o.address}').contains(searchKey(q));
   }
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(title: const Text('Qarzdorlar')),
       body: StreamBuilder<List<Order>>(
-        stream: _ordersStream,
+        stream: _stream,
         builder: (context, snapshot) {
-          if (snapshot.hasError) {
-            return StreamErrorView(error: snapshot.error!);
-          }
+          if (snapshot.hasError) return StreamErrorView(error: snapshot.error!);
           if (!snapshot.hasData) {
             return const Center(child: CircularProgressIndicator());
           }
-
-          // Qarz yetkazilgan sana bo'yicha filtrlanadi - qarz aynan
-          // topshirish paytida paydo bo'ladi.
-          final debtors = snapshot.data!
-              .where((o) =>
-                  o.hasDebt &&
-                  o.deliveredAt != null &&
-                  isWithinRange(o.deliveredAt!, _start, _end))
-              .toList()
-            ..sort((a, b) => b.debtAmount.compareTo(a.debtAmount));
-          final total = debtors.fold<double>(0, (sum, o) => sum + o.debtAmount);
+          final all = snapshot.data!.where((o) => o.hasDebt).toList();
+          final total = all.fold<double>(0, (s, o) => s + o.debtAmount);
+          final q = _search.text.trim();
+          final groups = groupByMonth<Order>(
+            all.where((o) => _matches(o, q)),
+            at: (o) => o.deliveredAt ?? o.createdAt,
+            amount: (o) => o.debtAmount,
+          );
 
           return ListView(
-            padding: EdgeInsets.fromLTRB(
-                16, 16, 16, 24 + MediaQuery.of(context).padding.bottom),
+            padding: EdgeInsets.fromLTRB(Gap.page, 4, Gap.page,
+                32 + MediaQuery.of(context).padding.bottom),
             children: [
-              _DebtTotalBanner(count: debtors.length, total: total),
-              const SizedBox(height: 16),
-              PeriodBar(
-                value: _selection,
-                onChanged: (s) => setState(() => _selection = s),
-              ),
-              const SizedBox(height: 18),
-              if (debtors.isEmpty)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 28),
-                  child: Center(
-                    child: Column(
-                      children: [
-                        const Icon(Icons.check_circle_outline_rounded,
-                            size: 40, color: AppColors.success),
-                        const SizedBox(height: 10),
-                        Text(
-                          'Bu davrda qarzdorlik yo\'q',
-                          style: Theme.of(context).textTheme.bodyMedium,
-                        ),
-                      ],
+              AppCard(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    const IconTile(
+                        icon: Icons.request_quote_outlined,
+                        tone: StageTone.warning,
+                        size: 48),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Jami qarz', style: theme.textTheme.bodySmall),
+                          Text(
+                            formatSom(total),
+                            style: theme.textTheme.headlineSmall?.copyWith(
+                              color: total > 0
+                                  ? StageTone.warning.ink(context)
+                                  : null,
+                              fontFeatures: AppFonts.tabular,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
+                    Text('${all.length} ta buyurtma',
+                        style: theme.textTheme.bodySmall),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              if (all.isNotEmpty)
+                TextField(
+                  controller: _search,
+                  onChanged: (_) => setState(() {}),
+                  decoration: InputDecoration(
+                    hintText: t('Ism, telefon yoki № bo\'yicha qidirish'),
+                    prefixIcon: const Icon(Icons.search_rounded),
+                  ),
+                ),
+              const SizedBox(height: 16),
+              if (all.isEmpty)
+                const SizedBox(
+                  height: 360,
+                  child: EmptyState(
+                    icon: Icons.verified_outlined,
+                    tone: StageTone.success,
+                    title: 'Qarzdor yo\'q',
+                    message: 'Barcha buyurtmalar to\'liq to\'langan.',
+                  ),
+                )
+              else if (groups.isEmpty)
+                const SizedBox(
+                  height: 260,
+                  child: EmptyState(
+                    icon: Icons.search_off_rounded,
+                    title: 'Topilmadi',
                   ),
                 )
               else
-                ...debtors.map(
-                  (order) => Padding(
-                    padding: const EdgeInsets.only(bottom: 10),
-                    child: _DebtorCard(
-                      order: order,
-                      maskPhone: !_canSeePhone,
-                      onSettle: () => _settle(order),
-                    ),
+                for (var i = 0; i < groups.length; i++) ...[
+                  MonthSection(
+                    key: ValueKey(groups[i].month),
+                    month: groups[i].month,
+                    count: groups[i].items.length,
+                    countLabel: 'ta qarzdor',
+                    total: groups[i].total,
+                    tone: StageTone.warning,
+                    initiallyOpen: i == 0 || q.isNotEmpty,
+                    children: [
+                      for (final order in groups[i].items)
+                        _DebtorRow(
+                          order: order,
+                          canSeePhone: _canSeePhone,
+                          onOpen: () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => OrderDetailScreen(
+                                orderId: order.id,
+                                user: _user,
+                              ),
+                            ),
+                          ),
+                          onSettle: () => _settle(order),
+                        ),
+                    ],
                   ),
-                ),
+                  const SizedBox(height: 10),
+                ],
             ],
           );
         },
@@ -135,163 +224,99 @@ class _DebtorsScreenState extends State<DebtorsScreen> {
   }
 }
 
-class _DebtTotalBanner extends StatelessWidget {
-  const _DebtTotalBanner({required this.count, required this.total});
-
-  final int count;
-  final double total;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [AppColors.danger, AppColors.danger.withValues(alpha: 0.72)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(18),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.account_balance_wallet_rounded,
-              color: Colors.white, size: 28),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Umumiy qarzdorlik',
-                  style: theme.textTheme.bodySmall
-                      ?.copyWith(color: Colors.white70),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  fmtSom(total),
-                  style: theme.textTheme.headlineSmall?.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                Text(
-                  '$count ta buyurtma',
-                  style: theme.textTheme.bodySmall
-                      ?.copyWith(color: Colors.white70),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _DebtorCard extends StatelessWidget {
-  const _DebtorCard({
+class _DebtorRow extends StatelessWidget {
+  const _DebtorRow({
     required this.order,
-    required this.maskPhone,
+    required this.canSeePhone,
+    required this.onOpen,
     required this.onSettle,
   });
 
   final Order order;
-  final bool maskPhone;
+  final bool canSeePhone;
+  final VoidCallback onOpen;
   final VoidCallback onSettle;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Card(
-      margin: EdgeInsets.zero,
+    final delivered = order.deliveredAt;
+    return InkWell(
+      onTap: onOpen,
       child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
+        child: Row(
           children: [
-            Row(
-              children: [
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: AppColors.primary.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    order.code,
-                    style: const TextStyle(
-                      color: AppColors.primary,
-                      fontWeight: FontWeight.w800,
-                      fontSize: 12,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    order.customerName,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.titleSmall
-                        ?.copyWith(fontWeight: FontWeight.w700),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 6),
-            PhoneLink(phone: order.customerPhone, masked: maskPhone),
-            if (order.address.isNotEmpty) ...[
-              const SizedBox(height: 3),
-              Row(
+            Expanded(
+              child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(Icons.location_on_outlined,
-                      size: 15, color: context.colorTextSecondary),
-                  const SizedBox(width: 5),
-                  Expanded(
-                    child: Text(order.address,
-                        style: theme.textTheme.bodySmall, maxLines: 2),
-                  ),
-                ],
-              ),
-            ],
-            const Divider(height: 20),
-            Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  Row(
                     children: [
-                      Text('Qarz summasi', style: theme.textTheme.bodySmall),
                       Text(
-                        fmtSom(order.debtAmount),
-                        style: theme.textTheme.titleLarge?.copyWith(
-                          color: AppColors.danger,
-                          fontWeight: FontWeight.w900,
+                        order.code,
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          color: context.colorPrimaryInk,
+                          fontFeatures: AppFonts.tabular,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          order.customerName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.titleSmall,
                         ),
                       ),
                     ],
                   ),
-                ),
-                OutlinedButton.icon(
-                  onPressed: onSettle,
-                  style: OutlinedButton.styleFrom(
-                    visualDensity: VisualDensity.compact,
+                  const SizedBox(height: 2),
+                  PhoneLink(
+                    phone: order.customerPhone,
+                    masked: !canSeePhone,
+                    compact: true,
+                    iconSize: 13,
                   ),
-                  icon: const Icon(Icons.payments_rounded, size: 17),
-                  label: const Text('To\'lov'),
+                  Text(
+                    [
+                      if (delivered != null)
+                        'Topshirildi ${UzDates.date(UzDates.fromMillis(delivered))}',
+                      'to\'langan ${formatSom(order.paymentAmount ?? 0)} / ${formatSom(order.totalPrice)}',
+                    ].join(' · '),
+                    style: theme.textTheme.bodySmall,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  formatSom(order.debtAmount),
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    color: StageTone.danger.ink(context),
+                    fontFeatures: AppFonts.tabular,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                SizedBox(
+                  height: 34,
+                  child: FilledButton.tonal(
+                    style: FilledButton.styleFrom(
+                      minimumSize: const Size(0, 34),
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      textStyle: const TextStyle(
+                          fontFamily: AppFonts.sans,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 13),
+                    ),
+                    onPressed: onSettle,
+                    child: const Text('To\'lov olish'),
+                  ),
                 ),
               ],
-            ),
-            const SizedBox(height: 6),
-            Text(
-              'Buyurtma narxi ${fmtSom(order.totalPrice)} · olingan '
-              '${fmtSom(order.paymentAmount ?? 0)}'
-              '${order.deliveredAt != null ? ' · ${_dateFormat.format(DateTime.fromMillisecondsSinceEpoch(order.deliveredAt!))}' : ''}',
-              style: theme.textTheme.bodySmall,
             ),
           ],
         ),
@@ -300,7 +325,6 @@ class _DebtorCard extends StatelessWidget {
   }
 }
 
-/// Qarzni to'liq yoki qisman yopish oynasi.
 class _SettleDebtSheet extends StatefulWidget {
   const _SettleDebtSheet({required this.order});
 
@@ -313,7 +337,7 @@ class _SettleDebtSheet extends StatefulWidget {
 class _SettleDebtSheetState extends State<_SettleDebtSheet> {
   late final _amountCtrl =
       TextEditingController(text: formatMoney(widget.order.debtAmount));
-  String _method = 'Naqd pul';
+  String _method = cashPaymentLabel;
   String? _error;
 
   @override
@@ -325,7 +349,7 @@ class _SettleDebtSheetState extends State<_SettleDebtSheet> {
   void _submit() {
     final amount = parseMoney(_amountCtrl.text);
     if (amount <= 0) {
-      setState(() => _error = 'Summani to\'g\'ri kiriting');
+      setState(() => _error = 'Summani kiriting');
       return;
     }
     if (amount > widget.order.debtAmount) {
@@ -338,62 +362,51 @@ class _SettleDebtSheetState extends State<_SettleDebtSheet> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Padding(
-      padding: EdgeInsets.only(
-        left: 20,
-        right: 20,
-        top: 18,
-        bottom: MediaQuery.of(context).viewInsets.bottom +
-            MediaQuery.of(context).padding.bottom +
-            20,
+    return SheetFrame(
+      title: 'Qarz to\'lovi',
+      subtitle: '${widget.order.code} · ${widget.order.customerName}',
+      actions: FilledButton.icon(
+        onPressed: _submit,
+        icon: const Icon(Icons.check_rounded),
+        label: const Text('Qabul qilindi'),
       ),
       child: Column(
-        mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text('Qarzni yopish', style: theme.textTheme.titleMedium),
-          const SizedBox(height: 4),
-          Text(
-            '${widget.order.code} · ${widget.order.customerName} · '
-            'qarz ${fmtSom(widget.order.debtAmount)}',
-            style: theme.textTheme.bodySmall,
+          AppCard(
+            color: context.colorSurfaceMuted,
+            borderColor: Colors.transparent,
+            padding: const EdgeInsets.fromLTRB(14, 8, 14, 8),
+            child: InfoRow(
+              label: 'Qarz',
+              value: formatSom(widget.order.debtAmount),
+              emphasize: true,
+              valueColor: StageTone.danger.ink(context),
+            ),
           ),
           const SizedBox(height: 16),
-          SegmentedButton<String>(
-            segments: const [
-              ButtonSegment(
-                value: 'Naqd pul',
-                label: Text('Naqd pul'),
-                icon: Icon(Icons.payments_outlined),
-              ),
-              ButtonSegment(
-                value: 'Karta',
-                label: Text('Karta'),
-                icon: Icon(Icons.credit_card_rounded),
-              ),
-            ],
-            selected: {_method},
-            onSelectionChanged: (s) => setState(() => _method = s.first),
+          PaymentMethodPicker(
+            value: _method,
+            onChanged: (m) => setState(() => _method = m),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 14),
           TextField(
             controller: _amountCtrl,
             keyboardType: TextInputType.number,
-            inputFormatters: const [MoneyInputFormatter()],
+            inputFormatters: [
+              FilteringTextInputFormatter.digitsOnly,
+              const MoneyInputFormatter(),
+            ],
+            style: theme.textTheme.titleLarge
+                ?.copyWith(fontFeatures: AppFonts.tabular),
             onChanged: (_) => setState(() => _error = null),
-            decoration: const InputDecoration(
-              labelText: 'To\'lanayotgan summa',
-              suffixText: 'so\'m',
-              helperText: 'Qisman to\'lansa, qolgan qarz saqlanadi',
+            decoration: InputDecoration(
+              labelText: t('To\'lanayotgan summa'),
+              suffixText: t('so\'m'),
+              helperText: t('Qisman to\'lansa, qolgan qarz saqlanadi'),
+              errorText: _error == null ? null : t(_error!),
             ),
           ),
-          if (_error != null) ...[
-            const SizedBox(height: 10),
-            Text(_error!, style: TextStyle(color: theme.colorScheme.error)),
-          ],
-          const SizedBox(height: 20),
-          ElevatedButton(
-              onPressed: _submit, child: const Text('Qabul qilindi')),
         ],
       ),
     );

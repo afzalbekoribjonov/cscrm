@@ -34,7 +34,11 @@ class EmployeeDayScreen extends StatefulWidget {
     this.initialEmployeeId,
     this.initialName,
     this.sources,
+    this.title = 'Xodimlar faoliyati',
   });
+
+  /// Xodimning o'zi ochganda — "Mening faoliyatim".
+  final String title;
 
   final DashboardSources? sources;
 
@@ -127,7 +131,7 @@ class _EmployeeDayScreenState extends State<EmployeeDayScreen> {
     final isToday = isSameDay(_day, DateTime.now());
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Xodimlar faoliyati')),
+      appBar: AppBar(title: Text(widget.title)),
       body: ListView(
         padding: EdgeInsets.fromLTRB(
             Gap.page, 4, Gap.page, 28 + MediaQuery.of(context).padding.bottom),

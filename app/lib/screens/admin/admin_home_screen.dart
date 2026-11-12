@@ -1,28 +1,35 @@
 import 'package:flutter/material.dart' hide Text;
 
 import '../../l10n/text.dart';
-import '../../branding/logo.dart';
-import '../../models/order.dart';
-import '../../models/order_status.dart';
+import '../../models/app_user.dart';
+import '../../models/license_status.dart';
 import '../../models/staff_access.dart';
-import '../../services/order_service.dart';
-import '../../theme/app_colors.dart';
-import '../../utils/date_utils.dart';
+import '../../services/license_controller.dart';
+import '../../services/license_service.dart';
 import '../../services/session_service.dart';
-import '../../widgets/settings_action.dart';
-import '../../widgets/stat_tile.dart';
-import 'profile_screen.dart';
-import '../../widgets/stream_error_view.dart';
+import '../../theme/app_colors.dart';
+import '../../theme/app_theme.dart';
+import '../../ui/surfaces.dart';
+import '../../utils/subscription_view.dart';
+import '../home/app_menu.dart';
+import '../settings/settings_screen.dart';
+import '../settings/widgets/settings_group.dart';
 import 'admin_credentials_screen.dart';
 import 'debtors_screen.dart';
 import 'employees_list_screen.dart';
 import 'expenses_screen.dart';
 import 'income_activity_screen.dart';
 import 'orders_admin_screen.dart';
+import 'policies_screen.dart';
 import 'products_admin_screen.dart';
+import 'profile_screen.dart';
 
-/// Boshqaruvchi paneli bosh sahifasi: bugungi statistika kartalari +
-/// Xodimlar / Xizmatlar / Buyurtmalar bo'limlariga kirish.
+/// Boshqaruv paneli — biznesni sozlash va boshqarish bo'limlari.
+///
+/// Ilgari tepada 3 ta statistika kartasi turardi va ular uchun har
+/// ochilishda bugungi buyurtmalar QAYTA so'ralardi (bosh sahifa ularni
+/// allaqachon ko'rsatadi). Endi panel faqat bo'limlar ro'yxati — hech
+/// qanday qo'shimcha so'rov yo'q.
 class AdminHomeScreen extends StatefulWidget {
   const AdminHomeScreen({
     super.key,
@@ -38,18 +45,6 @@ class AdminHomeScreen extends StatefulWidget {
 }
 
 class _AdminHomeScreenState extends State<AdminHomeScreen> {
-  // Oqim BIR MARTA yaratiladi. build() ichida yaratilsa, har bir qayta
-  // chizishda yangi Stream obyekti paydo bo'lib, ro'yxat "waiting"
-  // holatiga qaytardi va ko'rsatkichlar miltillardi.
-  //
-  // Davr: faqat BUGUN - bu ekran bugungi ko'rsatkichlarni ko'rsatadi.
-  late final Stream<List<Order>> _ordersStream =
-      OrderService().streamOrdersForPeriod(
-    startOfDay(DateTime.now()),
-    endOfDay(DateTime.now()),
-  );
-
-  /// Biznes nomi sessiyadan o'qiladi — profil sarlavhasi uchun.
   var _businessName = '';
 
   @override
@@ -60,235 +55,191 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
     });
   }
 
+  void _push(WidgetBuilder builder) =>
+      Navigator.of(context).push(MaterialPageRoute(builder: builder));
+
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    const admin = StaffAccess.admin();
     return Scaffold(
-      appBar: AppBar(
-        title: const CscrmWordmark(height: 30),
-        actions: const [SettingsAction()],
-      ),
-      body: StreamBuilder<List<Order>>(
-        stream: _ordersStream,
-        builder: (context, snapshot) {
-          if (snapshot.hasError) {
-            return StreamErrorView(error: snapshot.error!);
-          }
-          final orders = snapshot.data ?? const <Order>[];
-          final acceptedToday =
-              orders.where((o) => isToday(o.createdAt)).length;
-          final deliveredToday = orders
-              .where((o) =>
-                  o.status == OrderStatus.yetgazildi &&
-                  o.deliveredAt != null &&
-                  isToday(o.deliveredAt!))
-              .length;
-          final inWorkshop = orders.where((o) => o.status.isInWorkshop).length;
-
-          return ListView(
-            padding: EdgeInsets.fromLTRB(
-                20, 20, 20, 20 + MediaQuery.of(context).padding.bottom),
+      appBar: AppBar(title: const Text('Boshqaruv paneli')),
+      body: ListView(
+        padding: EdgeInsets.fromLTRB(
+            Gap.page, 4, Gap.page, 32 + MediaQuery.of(context).padding.bottom),
+        children: [
+          ValueListenableBuilder<LicenseResolution?>(
+            valueListenable: LicenseController.instance,
+            builder: (context, resolution, _) => _BusinessCard(
+              name: _businessName,
+              status: resolution?.status,
+              onOpen: () => _push((_) => ProfileScreen(businessName: _businessName)),
+            ),
+          ),
+          const SizedBox(height: 24),
+          SettingsGroup(
+            title: 'Biznes',
             children: [
-              Text('Boshqaruvchi paneli', style: theme.textTheme.titleLarge),
-              const SizedBox(height: 4),
-              Text(
-                'Bugungi holat va boshqaruv bo\'limlari.',
-                style: theme.textTheme.bodySmall,
+              SettingsTile(
+                icon: Icons.storefront_outlined,
+                label: 'Profilim',
+                value: 'Tarif, obuna muddati va to\'lovlar',
+                onTap: () => _push((_) => ProfileScreen(businessName: _businessName)),
               ),
-              const SizedBox(height: 16),
-              StatTileRow(
-                tiles: [
-                  StatTile(
-                    icon: Icons.receipt_long_rounded,
-                    color: AppColors.primary,
-                    value: '$acceptedToday',
-                    label: 'Bugungi buyurtma',
-                  ),
-                  StatTile(
-                    icon: Icons.local_shipping_rounded,
-                    color: AppColors.statusDelivered,
-                    value: '$deliveredToday',
-                    label: 'Yetgazilgan',
-                  ),
-                  StatTile(
-                    icon: Icons.local_laundry_service_rounded,
-                    color: AppColors.statusWashing,
-                    value: '$inWorkshop',
-                    label: 'Sexda mavjud',
-                  ),
-                ],
-              ),
-              const SizedBox(height: 24),
-              // Profil ENG TEPADA: obuna holati va tarif — biznes egasi
-              // uchun eng tez-tez kerak bo'ladigan ma'lumot.
-              _AdminMenuCard(
-                icon: Icons.badge_outlined,
-                color: AppColors.primaryDark,
-                title: 'Profilim',
-                subtitle: 'Tarif, muddat va xodimlar',
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) =>
-                        ProfileScreen(businessName: _businessName),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 14),
-              _AdminMenuCard(
-                icon: Icons.groups_rounded,
-                color: AppColors.primary,
-                title: 'Xodimlar',
-                subtitle: 'Qo\'shish, tahrirlash, statistika',
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute(
-                      builder: (_) => const EmployeesListScreen()),
-                ),
-              ),
-              const SizedBox(height: 14),
-              _AdminMenuCard(
-                icon: Icons.inventory_2_rounded,
-                color: AppColors.accent,
-                title: 'Xizmatlar',
-                subtitle: 'Yuvish xizmatlari ro\'yxati',
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute(
-                      builder: (_) => const ProductsAdminScreen()),
-                ),
-              ),
-              const SizedBox(height: 14),
-              _AdminMenuCard(
-                icon: Icons.calendar_month_rounded,
-                color: AppColors.statusReadyDelivery,
-                title: 'Buyurtmalar',
-                subtitle: 'Kalendar bo\'yicha tarix va statistika',
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => OrdersAdminScreen(
-                      currentUserId: widget.currentUserId,
-                      currentUserName: widget.currentUserName,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 14),
-              _AdminMenuCard(
-                icon: Icons.payments_rounded,
-                color: AppColors.success,
-                title: 'Daromad va faollik',
-                subtitle: 'Bugungi dastavchi naqd/karta hisoboti',
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => IncomeActivityScreen(
-                      currentUserId: widget.currentUserId,
-                      currentUserName: widget.currentUserName,
-                      access: const StaffAccess.admin(),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 14),
-              _AdminMenuCard(
-                icon: Icons.receipt_long_rounded,
-                color: AppColors.danger,
-                title: 'Chiqimlar',
-                subtitle: 'Sarflarni yozish va sof foydani ko\'rish',
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => ExpensesScreen(
-                      currentUserId: widget.currentUserId,
-                      currentUserName: widget.currentUserName,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 14),
-              _AdminMenuCard(
-                icon: Icons.account_balance_wallet_outlined,
-                color: AppColors.warning,
-                title: 'Qarzdorlar',
-                subtitle: 'To\'liq to\'lanmagan buyurtmalar',
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => DebtorsScreen(
-                      currentUserId: widget.currentUserId,
-                      currentUserName: widget.currentUserName,
-                      access: const StaffAccess.admin(),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 14),
-              _AdminMenuCard(
-                icon: Icons.lock_outline_rounded,
-                color: AppColors.statusWashing,
-                title: 'Login va parol',
-                subtitle: 'Boshqaruvchi hisobini o\'zgartirish',
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) =>
-                        AdminCredentialsScreen(currentLogin: widget.currentUserName),
-                  ),
-                ),
+              SettingsTile(
+                icon: Icons.gavel_rounded,
+                tone: StageTone.packaging,
+                label: 'Ilova qonuniyatlari',
+                value: 'Topshirish muddati, omborxona, majburiy qadamlar',
+                onTap: () => _push((_) => const PoliciesScreen()),
               ),
             ],
-          );
-        },
+          ),
+          const SizedBox(height: 24),
+          SettingsGroup(
+            title: 'Jamoa va xizmatlar',
+            children: [
+              SettingsTile(
+                icon: Icons.groups_outlined,
+                tone: StageTone.info,
+                label: 'Xodimlar',
+                value: 'Qo\'shish, vakolatlar, faoliyat',
+                onTap: () => _push((_) => const EmployeesListScreen()),
+              ),
+              SettingsTile(
+                icon: Icons.local_laundry_service_outlined,
+                tone: StageTone.washing,
+                label: 'Xizmatlar va narxlar',
+                value: 'Gilam, parda, ko\'rpa va boshqalar',
+                onTap: () => _push((_) => const ProductsAdminScreen()),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          SettingsGroup(
+            title: 'Buyurtmalar va moliya',
+            children: [
+              SettingsTile(
+                icon: Icons.calendar_month_outlined,
+                tone: StageTone.brand,
+                label: 'Buyurtmalar tarixi',
+                value: 'Kalendar bo\'yicha barcha buyurtmalar',
+                onTap: () => _push((_) => OrdersAdminScreen(
+                      currentUserId: widget.currentUserId,
+                      currentUserName: widget.currentUserName,
+                    )),
+              ),
+              SettingsTile(
+                icon: Icons.insights_rounded,
+                tone: StageTone.success,
+                label: 'Hisobotlar',
+                value: 'Tushum, xodimlar faolligi, hajm',
+                onTap: () => _push((_) => IncomeActivityScreen(
+                      currentUserId: widget.currentUserId,
+                      currentUserName: widget.currentUserName,
+                      access: admin,
+                    )),
+              ),
+              SettingsTile(
+                icon: Icons.receipt_long_outlined,
+                tone: StageTone.danger,
+                label: 'Chiqimlar',
+                value: 'Oylar bo\'yicha sarflar',
+                onTap: () => _push((_) => ExpensesScreen(
+                      currentUserId: widget.currentUserId,
+                      currentUserName: widget.currentUserName,
+                    )),
+              ),
+              SettingsTile(
+                icon: Icons.request_quote_outlined,
+                tone: StageTone.warning,
+                label: 'Qarzdorlar',
+                value: 'Oylar bo\'yicha to\'lanmagan summalar',
+                onTap: () => _push((_) => DebtorsScreen(
+                      currentUserId: widget.currentUserId,
+                      currentUserName: widget.currentUserName,
+                      access: admin,
+                    )),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          SettingsGroup(
+            title: 'Hisob',
+            children: [
+              SettingsTile(
+                icon: Icons.key_outlined,
+                tone: StageTone.neutral,
+                label: 'Login va parol',
+                value: 'Boshqaruvchi hisobiga kirish ma\'lumotlari',
+                onTap: () => _push((_) =>
+                    AdminCredentialsScreen(currentLogin: widget.currentUserName)),
+              ),
+              SettingsTile(
+                icon: Icons.settings_outlined,
+                tone: StageTone.neutral,
+                label: 'Sozlamalar',
+                value: 'Yozuv, mavzu, ilova qulfi',
+                onTap: () => _push((_) => const SettingsScreen()),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
 }
 
-
-class _AdminMenuCard extends StatelessWidget {
-  const _AdminMenuCard({
-    required this.icon,
-    required this.color,
-    required this.title,
-    required this.subtitle,
-    required this.onTap,
+class _BusinessCard extends StatelessWidget {
+  const _BusinessCard({
+    required this.name,
+    required this.status,
+    required this.onOpen,
   });
 
-  final IconData icon;
-  final Color color;
-  final String title;
-  final String subtitle;
-  final VoidCallback onTap;
+  final String name;
+  final LicenseStatus? status;
+  final VoidCallback onOpen;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Card(
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(18),
-          child: Row(
-            children: [
-              Container(
-                width: 46,
-                height: 46,
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(13),
+    final view = subscriptionView(status);
+    return AppCard(
+      onTap: onOpen,
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        children: [
+          UserAvatar(initials: initialsOf(name), size: 52),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  name.isEmpty ? 'Biznes' : name,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.titleLarge,
                 ),
-                child: Icon(icon, color: color),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                const SizedBox(height: 6),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 4,
+                  crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
-                    Text(title, style: theme.textTheme.titleMedium),
-                    const SizedBox(height: 2),
-                    Text(subtitle, style: theme.textTheme.bodySmall),
+                    TonePill(label: view.label, tone: view.tone, dot: true, dense: true),
+                    if (view.remaining != null)
+                      Text(
+                        view.ended ? view.remaining! : 'Qoldi: ${view.remaining}',
+                        style: theme.textTheme.bodySmall,
+                      ),
                   ],
                 ),
-              ),
-              const Icon(Icons.chevron_right_rounded),
-            ],
+              ],
+            ),
           ),
-        ),
+          Icon(Icons.chevron_right_rounded, color: context.colorTextTertiary),
+        ],
       ),
     );
   }

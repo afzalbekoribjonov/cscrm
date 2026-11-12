@@ -8,30 +8,23 @@ import '../services/message_center.dart';
 import '../services/policy_service.dart';
 import '../services/order_sync_service.dart';
 import '../services/session_service.dart';
+import '../ui/sheets.dart';
 
 /// Tizimdan chiqaradi — avval tasdiqlash so'raydi.
 ///
 /// Funksiya sifatida ochiq, chunki uni ikki joy chaqiradi: sozlamalar
 /// ro'yxatidagi qator va bloklash ekranidagi tugma.
 Future<void> confirmAndLogout(BuildContext context) async {
-  final confirmed = await showDialog<bool>(
-    context: context,
-    builder: (ctx) => AlertDialog(
-      title: const Text('Chiqish'),
-      content: const Text('Tizimdan chiqishni tasdiqlaysizmi?'),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(ctx).pop(false),
-          child: const Text('Bekor qilish'),
-        ),
-        FilledButton(
-          onPressed: () => Navigator.of(ctx).pop(true),
-          child: const Text('Chiqish'),
-        ),
-      ],
-    ),
+  final confirmed = await confirmAction(
+    context,
+    title: 'Tizimdan chiqish',
+    message: 'Qayta kirish uchun login va parol (yoki telefon va PIN) '
+        'kerak bo\'ladi.',
+    confirmLabel: 'Chiqish',
+    destructive: true,
+    icon: Icons.logout_rounded,
   );
-  if (confirmed != true) return;
+  if (!confirmed) return;
   if (!context.mounted) return;
 
   // Navigator OLDINDAN olinadi.
@@ -74,7 +67,7 @@ class LogoutAction extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return IconButton(
-      tooltip: 'Chiqish',
+      tooltip: t('Chiqish'),
       icon: const Icon(Icons.logout_rounded),
       onPressed: () => confirmAndLogout(context),
     );

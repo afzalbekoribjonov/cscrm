@@ -28,6 +28,21 @@ import { rules, stripComments } from '../rules.mjs';
 
 const TS = { '.sv': 'timestamp' };
 
+/** Ilova saqlaydigan to'liq qonuniyatlar (BusinessPolicies.toMap). */
+const POLICIES = {
+  deadlineDays: 3,
+  deadlineRequired: true,
+  addressRequired: false,
+  pickupGpsRequired: false,
+  debtAllowed: true,
+  measureBeforeWash: false,
+  measureBeforePackaging: true,
+  rewashReasonRequired: true,
+  partialHandoverEnabled: true,
+  warehouseEnabled: true,
+  warehouseDays: 15,
+};
+
 const SEED = {
   tenants: {
     t1: {
@@ -138,6 +153,37 @@ const CASES = [
   ['ilova: ega xizmat turini tahrirlaydi va o\'chiradi',
     (e) => owner(e).ref('tenants/t1/products/p1').update({ price: 12000 })
       .then(() => owner(e).ref('tenants/t1/products/p1').remove()), 'ok'],
+
+  // --- 2026-11: ilova qonuniyatlari, bo'lib topshirish, mijozni topish ---
+  ['ilova: xodim "Ilova qonuniyatlari"ni o\'qiydi',
+    (e) => read(staff(e, 'e1'), 'tenants/t1/settings/policies'), 'ok'],
+  ['ilova: ega qonuniyatlarni saqlaydi',
+    (e) => owner(e).ref('tenants/t1/settings/policies').set(POLICIES), 'ok'],
+  ['ilova: mijozni telefon bo\'yicha topish (indeksli, bitta yozuv)',
+    (e) => staff(e, 'e1').ref('tenants/t1/orders').orderByChild('customerPhone')
+      .equalTo('998901234567').limitToLast(1).once('value'), 'ok'],
+  ['ilova: "Yuvish" tugmasi — xizmat holati va vaqt (tranzaksiya)',
+    (e) => staff(e, 'e1').ref('tenants/t1/orders/1').transaction((cur) =>
+      cur === null ? cur : { ...cur, items: { i1: { price: 1000, status: 'yuvilmoqda', washStartedAt: Date.now() } } }), 'ok'],
+  ['ilova: bo\'lib topshirish — handedAt va oldindan to\'lov (tranzaksiya)',
+    (e) => staff(e, 'e1').ref('tenants/t1/orders/1').transaction((cur) =>
+      cur === null ? cur : {
+        ...cur,
+        prepaidAmount: 1000,
+        items: { i1: { price: 1000, status: 'tayyor', handedAt: Date.now(), handedBy: 'e1' } },
+      }), 'ok'],
+  ['hujum: xodim qonuniyatlarni o\'zgartira olmaydi',
+    (e) => staff(e, 'e1').ref('tenants/t1/settings/policies').set(POLICIES), 'rad'],
+  ['hujum: qonuniyatga chegaradan tashqari qiymat',
+    (e) => owner(e).ref('tenants/t1/settings/policies').set({ ...POLICIES, warehouseDays: 1000 }), 'rad'],
+  ['hujum: qonuniyatga noma\'lum kalit',
+    (e) => owner(e).ref('tenants/t1/settings/policies').set({ ...POLICIES, admin: true }), 'rad'],
+  ['hujum: sozlamalar ichida boshqa tugun',
+    (e) => owner(e).ref('tenants/t1/settings/boshqa').set({ x: 1 }), 'rad'],
+  ['hujum: boshqa biznes sozlamalarini o\'qish',
+    (e) => read(owner(e, 't2', 'owner2'), 'tenants/t1/settings'), 'rad'],
+  ['hujum: to\'xtatilgan biznes egasi qonuniyat yoza olmaydi',
+    (e) => owner(e, 't3', 'owner3').ref('tenants/t3/settings/policies').set(POLICIES), 'rad'],
   ['ilova: ega xodimni bloklaydi',
     (e) => owner(e).ref('tenants/t1/employees/e1').update({ active: false }), 'ok'],
   ['ilova: ega xodim vakolatini o\'zgartiradi',

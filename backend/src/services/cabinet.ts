@@ -122,12 +122,17 @@ export function incomeForRange(orders: OrderInput[], history: HistoryInput[], st
     if (!within(o.deliveredAt, start, end)) continue;
     add(o.paymentMethod, paidAtDelivery(o));
   }
+  // Qarz to'lovlari va BO'LIB TOPSHIRISHDA olingan pul — o'z kunida.
+  // Bo'lib topshirishdagi pul oxirgi topshirishdagi summaga
+  // (`deliveryPaidAmount`) kirmaydi, shuning uchun ikki marta sanalmaydi.
   for (const h of history) {
-    if (h.type !== 'debt_settled' || !within(h.at, start, end)) continue;
+    const isDebt = h.type === 'debt_settled';
+    if (!isDebt && h.type !== 'partial_delivery') continue;
+    if (!within(h.at, start, end)) continue;
     const amount = h.amount ?? 0;
     if (!(amount > 0)) continue;
     add(h.method, amount);
-    debtPayments += amount;
+    if (isDebt) debtPayments += amount;
   }
   return { cash, card, other, debtPayments, total: cash + card + other };
 }

@@ -289,7 +289,7 @@ class _AdminCredentialsScreenState extends State<AdminCredentialsScreen> {
               obscureText: _obscureCurrent,
               onChanged: (_) => setState(() => _error = null),
               decoration: InputDecoration(
-                labelText: 'Joriy parol',
+                labelText: t('Joriy parol'),
                 helperText: 'Tasdiqlash uchun majburiy',
                 prefixIcon: const Icon(Icons.lock_outline_rounded),
                 suffixIcon: IconButton(
@@ -345,7 +345,7 @@ class _AdminCredentialsScreenState extends State<AdminCredentialsScreen> {
               TextField(
                 controller: _repeatPassCtrl,
                 obscureText: _obscureNew,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   labelText: 'Yangi parolni takrorlang',
                   prefixIcon: Icon(Icons.key_outlined),
                 ),

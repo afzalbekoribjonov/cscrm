@@ -464,3 +464,18 @@ so'rovdan emas, tokendan olinadi.
 * Kabinet faqat O'QIYDI; yagona yozuv — mavjud "Men to'ladim" so'rovi.
 * Egaga qaytariladigan to'lov so'rovi va to'lovlarda admin UID yo'q
   (`toOwnerPaymentRequest`).
+
+## Ilova qonuniyatlari, ombor va bo'lib topshirish (2026-11)
+
+| Narsa | Qayerda | Izoh |
+|---|---|---|
+| Qonuniyatlar | `tenants/{t}/settings/policies` | A'zo o'qiydi, faqat ega yozadi. Maydon yo'q bo'lsa — standart qiymat (eski xatti-harakat). `PolicyCenter` jonli kuzatadi |
+| Xizmat holati | `items/{k}/status` | Yangi: `navbatda`. Eski ilova noma'lum holatni "Yuvilmoqda" deb ko'radi — zararsiz |
+| Yuvish boshlangan payt | `items/{k}/washStartedAt` | "12 daqiqadan beri yuvilmoqda" |
+| Bo'lib topshirish | `items/{k}/handedAt/By/ByName`, `orders/{id}/prepaidAmount` | Holat "Tayyor" bo'lib qoladi — eski ilova ham to'g'ri ko'radi |
+| Bo'lib topshirishdagi pul | `order_history`, `type: partial_delivery`, `amount`, `method` | Tushum shu kunga qo'shiladi (ilova va kabinet bir xil hisoblaydi); oxirgi topshirishdagi `deliveryPaidAmount` ga kirmaydi |
+| Omborxona | hisoblanadi | `yetgazishga_tayyor` + `readyAt` dan `warehouseDays` (15) o'tgan. Bazaga yozilmaydi |
+| Doimiy mijoz | `orders.orderByChild('customerPhone').limitToLast(1)` | Indeks qoidalarda. Qoidalar joylanmagan bo'lsa (sozlamalar tuguni o'qilmasa) so'rov umuman yuborilmaydi |
+
+Qoidalar va ularning emulatordagi sinovi: `firebase/rules.mjs`,
+`firebase/test/rules.test.mjs` (74 ta holat).

@@ -55,11 +55,11 @@ class OrderCard extends StatelessWidget {
     final badge = deadlineBadge(order);
     final mine = [
       for (final i in order.items)
-        if (itemBelongsTo(i, section)) i,
+        if (itemBelongsTo(i, section, order)) i,
     ];
     final others = [
       for (final i in order.items)
-        if (!itemBelongsTo(i, section)) i,
+        if (!itemBelongsTo(i, section, order)) i,
     ];
 
     return AppCard(

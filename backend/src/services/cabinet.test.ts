@@ -66,6 +66,18 @@ describe('incomeForRange — ilovadagi qoida bilan bir xil', () => {
     assert.deepEqual(r, { cash: 100_000, card: 50_000, other: 20_000, debtPayments: 0, total: 170_000 });
   });
 
+  it('bo\'lib topshirishdagi pul o\'z kunida sanaladi, qarz to\'lovi emas', () => {
+    const r = incomeForRange(
+      [{ id: '1', deliveredAt: tash(2026, 9, 5), paymentMethod: CASH_LABEL, paymentAmount: 300_000, deliveryPaidAmount: 200_000 }],
+      [{ type: 'partial_delivery', at: tash(2026, 9, 3), amount: 100_000, method: CARD_LABEL }],
+      start,
+      end,
+    );
+    // Oldindan 100 000 (karta) + topshirishda 200 000 (naqd) = 300 000 —
+    // ikki marta sanalmaydi.
+    assert.deepEqual(r, { cash: 200_000, card: 100_000, other: 0, debtPayments: 0, total: 300_000 });
+  });
+
   it('keyin to\'langan qarz — to\'langan kunga va o\'z usuli bilan (jamlanma paymentAmount emas)', () => {
     const r = incomeForRange(
       [{ id: '1', deliveredAt: tash(2026, 8, 20), paymentMethod: CARD_LABEL, paymentAmount: 150_000, deliveryPaidAmount: 100_000 }],

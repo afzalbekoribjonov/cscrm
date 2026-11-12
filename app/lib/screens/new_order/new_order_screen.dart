@@ -290,7 +290,7 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
                 decoration: InputDecoration(
                   labelText: t('Telefon raqami'),
                   prefixText: '+998 ',
-                  hintText: '90 123 45 67',
+                  hintText: t('90 123 45 67'),
                   prefixIcon: const Icon(Icons.phone_outlined),
                   suffixIcon: _searching
                       ? const Padding(

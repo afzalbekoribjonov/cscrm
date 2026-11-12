@@ -7,6 +7,7 @@ import '../models/order.dart';
 import '../models/order_status.dart';
 import '../services/order_service.dart';
 import '../utils/phone.dart';
+import '../ui/uz_date_picker.dart';
 import 'required_label.dart';
 
 final _editDeadlineFormat = DateFormat('dd.MM.yyyy');
@@ -47,14 +48,12 @@ class _EditOrderSheetState extends State<EditOrderSheet> {
 
   Future<void> _pickDeadline() async {
     final now = DateTime.now();
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: _deadline ?? now,
-      firstDate: DateTime(now.year, now.month, now.day),
-      lastDate: now.add(const Duration(days: 365)),
-      helpText: 'Topshirish sanasini tanlang',
-      cancelText: 'Bekor qilish',
-      confirmText: 'Tanlash',
+    final picked = await showUzDatePicker(
+      context,
+      title: 'Topshirish sanasi',
+      initial: _deadline ?? now,
+      first: DateTime(now.year, now.month, now.day),
+      last: now.add(const Duration(days: 365)),
     );
     if (picked != null && mounted) setState(() => _deadline = picked);
   }
@@ -121,14 +120,14 @@ class _EditOrderSheetState extends State<EditOrderSheet> {
               ],
               decoration: InputDecoration(
                 label: requiredLabel('Telefon raqami'),
-                hintText: '90 123 45 67 yoki +998 90 123 45 67',
+                hintText: t('90 123 45 67 yoki +998 90 123 45 67'),
               ),
             ),
             const SizedBox(height: 14),
             TextField(
               controller: _addressCtrl,
               textInputAction: TextInputAction.done,
-              decoration: const InputDecoration(labelText: 'Manzil'),
+              decoration: InputDecoration(labelText: 'Manzil'),
             ),
             const SizedBox(height: 14),
             InkWell(
@@ -140,7 +139,7 @@ class _EditOrderSheetState extends State<EditOrderSheet> {
                   suffixIcon: _deadline == null
                       ? const Icon(Icons.calendar_month_rounded)
                       : IconButton(
-                          tooltip: 'Tozalash',
+                          tooltip: t('Tozalash'),
                           icon: const Icon(Icons.close_rounded, size: 18),
                           onPressed: () => setState(() => _deadline = null),
                         ),

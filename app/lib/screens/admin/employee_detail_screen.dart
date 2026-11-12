@@ -1,144 +1,204 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart' hide Text;
 
 import '../../l10n/text.dart';
+import '../../models/app_user.dart';
 import '../../models/employee.dart';
-import '../../models/item_status.dart';
 import '../../models/order.dart';
 import '../../models/order_history_entry.dart';
+import '../../models/staff_access.dart';
 import '../../models/staff_permission.dart';
 import '../../models/work_section.dart';
 import '../../services/employee_service.dart';
-import '../../services/order_service.dart';
 import '../../theme/app_colors.dart';
+import '../../theme/app_theme.dart';
+import '../../ui/action_menu.dart';
+import '../../ui/sheets.dart';
+import '../../ui/surfaces.dart';
 import '../../utils/date_utils.dart';
-import '../../utils/delivery_stats.dart';
-import '../../widgets/item_measurement_form.dart' show fmtSom;
+import '../../utils/money.dart';
+import '../../utils/team_stats.dart';
 import '../../widgets/phone_link.dart';
-import '../../widgets/stat_tile.dart';
-import '../../widgets/stream_error_view.dart';
+import '../dashboard/dashboard_sources.dart';
+import '../dashboard/employee_day_screen.dart';
+import '../home/app_menu.dart';
+import '../settings/widgets/settings_group.dart';
 import 'employee_form_screen.dart';
 
-/// Xodimning bugungi ish natijalari - o'zgarishlar tarixidan hisoblanadi.
-class _TodayStats {
-  const _TodayStats({
-    required this.created,
-    required this.washed,
-    required this.packaged,
-    required this.rewashed,
-    required this.delivery,
+/// Bitta xodimning sahifasi: bugungi ishi va vakolatlari.
+///
+/// Amallar (tahrirlash, faoliyat, bloklash, o'chirish) yuqori o'ngdagi
+/// BITTA "⋮" menyuda — nomi va izohi bilan.
+class EmployeeDetailScreen extends StatefulWidget {
+  const EmployeeDetailScreen({
+    super.key,
+    required this.employee,
+    this.sources,
+    @visibleForTesting this.employeeStream,
   });
 
-  final int created;
-  final int washed;
-  final int packaged;
-  final int rewashed;
-  final DeliveryStats delivery;
-}
-
-_TodayStats _computeToday(
-  List<Order> orders,
-  List<OrderHistoryEntry> history,
-  String employeeId,
-) {
-  final start = startOfDay(DateTime.now());
-  final end = endOfDay(DateTime.now());
-  var created = 0;
-  var washed = 0;
-  var packaged = 0;
-  var rewashed = 0;
-
-  for (final order in orders) {
-    if (order.createdBy == employeeId &&
-        isWithinRange(order.createdAt, start, end)) {
-      created++;
-    }
-  }
-
-  // Xizmat bosqichlari tarixdan sanaladi — tarix endi alohida tugunda
-  // va davr bo'yicha alohida so'raladi.
-  for (final h in history) {
-    if (h.byEmployeeId != employeeId || !isWithinRange(h.at, start, end)) {
-      continue;
-    }
-    if (h.type != 'item_status_changed') continue;
-    if (h.toStatus == ItemStatus.qadoqlashda.key) {
-      washed++;
-    } else if (h.toStatus == ItemStatus.tayyor.key) {
-      packaged++;
-    } else if (h.toStatus == ItemStatus.qaytaYuvildi.key) {
-      rewashed++;
-    }
-  }
-
-  return _TodayStats(
-    created: created,
-    washed: washed,
-    packaged: packaged,
-    rewashed: rewashed,
-    delivery: deliveryStatsForEmployee(orders, employeeId, DateTime.now()),
-  );
-}
-
-/// Bitta xodimning sahifasi: bugungi statistikasi (faqat vakolatiga mos
-/// ko'rsatkichlar) va vakolatlarni yoqib-o'chirish tugmalari.
-class EmployeeDetailScreen extends StatefulWidget {
-  const EmployeeDetailScreen({super.key, required this.employee});
-
   final Employee employee;
+  final DashboardSources? sources;
+
+  /// Faqat sinov/rasm uchun.
+  final Stream<Employee?>? employeeStream;
 
   @override
   State<EmployeeDetailScreen> createState() => _EmployeeDetailScreenState();
 }
 
 class _EmployeeDetailScreenState extends State<EmployeeDetailScreen> {
-  final _employeeService = EmployeeService();
+  late final _service = EmployeeService();
   late final _employeeStream =
-      _employeeService.streamEmployee(widget.employee.id);
-  // Ekran faqat BUGUNGI ko'rsatkichni ko'rsatadi. Buyurtmalar va tarix
-  // birga keladi - ular bir-biriga mos bo'lishi kerak.
-  late final _reportStream = OrderService().streamReport(
-    startOfDay(DateTime.now()),
-    endOfDay(DateTime.now()),
-  );
-  bool _saving = false;
+      widget.employeeStream ?? _service.streamEmployee(widget.employee.id);
+  late final DashboardSources _src = widget.sources ?? FirebaseDashboardSources();
 
-  Future<void> _toggleSection(Employee employee, WorkSection section) async {
-    final granted = !employee.sections.contains(section);
-    await _apply(
-      () => _employeeService.setSectionAccess(employee.id, section, granted),
-      section.label,
-      granted,
-    );
+  StreamSubscription<Object?>? _historySub;
+  StreamSubscription<Object?>? _deliveredSub;
+  List<OrderHistoryEntry>? _history;
+  List<Order> _delivered = const [];
+  var _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final today = startOfDay(DateTime.now());
+    final end = endOfDay(today);
+    _historySub = _src.history(today, end).listen(
+          (v) => mounted ? setState(() => _history = v) : null,
+          onError: (Object _) => mounted ? setState(() => _history = const []) : null,
+        );
+    _deliveredSub = _src.delivered(today, end).listen(
+          (v) => mounted ? setState(() => _delivered = v) : null,
+          onError: (Object _) {},
+        );
   }
 
-  Future<void> _togglePermission(
-      Employee employee, StaffPermission permission) async {
-    final granted = !employee.permissions.contains(permission);
-    await _apply(
-      () => _employeeService.setPermission(employee.id, permission, granted),
-      permission.label,
-      granted,
-    );
+  @override
+  void dispose() {
+    _historySub?.cancel();
+    _deliveredSub?.cancel();
+    super.dispose();
   }
 
-  Future<void> _apply(
-      Future<void> Function() action, String label, bool granted) async {
+  Future<void> _apply(Future<void> Function() action, String done) async {
     setState(() => _saving = true);
     try {
       await action();
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            granted
-                ? '"$label" vakolati berildi'
-                : '"$label" vakolati bekor qilindi',
-          ),
-        ),
-      );
+      if (mounted) showResult(context, done);
+    } catch (e) {
+      if (mounted) {
+        showResult(
+          context,
+          e is EmployeeServiceException ? e.message : 'Saqlab bo\'lmadi. Qayta urinib ko\'ring.',
+          error: true,
+        );
+      }
     } finally {
       if (mounted) setState(() => _saving = false);
     }
+  }
+
+  Future<void> _toggleActive(Employee e) async {
+    if (e.active) {
+      final ok = await confirmAction(
+        context,
+        title: 'Xodimni bloklash',
+        message: '${e.fullName} tizimdan darhol chiqariladi va qayta kira '
+            'olmaydi. Keyin yana faollashtirish mumkin.',
+        confirmLabel: 'Bloklash',
+        destructive: true,
+        icon: Icons.block_rounded,
+      );
+      if (!ok) return;
+    }
+    await _apply(() => _service.setActive(e.id, !e.active),
+        e.active ? 'Xodim bloklandi' : 'Xodim faollashtirildi');
+  }
+
+  Future<void> _delete(Employee e) async {
+    final ok = await confirmAction(
+      context,
+      title: 'Xodimni o\'chirish',
+      message: '${e.fullName} butunlay o\'chiriladi va tizimga kira olmaydi. '
+          'Bu amalni ortga qaytarib bo\'lmaydi.',
+      confirmLabel: 'O\'chirish',
+      destructive: true,
+    );
+    if (!ok || !mounted) return;
+    setState(() => _saving = true);
+    try {
+      await _service.deleteEmployee(e.id);
+      if (!mounted) return;
+      showResult(context, '${e.fullName} o\'chirildi');
+      Navigator.of(context).pop();
+    } catch (err) {
+      if (mounted) {
+        setState(() => _saving = false);
+        showResult(
+          context,
+          err is EmployeeServiceException
+              ? err.message
+              : 'O\'chirib bo\'lmadi. Qayta urinib ko\'ring.',
+          error: true,
+        );
+      }
+    }
+  }
+
+  void _openMenu(Employee e) {
+    showActionMenu(
+      context,
+      title: e.fullName,
+      groups: [
+        MenuGroup(actions: [
+          MenuAction(
+            icon: Icons.edit_outlined,
+            label: 'Ma\'lumotlarni tahrirlash',
+            subtitle: 'Ism, familiya va PIN-kod',
+            onTap: () => Navigator.of(context).push(MaterialPageRoute(
+              builder: (_) => EmployeeFormScreen(employee: e),
+            )),
+          ),
+          MenuAction(
+            icon: Icons.event_note_outlined,
+            label: 'Faoliyatini ko\'rish',
+            subtitle: 'Istalgan kundagi ishi',
+            tone: StageTone.info,
+            onTap: () => Navigator.of(context).push(MaterialPageRoute(
+              builder: (_) => EmployeeDayScreen(
+                employees: [e],
+                user: const AppUser(
+                  id: 'owner',
+                  name: '',
+                  access: StaffAccess.admin(),
+                ),
+                initialEmployeeId: e.id,
+                sources: _src,
+              ),
+            )),
+          ),
+        ]),
+        MenuGroup(actions: [
+          MenuAction(
+            icon: e.active ? Icons.block_rounded : Icons.check_circle_outline_rounded,
+            label: e.active ? 'Bloklash' : 'Faollashtirish',
+            subtitle: e.active
+                ? 'Vaqtincha tizimga kira olmaydi'
+                : 'Yana tizimga kira oladi',
+            tone: e.active ? StageTone.warning : StageTone.success,
+            onTap: () => _toggleActive(e),
+          ),
+          MenuAction(
+            icon: Icons.delete_outline_rounded,
+            label: 'Xodimni o\'chirish',
+            destructive: true,
+            onTap: () => _delete(e),
+          ),
+        ]),
+      ],
+    );
   }
 
   @override
@@ -146,313 +206,193 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen> {
     return StreamBuilder<Employee?>(
       stream: _employeeStream,
       initialData: widget.employee,
-      builder: (context, empSnap) {
-        final employee = empSnap.data;
-        if (employee == null) {
+      builder: (context, snap) {
+        final e = snap.data;
+        if (e == null) {
           return Scaffold(
             appBar: AppBar(title: const Text('Xodim')),
-            body: const Center(child: Text('Bu xodim o\'chirilgan')),
+            body: const EmptyState(
+              icon: Icons.person_off_outlined,
+              title: 'Bu xodim o\'chirilgan',
+            ),
           );
         }
         return Scaffold(
           appBar: AppBar(
-            title: Text(employee.fullName),
+            title: Text(e.fullName.isEmpty ? 'Xodim' : e.fullName),
             actions: [
-              IconButton(
-                tooltip: 'Tahrirlash',
-                icon: const Icon(Icons.edit_outlined),
-                onPressed: () => Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => EmployeeFormScreen(employee: employee),
-                  ),
-                ),
-              ),
+              MoreButton(onPressed: () => _openMenu(e)),
+              const SizedBox(width: 4),
             ],
+            bottom: _saving
+                ? const PreferredSize(
+                    preferredSize: Size.fromHeight(2),
+                    child: LinearProgressIndicator(minHeight: 2),
+                  )
+                : null,
           ),
-          body: StreamBuilder<
-              ({List<Order> orders, List<OrderHistoryEntry> history})>(
-            stream: _reportStream,
-            builder: (context, snap) {
-              if (snap.hasError) {
-                return StreamErrorView(error: snap.error!);
-              }
-              final data = snap.data;
-              final stats = _computeToday(
-                data?.orders ?? const [],
-                data?.history ?? const [],
-                employee.id,
-              );
-              return _buildBody(context, employee, stats);
-            },
-          ),
+          body: _body(e),
         );
       },
     );
   }
 
-  Widget _buildBody(
-      BuildContext context, Employee employee, _TodayStats stats) {
+  Widget _body(Employee e) {
     final theme = Theme.of(context);
+    final history = _history;
+    final work = history == null
+        ? null
+        : teamWork(
+            history: history,
+            delivered: _delivered,
+            start: startOfDay(DateTime.now()),
+            end: endOfDay(DateTime.now()),
+            names: {e.id: e.fullName},
+          ).where((w) => w.id == e.id).firstOrNull;
+
     return ListView(
       padding: EdgeInsets.fromLTRB(
-          16, 16, 16, 24 + MediaQuery.of(context).padding.bottom),
+          Gap.page, 4, Gap.page, 32 + MediaQuery.of(context).padding.bottom),
       children: [
-        Card(
-          margin: EdgeInsets.zero,
-          child: Padding(
-            padding: const EdgeInsets.all(14),
-            child: Row(
-              children: [
-                CircleAvatar(
-                  radius: 22,
-                  backgroundColor: AppColors.primary.withValues(alpha: 0.14),
-                  child: Text(
-                    employee.firstName.isEmpty
-                        ? '?'
-                        : employee.firstName[0].toUpperCase(),
-                    style: const TextStyle(
-                      color: AppColors.primary,
-                      fontWeight: FontWeight.w800,
-                      fontSize: 18,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(employee.fullName,
-                          style: theme.textTheme.titleMedium),
-                      PhoneLink(phone: employee.phone),
-                    ],
-                  ),
-                ),
-                if (!employee.active)
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                    decoration: BoxDecoration(
-                      color: AppColors.danger.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(99),
-                    ),
-                    child: const Text(
-                      'Nofaol',
-                      style: TextStyle(
-                        color: AppColors.danger,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 11.5,
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(height: 18),
-        Text('Bugungi ish', style: theme.textTheme.titleMedium),
-        const SizedBox(height: 2),
-        Text(
-          'Faqat vakolat berilgan bo\'limlar bo\'yicha ko\'rsatiladi.',
-          style: theme.textTheme.bodySmall,
-        ),
-        const SizedBox(height: 12),
-        ..._buildStatTiles(employee, stats),
-        const SizedBox(height: 22),
-        Text('Bo\'lim vakolatlari', style: theme.textTheme.titleMedium),
-        const SizedBox(height: 2),
-        Text(
-          'Xodim faqat vakolat berilgan bo\'limda va faqat o\'sha bo\'lim '
-          'ichidan turib ish qila oladi. O\'zgarish xodim qayta kirganda '
-          'kuchga kiradi.',
-          style: theme.textTheme.bodySmall,
-        ),
-        const SizedBox(height: 12),
-        for (final section in WorkSection.values)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: _AccessTile(
-              icon: section.icon,
-              label: section.label,
-              hint: section.accessHint,
-              granted: employee.sections.contains(section),
-              enabled: !_saving,
-              onTap: () => _toggleSection(employee, section),
-            ),
-          ),
-        const SizedBox(height: 22),
-        Text('Qo\'shimcha vakolatlar', style: theme.textTheme.titleMedium),
-        const SizedBox(height: 2),
-        Text(
-          'Bo\'lim vakolatiga qo\'shimcha ravishda beriladi - masalan '
-          'o\'lchash uchun ham Yuvish bo\'limi, ham "O\'lchash va narx" '
-          'vakolati kerak.',
-          style: theme.textTheme.bodySmall,
-        ),
-        const SizedBox(height: 12),
-        for (final permission in StaffPermission.values)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: _AccessTile(
-              icon: permission.icon,
-              label: permission.label,
-              hint: permission.hint,
-              granted: employee.permissions.contains(permission),
-              enabled: !_saving,
-              onTap: () => _togglePermission(employee, permission),
-            ),
-          ),
-      ],
-    );
-  }
-
-  /// Statistika kartalari faqat tegishli vakolat bo'lganda ko'rsatiladi -
-  /// vakolatsiz bo'limning ko'rsatkichi har doim nol bo'lgani uchun
-  /// ekranni behuda to'ldirmaydi.
-  List<Widget> _buildStatTiles(Employee employee, _TodayStats stats) {
-    final tiles = <Widget>[];
-
-    if (employee.sections.contains(WorkSection.yangi)) {
-      tiles.add(StatTile(
-        icon: Icons.note_add_rounded,
-        color: AppColors.primary,
-        value: '${stats.created}',
-        label: 'Yaratgan buyurtma',
-      ));
-    }
-    if (employee.sections.contains(WorkSection.yuvish)) {
-      tiles.add(StatTile(
-        icon: Icons.local_laundry_service_rounded,
-        color: AppColors.statusWashing,
-        value: '${stats.washed}',
-        label: 'Yuvib qadoqlashga bergan',
-      ));
-    }
-    if (employee.sections.contains(WorkSection.qadoqlash)) {
-      tiles.add(StatTile(
-        icon: Icons.inventory_2_rounded,
-        color: AppColors.statusReadyDelivery,
-        value: '${stats.packaged}',
-        label: 'Qadoqlagan',
-      ));
-      tiles.add(StatTile(
-        icon: Icons.replay_rounded,
-        color: AppColors.danger,
-        value: '${stats.rewashed}',
-        label: 'Qayta yuvishga qaytargan',
-      ));
-    }
-    if (employee.sections.contains(WorkSection.yetgazma)) {
-      tiles.add(StatTile(
-        icon: Icons.move_to_inbox_rounded,
-        color: AppColors.statusPickup,
-        value: '${stats.delivery.pickedUpCount}',
-        label: 'Olib kelgan',
-      ));
-      tiles.add(StatTile(
-        icon: Icons.local_shipping_rounded,
-        color: AppColors.statusDelivered,
-        value: '${stats.delivery.deliveredCount}',
-        label: 'Yetkazgan',
-      ));
-      tiles.add(StatTile(
-        icon: Icons.payments_rounded,
-        color: AppColors.success,
-        value: fmtSom(stats.delivery.cashTotal),
-        label: 'Naqd pul',
-      ));
-      tiles.add(StatTile(
-        icon: Icons.credit_card_rounded,
-        color: AppColors.accent,
-        value: fmtSom(stats.delivery.cardTotal),
-        label: 'Karta orqali',
-      ));
-    }
-
-    if (tiles.isEmpty) {
-      return [
-        Container(
-          width: double.infinity,
+        AppCard(
           padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: context.colorSurfaceMuted,
-            borderRadius: BorderRadius.circular(14),
-          ),
-          child: Text(
-            'Vakolat berilmagan - xodim buyurtmalarni faqat ko\'ra oladi.',
-            style: Theme.of(context).textTheme.bodyMedium,
-          ),
-        ),
-      ];
-    }
-
-    // Ikkitadan qatorga joylaymiz — kartalar teng balandlikda.
-    return [StatTileGrid(tiles: tiles)];
-  }
-}
-
-class _AccessTile extends StatelessWidget {
-  const _AccessTile({
-    required this.icon,
-    required this.label,
-    required this.hint,
-    required this.granted,
-    required this.enabled,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final String label;
-  final String hint;
-  final bool granted;
-  final bool enabled;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final color = granted ? AppColors.success : context.colorTextSecondary;
-    return InkWell(
-      borderRadius: BorderRadius.circular(14),
-      onTap: enabled ? onTap : null,
-      child: Container(
-        padding: const EdgeInsets.all(13),
-        decoration: BoxDecoration(
-          color: granted
-              ? AppColors.success.withValues(alpha: 0.08)
-              : context.colorSurfaceMuted,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: granted
-                ? AppColors.success.withValues(alpha: 0.5)
-                : context.colorBorder,
-          ),
-        ),
-        child: Row(
-          children: [
-            Icon(icon, size: 20, color: color),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    label,
-                    style: theme.textTheme.titleSmall
-                        ?.copyWith(fontWeight: FontWeight.w700),
-                  ),
-                  const SizedBox(height: 1),
-                  Text(hint, style: theme.textTheme.bodySmall),
-                ],
+          child: Row(
+            children: [
+              UserAvatar(initials: initialsOf(e.fullName), size: 56),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(e.fullName, style: theme.textTheme.titleLarge),
+                    const SizedBox(height: 2),
+                    PhoneLink(phone: e.phone, style: theme.textTheme.bodyMedium),
+                    const SizedBox(height: 6),
+                    TonePill(
+                      label: e.active ? 'Faol' : 'Bloklangan',
+                      tone: e.active ? StageTone.success : StageTone.danger,
+                      dot: true,
+                      dense: true,
+                    ),
+                  ],
+                ),
               ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 20),
+        SectionHeader(
+          title: 'Bugungi ish',
+          actionLabel: 'Boshqa kunlar',
+          onAction: () => Navigator.of(context).push(MaterialPageRoute(
+            builder: (_) => EmployeeDayScreen(
+              employees: [e],
+              user: const AppUser(id: 'owner', name: '', access: StaffAccess.admin()),
+              initialEmployeeId: e.id,
+              sources: _src,
             ),
-            Switch.adaptive(
-              value: granted,
-              onChanged: enabled ? (_) => onTap() : null,
-            ),
+          )),
+        ),
+        AppCard(
+          padding: const EdgeInsets.fromLTRB(14, 8, 14, 8),
+          child: history == null
+              ? const Padding(
+                  padding: EdgeInsets.all(16),
+                  child: Center(child: CircularProgressIndicator()),
+                )
+              : work == null
+                  ? Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      child: Text('Bugun hali ish belgilanmagan',
+                          style: theme.textTheme.bodyMedium
+                              ?.copyWith(color: context.colorTextSecondary)),
+                    )
+                  : Column(
+                      children: [
+                        if (!work.washed.isEmpty)
+                          InfoRow(
+                              icon: Icons.local_laundry_service_outlined,
+                              label: 'Yuvdi',
+                              value: work.washed.label()),
+                        if (!work.packaged.isEmpty)
+                          InfoRow(
+                              icon: Icons.inventory_2_outlined,
+                              label: 'Qadoqladi',
+                              value: '${work.packaged.items} ta'),
+                        if (work.created > 0)
+                          InfoRow(
+                              icon: Icons.note_add_outlined,
+                              label: 'Qabul qildi',
+                              value: '${work.created} ta'),
+                        if (work.pickedUp > 0)
+                          InfoRow(
+                              icon: Icons.moped_outlined,
+                              label: 'Olib keldi',
+                              value: '${work.pickedUp} ta'),
+                        if (work.delivered > 0)
+                          InfoRow(
+                              icon: Icons.task_alt_rounded,
+                              label: 'Topshirdi',
+                              value: '${work.delivered} ta'),
+                        if (work.collected > 0)
+                          InfoRow(
+                            icon: Icons.payments_outlined,
+                            label: 'Olgan puli',
+                            value: formatSom(work.collected),
+                            valueColor: StageTone.success.ink(context),
+                          ),
+                      ],
+                    ),
+        ),
+        const SizedBox(height: 24),
+        SettingsGroup(
+          title: 'Bo\'lim vakolatlari',
+          footer: 'Xodim faqat vakolat berilgan bo\'limni ochadi va faqat o\'sha '
+              'bo\'lim ichidan ish qiladi. O\'zgarish darhol kuchga kiradi.',
+          children: [
+            for (final s in WorkSection.values)
+              SettingsTile(
+                icon: s.icon,
+                tone: e.sections.contains(s) ? StageTone.success : StageTone.neutral,
+                label: s.label,
+                value: s.accessHint,
+                trailing: Switch(
+                  value: e.sections.contains(s),
+                  onChanged: _saving
+                      ? null
+                      : (v) => _apply(
+                            () => _service.setSectionAccess(e.id, s, v),
+                            v ? '"${s.label}" vakolati berildi' : '"${s.label}" vakolati olindi',
+                          ),
+                ),
+              ),
           ],
         ),
-      ),
+        const SizedBox(height: 24),
+        SettingsGroup(
+          title: 'Qo\'shimcha vakolatlar',
+          footer: 'Bo\'lim vakolatiga qo\'shimcha beriladi — masalan o\'lchash '
+              'uchun ham Yuvish bo\'limi, ham "O\'lchash va narx" kerak.',
+          children: [
+            for (final p in StaffPermission.values)
+              SettingsTile(
+                icon: p.icon,
+                tone: e.permissions.contains(p) ? StageTone.success : StageTone.neutral,
+                label: p.label,
+                value: p.hint,
+                trailing: Switch(
+                  value: e.permissions.contains(p),
+                  onChanged: _saving
+                      ? null
+                      : (v) => _apply(
+                            () => _service.setPermission(e.id, p, v),
+                            v ? '"${p.label}" vakolati berildi' : '"${p.label}" vakolati olindi',
+                          ),
+                ),
+              ),
+          ],
+        ),
+      ],
     );
   }
 }

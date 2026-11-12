@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/item_status.dart';
 import '../models/order.dart';
 import '../models/order_item.dart';
+import '../models/order_status.dart';
 import '../models/work_section.dart';
 import '../theme/app_colors.dart';
 import '../utils/date_utils.dart';
@@ -69,8 +70,14 @@ StageVisual placeVisual(OrderPlace place) => switch (place) {
 
 /// Shu bo'limda ishlanadigan xizmatlar — buyurtma kartasi va ko'rinishida
 /// faqat shular to'liq ko'rsatiladi.
-bool itemBelongsTo(OrderItem item, WorkSection? section) {
+///
+/// Mijozdan OLIB KELINAYOTGAN buyurtmaning hamma xizmati Yetgazma
+/// bo'liminiki: dastavchik aynan shularni olib keladi.
+bool itemBelongsTo(OrderItem item, WorkSection? section, Order order) {
   if (section == null) return true;
+  if (order.status == OrderStatus.olibKelish) {
+    return section == WorkSection.yetgazma || section == WorkSection.yangi;
+  }
   final stage = ItemStage.of(item);
   return switch (section) {
     WorkSection.yuvish => stage.section == WorkSection.yuvish,

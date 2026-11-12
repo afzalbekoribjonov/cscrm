@@ -13,6 +13,12 @@ abstract class UzDates {
     'Iyul', 'Avgust', 'Sentabr', 'Oktabr', 'Noyabr', 'Dekabr',
   ];
 
+  /// Qisqa nomlar — "Iyun" va "Iyul" bir-biridan farq qilishi kerak.
+  static const monthsShort = [
+    'Yan', 'Fev', 'Mar', 'Apr', 'May', 'Iyn',
+    'Iyl', 'Avg', 'Sen', 'Okt', 'Noy', 'Dek',
+  ];
+
   static const weekdaysShort = ['Du', 'Se', 'Ch', 'Pa', 'Ju', 'Sh', 'Ya'];
 
   static const weekdays = [

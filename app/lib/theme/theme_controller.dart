@@ -25,6 +25,11 @@ class ThemeController extends ValueNotifier<ThemeMode> {
     }
   }
 
+  Future<void> setMode(ThemeMode mode) async {
+    if (mode == value) return;
+    await toggle();
+  }
+
   Future<void> toggle() async {
     value = isDark ? ThemeMode.light : ThemeMode.dark;
     try {

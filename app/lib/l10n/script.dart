@@ -59,7 +59,11 @@ class ScriptController extends ValueNotifier<UzScript> {
 
 /// Bir xil matn ro'yxatlarda qayta-qayta chiziladi ("Yuvilmoqda",
 /// "so'm") — har safar qaytadan o'girmaslik uchun kichik kesh.
+///
+/// Kesh qaysi yozuv uchun to'ldirilgani ham yoziladi: yozuv qanday
+/// yo'l bilan almashmasin, eski yozuvdagi natija qaytib qolmaydi.
 final _cache = <String, String>{};
+UzScript? _cacheScript;
 
 /// Matnni joriy yozuvda qaytaradi.
 ///
@@ -69,9 +73,14 @@ final _cache = <String, String>{};
 /// `t('...')` qo'lda chaqiriladi.
 String t(String latin) {
   if (latin.isEmpty) return latin;
+  final script = ScriptController.instance.value;
+  if (script != _cacheScript) {
+    _cache.clear();
+    _cacheScript = script;
+  }
   final cached = _cache[latin];
   if (cached != null) return cached;
-  final result = ScriptController.instance.isCyrillic
+  final result = script == UzScript.cyrillic
       ? latinToCyrillic(latin)
       : latinTypography(latin);
   if (_cache.length > 3000) _cache.clear();

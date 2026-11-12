@@ -400,7 +400,7 @@ class _ItemMenu extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MoreButton(
-      tooltip: 'Xizmat amallari',
+      tooltip: t('Xizmat amallari'),
       dot: item.comments.isNotEmpty,
       onPressed: () => showActionMenu(
         context,

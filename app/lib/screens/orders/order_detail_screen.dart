@@ -555,11 +555,11 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     final section = widget.section;
     final mine = [
       for (final i in order.items)
-        if (itemBelongsTo(i, section)) i,
+        if (itemBelongsTo(i, section, order)) i,
     ];
     final others = [
       for (final i in order.items)
-        if (!itemBelongsTo(i, section)) i,
+        if (!itemBelongsTo(i, section, order)) i,
     ];
     final awaitingWash = mine
         .where((i) => i.status.awaitsWash && !i.isHanded)

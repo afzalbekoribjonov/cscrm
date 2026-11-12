@@ -1,4 +1,3 @@
-import 'package:cscrm/models/employee.dart';
 import 'package:cscrm/models/license_status.dart';
 import 'package:cscrm/screens/admin/profile_screen.dart';
 import 'package:cscrm/services/license_controller.dart';
@@ -36,6 +35,9 @@ class _FakeService extends LicenseService {
               configured: false,
             ),
           );
+
+  @override
+  Future<PaymentRequest?> fetchPaymentRequest() async => null;
 }
 
 const _plans = [
@@ -77,7 +79,9 @@ LicenseStatus status({
       blocked: false,
     );
 
-Widget screen({LicenseStatus? licence}) {
+final _expires = DateTime(2026, 10, 1);
+
+Widget screen({LicenseStatus? licence, DateTime? now}) {
   LicenseController.instance.value = licence == null
       ? null
       : LicenseResolution(status: licence, fromCache: false);
@@ -85,26 +89,7 @@ Widget screen({LicenseStatus? licence}) {
   return wrap(ProfileScreen(
     businessName: 'Nihol gilam yuvish',
     service: _FakeService(_plans),
-    employees: Stream.value(const [
-      Employee(
-        id: 'e1',
-        firstName: 'Sardor',
-        lastName: '',
-        phone: '998901234567',
-        active: true,
-        createdAt: 0,
-        createdBy: '',
-      ),
-      Employee(
-        id: 'e2',
-        firstName: 'Malika',
-        lastName: '',
-        phone: '998901234568',
-        active: false,
-        createdAt: 0,
-        createdBy: '',
-      ),
-    ]),
+    now: () => now ?? _expires.subtract(const Duration(days: 12)),
   ));
 }
 
@@ -113,68 +98,72 @@ void main() {
 
   testWidgets('biznes nomi sarlavhada turadi', (tester) async {
     await tester.pumpWidget(screen(licence: status()));
-    await tester.pumpAndSettle();
-
+    await tester.pump();
     expect(find.text(t('Nihol gilam yuvish')), findsOneWidget);
   });
 
-  testWidgets('xodimlar soni va faollari alohida sanaladi', (tester) async {
+  testWidgets("'Xodim' va 'Faol' sanoq kartalari endi yo'q", (tester) async {
     await tester.pumpWidget(screen(licence: status()));
-    await tester.pumpAndSettle();
-
-    expect(find.text(t('2')), findsOneWidget, reason: 'jami xodim');
-    expect(find.text(t('1')), findsOneWidget, reason: 'faol xodim');
+    await tester.pump();
+    expect(find.text(t('Xodim')), findsNothing);
   });
 
-  testWidgets('joriy tarif nomi va qolgan muddat ko\'rinadi', (tester) async {
+  testWidgets("joriy tarif va qolgan muddat ko'rinadi", (tester) async {
     await tester.pumpWidget(screen(licence: status()));
-    await tester.pumpAndSettle();
-
-    expect(find.text(t('JORIY TARIF')), findsOneWidget);
+    await tester.pump();
+    expect(find.text(t('Joriy tarif')), findsOneWidget);
     expect(find.text(t('12 kun')), findsOneWidget);
   });
 
-  testWidgets('muddat o\'tgan bo\'lsa MANFIY kun ko\'rsatilmaydi',
-      (tester) async {
-    // `-3 kun` degan yozuv ma'nosiz. Bu holatni alohida aytamiz.
+  testWidgets('1 soatdan kam qolganda "1 kun" EMAS — daqiqa', (tester) async {
     await tester.pumpWidget(screen(
-      licence: status(state: LicenseState.expired, daysLeft: -3),
+      licence: status(daysLeft: 1),
+      now: _expires.subtract(const Duration(minutes: 59)),
     ));
-    await tester.pumpAndSettle();
-
-    expect(find.text(t('Muddat o\'tgan')), findsOneWidget);
-    expect(find.textContaining(t('-3')), findsNothing);
+    await tester.pump();
+    expect(find.text(t('59 daqiqa')), findsOneWidget);
+    expect(find.text(t('1 kun')), findsNothing);
   });
 
-  testWidgets('joriy tarif ro\'yxatda belgilanadi', (tester) async {
-    await tester.pumpWidget(screen(licence: status(planId: 'm3')));
-    await tester.pumpAndSettle();
+  testWidgets('bir kundan kam — soat va daqiqa', (tester) async {
+    await tester.pumpWidget(screen(
+      licence: status(daysLeft: 1),
+      now: _expires.subtract(const Duration(hours: 5, minutes: 20)),
+    ));
+    await tester.pump();
+    expect(find.text(t('5 soat 20 daqiqa')), findsOneWidget);
+  });
 
+  testWidgets("muddat o'tgan bo'lsa MANFIY qiymat ko'rsatilmaydi",
+      (tester) async {
+    await tester.pumpWidget(screen(
+      licence: status(state: LicenseState.expired, daysLeft: -3),
+      now: _expires.add(const Duration(days: 3)),
+    ));
+    await tester.pump();
+    expect(find.text(t('Muddat tugagan')), findsOneWidget);
+    expect(find.textContaining('-3'), findsNothing);
+  });
+
+  testWidgets("joriy tarif ro'yxatda belgilanadi", (tester) async {
+    await tester.pumpWidget(screen(licence: status()));
+    await tester.pump();
     expect(find.text(t('Joriy')), findsOneWidget);
   });
 
-  testWidgets('tejash foizi to\'g\'ri hisoblanadi', (tester) async {
-    // 1 oylik: 200 000/oy. 3 oylik: 540 000 / 3 = 180 000/oy.
-    // Farq: 10%.
+  testWidgets("tejash foizi to'g'ri hisoblanadi", (tester) async {
     await tester.pumpWidget(screen(licence: status()));
-    await tester.pumpAndSettle();
-
+    await tester.pump();
+    // 3 oylik: 540 000 / 3 = 180 000 so'm/oy; 1 oylik 200 000 ga nisbatan
+    // 10% tejash.
     expect(find.text(t('10% tejash')), findsOneWidget);
-    // Ajratgich belgisi lokaldan kelib chiqadi (oddiy bo'shliqmi yoki
-    // uzilmaydiganmi) — sinov unga bog'lanmasligi kerak.
-    expect(
-      find.textContaining(RegExp(r'180.?000 so')),
-      findsOneWidget,
-      reason: 'taqqoslashda asosiy raqam — OYLIK narx',
-    );
   });
 
-  testWidgets('obuna holati aniqlanmagan bo\'lsa ham sahifa ochiladi',
+  testWidgets("obuna holati aniqlanmagan bo'lsa ham sahifa ochiladi",
       (tester) async {
     await tester.pumpWidget(screen());
-    await tester.pumpAndSettle();
-
+    await tester.pump();
     expect(find.text(t('Nihol gilam yuvish')), findsOneWidget);
-    expect(find.text(t('JORIY TARIF')), findsNothing);
+    expect(find.text(t('Joriy tarif')), findsNothing);
   });
 }

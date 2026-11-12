@@ -90,7 +90,7 @@ class _SubscriptionBannerState extends State<SubscriptionBanner> {
                     Icon(Icons.chevron_right_rounded, size: 17, color: color)
                   else
                     IconButton(
-                      tooltip: 'Yopish',
+                      tooltip: t('Yopish'),
                       visualDensity: VisualDensity.compact,
                       constraints: const BoxConstraints(
                         minWidth: 32,
