@@ -25,7 +25,18 @@ export interface CabinetSummary {
   expenses: number;
   previousExpenses: number;
   profit: number;
-  orders: { created: number; previousCreated: number; delivered: number; active: number; readyToDeliver: number };
+  /**
+   * `active` va `readyToDeliver` — omborxonadagilarsiz: ular alohida,
+   * `warehouse` da (tayyor, lekin uzoq olib ketilmagan).
+   */
+  orders: {
+    created: number;
+    previousCreated: number;
+    delivered: number;
+    active: number;
+    readyToDeliver: number;
+    warehouse?: number;
+  };
   debt: { count: number; total: number };
   series: { starts: number[]; income: number[]; created: number[] };
 }

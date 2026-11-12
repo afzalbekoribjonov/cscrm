@@ -156,6 +156,9 @@ export function CabinetHome() {
                 items={[
                   { label: 'Ishda', value: data ? `${formatNumber(data.orders.active)} ta buyurtma` : '—' },
                   { label: 'Topshirishga tayyor', value: data ? `${formatNumber(data.orders.readyToDeliver)} ta` : '—' },
+                  ...((data?.orders.warehouse ?? 0) > 0
+                    ? [{ label: 'Omborda', value: `${formatNumber(data!.orders.warehouse!)} ta — uzoq olib ketilmagan` }]
+                    : []),
                   {
                     label: 'Qarzdorlar',
                     value: data ? (data.debt.count > 0 ? `${data.debt.count} ta · ${formatSom(data.debt.total)}` : 'Yo\'q') : '—',

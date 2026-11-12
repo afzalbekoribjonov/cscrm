@@ -84,6 +84,7 @@ function summary(range: CabinetRange): CabinetSummary {
       delivered: empty ? 0 : Math.round(created.reduce((a, b) => a + b, 0) * 0.8),
       active: empty ? 0 : 14,
       readyToDeliver: empty ? 0 : 5,
+      warehouse: empty ? 0 : 3,
     },
     debt: empty ? { count: 0, total: 0 } : { count: 4, total: 385_000 },
     series: { starts, income, created },

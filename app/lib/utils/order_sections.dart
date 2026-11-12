@@ -34,6 +34,7 @@ enum OrderPlace {
 class OrderSections {
   const OrderSections({
     required this.all,
+    required this.inWork,
     required this.wash,
     required this.packaging,
     required this.pickup,
@@ -48,6 +49,7 @@ class OrderSections {
 
   OrderSections.empty()
       : all = const [],
+        inWork = const [],
         wash = const [],
         packaging = const [],
         pickup = const [],
@@ -61,6 +63,11 @@ class OrderSections {
 
   /// Barcha operatsion buyurtmalar — qidiruv shu ro'yxat ustida ishlaydi.
   final List<Order> all;
+
+  /// HOZIR ISHDAGI buyurtmalar: olib kelish, sexda, deyarli tayyor va
+  /// tayyor. Omborxonadagilar va topshirilganlar KIRMAYDI — omborxonadagi
+  /// buyurtma bo'yicha biznesning ishi tugagan, u faqat mijozni kutmoqda.
+  final List<Order> inWork;
 
   /// Kamida bitta xizmati yuvish bosqichida (yoki xizmati hali yo'q).
   final List<Order> wash;
@@ -111,9 +118,14 @@ class OrderSections {
     final warehouse = <Order>[];
     final deliveredToday = <Order>[];
     final unmeasured = <OrderItemRef>[];
+    final inWork = <Order>[];
 
     for (final order in orders) {
-      switch (placeOf(order, policies, at)) {
+      final place = placeOf(order, policies, at);
+      if (place != OrderPlace.warehouse && place != OrderPlace.delivered) {
+        inWork.add(order);
+      }
+      switch (place) {
         case OrderPlace.pickup:
           pickup.add(order);
         case OrderPlace.ready:
@@ -144,6 +156,7 @@ class OrderSections {
 
     return OrderSections(
       all: orders,
+      inWork: inWork,
       wash: wash,
       packaging: packaging,
       pickup: pickup,

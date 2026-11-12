@@ -142,6 +142,19 @@ void main() {
       expect(s.warehouse.map((o) => o.id), [5]);
       expect(s.unmeasured.map((r) => '${r.order.id}/${r.item.key}'), ['3/1']);
       expect(s.deliveryBadgeCount, 3);
+      // Omborxonadagi (5) — "ishda" EMAS.
+      expect(s.inWork.map((o) => o.id), [1, 2, 3, 4]);
+    });
+
+    test('omborxonadagi va topshirilgan buyurtma ishda sanalmaydi', () {
+      final s = OrderSections.from([
+        _order(1, OrderStatus.yetgazishgaTayyor, [_item('1', ItemStatus.tayyor)],
+            readyAt: daysAgo(40)),
+        _order(2, OrderStatus.yetgazildi, [_item('1', ItemStatus.tayyor)]),
+        _order(3, OrderStatus.yuvishda, [_item('1', ItemStatus.yuvilmoqda)]),
+      ], now: now);
+      expect(s.warehouse.map((o) => o.id), [1]);
+      expect(s.inWork.map((o) => o.id), [3]);
     });
 
     test('xizmati yo\'q sexdagi buyurtma Yuvishda ko\'rinadi', () {

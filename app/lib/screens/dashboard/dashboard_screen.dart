@@ -208,7 +208,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final createdToday = s.all
         .where((o) => o.createdAt >= _day.millisecondsSinceEpoch)
         .length;
-    final active = s.all.where((o) => !o.status.isClosed).length;
+    // Omborxonadagilar "ishda" emas — ular alohida sanaladi.
+    final active = s.inWork.length;
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.light,
@@ -282,9 +283,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
   List<Widget> _alerts(OrderSections s) {
     final now = DateTime.now();
     final today = startOfDay(now);
-    final overdue = s.all
+    // Omborxonadagi buyurtma muddati o'tgan deb sanalmaydi: biznes ishini
+    // qilib bo'lgan, buyurtma mijozni kutmoqda.
+    final overdue = s.inWork
         .where((o) =>
-            !o.status.isClosed &&
             o.deadline != null &&
             DateTime.fromMillisecondsSinceEpoch(o.deadline!).isBefore(today))
         .toList();
@@ -368,9 +370,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
       if (s.policies.warehouseEnabled)
         _Stage('Omborda', Icons.warehouse_rounded, StageTone.warehouse,
             s.warehouse.length, 'buyurtma',
-            () => openWarehouse(context, widget.user)),
+            () => openWarehouse(context, widget.user),
+            inFlow: false),
     ];
-    final total = rows.fold<int>(0, (n, r) => n + r.count);
+    final total =
+        rows.where((r) => r.inFlow).fold<int>(0, (n, r) => n + r.count);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1064,7 +1068,12 @@ class _QuickActions extends StatelessWidget {
 }
 
 class _Stage {
-  const _Stage(this.label, this.icon, this.tone, this.count, this.unit, this.onTap);
+  const _Stage(this.label, this.icon, this.tone, this.count, this.unit, this.onTap,
+      {this.inFlow = true});
+
+  /// Ish oqimining qismi. Omborxona — yo'q: u yerdagi buyurtma bo'yicha
+  /// ish tugagan, shuning uchun chiziqdagi ulushga qo'shilmaydi.
+  final bool inFlow;
   final String label;
   final IconData icon;
   final StageTone tone;
@@ -1096,7 +1105,7 @@ class _StageBar extends StatelessWidget {
         height: 10,
         child: Row(
           children: [
-            for (final r in rows)
+            for (final r in rows.where((r) => r.inFlow))
               if (r.count > 0)
                 Expanded(
                   flex: r.count,

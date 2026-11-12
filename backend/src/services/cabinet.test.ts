@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import {
+  isInWarehouse,
   CARD_LABEL,
   CASH_LABEL,
   buildCabinetSummary,
@@ -141,7 +142,7 @@ describe('buildCabinetSummary', () => {
   });
 
   it('buyurtmalar: qabul, topshirish, ishda, tayyor', () => {
-    assert.deepEqual(s.orders, { created: 2, previousCreated: 1, delivered: 1, active: 2, readyToDeliver: 1 });
+    assert.deepEqual(s.orders, { created: 2, previousCreated: 1, delivered: 1, active: 2, readyToDeliver: 1, warehouse: 0 });
   });
 
   it('qarzdorlar — faqat haqiqiy qarz', () => {
@@ -154,5 +155,48 @@ describe('buildCabinetSummary', () => {
     assert.equal(s.series.income.reduce((a, b) => a + b, 0), 100);
     assert.equal(s.series.created[6], 1); // bugun qabul qilingan
     assert.equal(s.series.starts[0], tash(2026, 9, 17));
+  });
+});
+
+describe('omborxona — ishda sanalmaydi', () => {
+  const activeOrders = [
+    { id: '1', status: 'yuvishda', active: true },
+    { id: '2', status: 'yetgazishga_tayyor', active: true, readyAt: NOW - 2 * DAY },
+    { id: '3', status: 'yetgazishga_tayyor', active: true, readyAt: NOW - 20 * DAY },
+  ];
+  const summary = (policy?: { warehouseEnabled?: boolean; warehouseDays?: number }) =>
+    buildCabinetSummary({
+      range: 'today',
+      now: NOW,
+      ordersInPeriod: [],
+      activeOrders,
+      debtors: [],
+      history: [],
+      expenses: [],
+      ...(policy ? { policy } : {}),
+    }).orders;
+
+  it('standart (15 kun): 20 kunlik tayyor buyurtma omborda, ishda emas', () => {
+    const o = summary();
+    assert.equal(o.active, 2);
+    assert.equal(o.readyToDeliver, 1);
+    assert.equal(o.warehouse, 1);
+  });
+
+  it('kunlar soni qoidadan olinadi', () => {
+    assert.equal(summary({ warehouseDays: 30 }).warehouse, 0);
+    assert.equal(summary({ warehouseDays: 3 }).warehouse, 1);
+  });
+
+  it("omborxona o'chirilgan bo'lsa — hammasi ishda", () => {
+    const o = summary({ warehouseEnabled: false });
+    assert.equal(o.active, 3);
+    assert.equal(o.readyToDeliver, 2);
+    assert.equal(o.warehouse, 0);
+  });
+
+  it("isInWarehouse: tayyor bo'lmagan yoki readyAt yo'q — hech qachon", () => {
+    assert.equal(isInWarehouse({ id: 'x', status: 'yuvishda', readyAt: NOW - 99 * DAY }, {}, NOW), false);
+    assert.equal(isInWarehouse({ id: 'y', status: 'yetgazishga_tayyor' }, {}, NOW), false);
   });
 });

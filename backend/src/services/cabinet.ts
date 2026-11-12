@@ -41,6 +41,30 @@ export interface OrderInput {
   deliveryPaidAmount?: number;
   debtAmount?: number;
   active?: boolean;
+  /** Hamma xizmati tayyor bo'lgan payt — omborxonani aniqlash uchun. */
+  readyAt?: number;
+}
+
+/** Biznesning "Ilova qonuniyatlari"dan omborxonaga tegishli qismi. */
+export interface WarehousePolicy {
+  warehouseEnabled?: boolean;
+  warehouseDays?: number;
+}
+
+/** Ilovadagi standart qiymatlar bilan bir xil (BusinessPolicies). */
+const WAREHOUSE_DEFAULT_DAYS = 15;
+
+/**
+ * Buyurtma omborxonadami: hammasi tayyor va tayyor bo'lganidan beri
+ * belgilangan kun o'tgan. Ilovadagi `BusinessPolicies.isInWarehouse` ning
+ * aynan nusxasi.
+ */
+export function isInWarehouse(o: OrderInput, policy: WarehousePolicy, now: number): boolean {
+  if (policy.warehouseEnabled === false) return false;
+  if (o.status !== 'yetgazishga_tayyor' || typeof o.readyAt !== 'number' || o.readyAt <= 0) return false;
+  const raw = policy.warehouseDays;
+  const days = typeof raw === 'number' ? Math.min(90, Math.max(3, Math.trunc(raw))) : WAREHOUSE_DEFAULT_DAYS;
+  return now >= o.readyAt + days * DAY;
 }
 
 export interface HistoryInput {
@@ -162,10 +186,12 @@ export interface CabinetSummary {
     previousCreated: number;
     /** Davrda topshirilgan. */
     delivered: number;
-    /** Hozir ishda (topshirilmagan). */
+    /** Hozir ishda (topshirilmagan, omborxonadagilarsiz). */
     active: number;
-    /** Hozir topshirishga tayyor. */
+    /** Hozir topshirishga tayyor (omborxonadagilarsiz). */
     readyToDeliver: number;
+    /** Omborxonada — tayyor, lekin uzoq olib ketilmagan. */
+    warehouse: number;
   };
   debt: { count: number; total: number };
   /** Kunlik: tushum va qabul qilingan buyurtmalar. */
@@ -181,6 +207,7 @@ export function buildCabinetSummary(input: {
   debtors: OrderInput[];
   history: HistoryInput[];
   expenses: ExpenseInput[];
+  policy?: WarehousePolicy;
 }): CabinetSummary {
   const { range, now } = input;
   const p = cabinetPeriod(range, now);
@@ -202,7 +229,12 @@ export function buildCabinetSummary(input: {
     created: starts.map((s) => orders.filter((o) => within(o.createdAt, s, s + DAY - 1)).length),
   };
 
-  const active = input.activeOrders.filter((o) => o.active !== false && o.status !== 'yetgazildi');
+  // Omborxonadagi buyurtma "ishda" emas: biznesning ishi tugagan, u
+  // faqat mijozni kutmoqda — alohida sanaladi.
+  const policy = input.policy ?? {};
+  const open = input.activeOrders.filter((o) => o.active !== false && o.status !== 'yetgazildi');
+  const warehouse = open.filter((o) => isInWarehouse(o, policy, now));
+  const active = open.filter((o) => !isInWarehouse(o, policy, now));
   const debtors = input.debtors.filter((o) => (o.debtAmount ?? 0) > 0);
 
   return {
@@ -220,6 +252,7 @@ export function buildCabinetSummary(input: {
       delivered: orders.filter((o) => within(o.deliveredAt, p.start, p.end)).length,
       active: active.length,
       readyToDeliver: active.filter((o) => o.status === 'yetgazishga_tayyor').length,
+      warehouse: warehouse.length,
     },
     debt: { count: debtors.length, total: debtors.reduce((s, o) => s + (o.debtAmount ?? 0), 0) },
     series,
@@ -245,6 +278,7 @@ function pickOrder(id: string, v: Record<string, unknown>): OrderInput {
     ...(num('deliveryPaidAmount') !== undefined ? { deliveryPaidAmount: num('deliveryPaidAmount') } : {}),
     ...(num('debtAmount') !== undefined ? { debtAmount: num('debtAmount') } : {}),
     ...(typeof v.active === 'boolean' ? { active: v.active } : {}),
+    ...(num('readyAt') !== undefined ? { readyAt: num('readyAt') } : {}),
   };
 }
 
@@ -260,14 +294,17 @@ export async function loadCabinetSummary(tenantId: string, range: CabinetRange, 
   const base = `tenants/${tenantId}`;
   const orders = db().ref(`${base}/orders`);
 
-  const [created, delivered, active, debtors, history, expenses] = await Promise.all([
+  const [created, delivered, active, debtors, history, expenses, policies] = await Promise.all([
     orders.orderByChild('createdAt').startAt(p.prevStart).endAt(p.end).get(),
     orders.orderByChild('deliveredAt').startAt(p.prevStart).endAt(p.end).get(),
     orders.orderByChild('active').equalTo(true).limitToLast(ACTIVE_LIMIT).get(),
     orders.orderByChild('debtAmount').startAt(0.01).get(),
     db().ref(`${base}/order_history`).orderByChild('at').startAt(p.prevStart).endAt(p.end).get(),
     db().ref(`${base}/expenses`).orderByChild('spentAt').startAt(p.prevStart).endAt(p.end).get(),
+    // Kichik tugun — omborxona qoidasi (necha kun).
+    db().ref(`${base}/settings/policies`).get(),
   ]);
+  const rawPolicy = policies.val() as Record<string, unknown> | null;
 
   return buildCabinetSummary({
     range,
@@ -286,6 +323,10 @@ export async function loadCabinetSummary(tenantId: string, range: CabinetRange, 
       ...(typeof v.spentAt === 'number' ? { spentAt: v.spentAt } : {}),
       ...(typeof v.createdAt === 'number' ? { createdAt: v.createdAt } : {}),
     })),
+    policy: {
+      ...(typeof rawPolicy?.warehouseEnabled === 'boolean' ? { warehouseEnabled: rawPolicy.warehouseEnabled } : {}),
+      ...(typeof rawPolicy?.warehouseDays === 'number' ? { warehouseDays: rawPolicy.warehouseDays } : {}),
+    },
   });
 }
 
