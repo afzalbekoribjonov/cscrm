@@ -17,6 +17,12 @@ Har bir biznes = bitta **tenant**. Ma'lumot to'liq ajratilgan:
     payments/{id}   to'lovlar tarixi  (FAQAT backend yozadi)
     payment_requests/{id}  "men to'ladim" so'rovlari (FAQAT backend yozadi)
     counters/       buyurtma raqami hisoblagichi
+    settings/policies       ilova qonuniyatlari (a'zo o'qiydi, ega yozadi)
+    payroll_rates   ishbayi narxlari va ulushlar (a'zo o'qiydi, ega yozadi)
+    payroll_staff/{e}       xodim maoshi turi va oyligi (FAQAT ega)
+    payroll_payments/{id}   avans va oylik to'lovlari (FAQAT ega, indeks: month)
+    work_days/{yyyymmdd}/{e}  kunlik ish yig'indisi (a'zo yozadi, ega o'qiydi)
+    warnings/{e}/{id}       qayta yuvish ogohlantirishlari (xodim o'zinikini)
 
 /admin_logins/{login}       → {uid, tenantId}   (mijozga berk)
 /user_tenants/{uid}         → tenantId
@@ -478,4 +484,29 @@ so'rovdan emas, tokendan olinadi.
 | Doimiy mijoz | `orders.orderByChild('customerPhone').limitToLast(1)` | Indeks qoidalarda. Qoidalar joylanmagan bo'lsa (sozlamalar tuguni o'qilmasa) so'rov umuman yuborilmaydi |
 
 Qoidalar va ularning emulatordagi sinovi: `firebase/rules.mjs`,
-`firebase/test/rules.test.mjs` (74 ta holat).
+`firebase/test/rules.test.mjs` (109 ta holat).
+
+## Maosh (2026-11-20)
+
+Maqsad: boshqaruvchi har bir xodimning oylik hisobini (qat'iy oylik +
+ishbayi − avanslar) va bugungi ishini ("Yuvdi: 124 m² · 41 m · 4 kichik")
+ko'radi; hisobotdagi sof foyda maoshni ham hisobga oladi.
+
+| Narsa | Qayerda | Izoh |
+|---|---|---|
+| Ishbayi narxlari | `payroll_rates` | Har bir xizmat uchun 1 birlikni yuvish/qadoqlash narxi (kichik/katta — alohida), dastavchik `courierPct`, dispetcher `dispatcherMode` (`percent` — topshirilganda yakuniy narxdan / `fixed` — yaratilgan kuni har buyurtmaga). Hamma a'zo o'qiydi: ish bajarilgan PAYTDA telefon shu narx bilan hisoblaydi, ya'ni narx o'zgarsa o'tgan kunlar qayta hisoblanmaydi. `PayrollCenter` jonli kuzatadi |
+| Xodim maoshi | `payroll_staff/{e}` | `type`: `piece` / `fixed` / `mixed`, `monthly`, `pieces` (wash, pack, courier, dispatch). Faqat ega |
+| Kunlik ish | `work_days/{yyyymmdd}/{e}` | `ServerValue.increment` bilan yig'indi: `wash/{birlik}`, `washN`, `washPay`, `pack…`, `deliverN/Sum/Pay`, `createN/Pay`, `dispatchN/Sum/Pay`, `rewashN/Pay`. Bir oy = ~30 kichik yozuv (tarixni yuklash shart emas). Buyurtma yozuvidan ALOHIDA va "yubor va kutma": u buyurtma bilan ishlashni hech qachon to'xtatmaydi |
+| Kvitansiya | `items/{k}/washCredit`, `items/{k}/packCredit`, `orders/{id}/createCredit` | Kim, qaysi kun, qancha. Qayta yuvishda AYNAN shu summa yuvgan xodimdan bugungi kunga ushlanadi (`rewashPay`) va kvitansiya o'chiriladi; o'lcham keyin tuzatilsa — farq o'sha kunga; buyurtma o'chirilsa — dispetcher ulushi qaytariladi |
+| Ogohlantirish | `warnings/{e}/{id}` | Xizmat qayta yuvishga qaytganda uni YUVGAN xodimga (kvitansiyadan, eski xizmatlarda — tarixdan). Xodim faqat o'zinikini o'qiydi va `seenAt` qo'yadi; qo'ng'iroq oldida qizil "!" |
+| To'lovlar | `payroll_payments/{id}` | `advance` / `salary`, `month` ("2026-11"). Qoldiq = hisoblangan − berilgan |
+
+Ishbayi faqat tranzaksiya TASDIQLANGACH yoziladi (`_transact(onCommitted)`):
+boshqa xodim xizmatni allaqachon o'tkazgan bo'lsa, ikkinchi marta
+yozilmaydi. Qoidalar joylanmagan bo'lsa (`payroll_rates` o'qilmaydi) ish
+hisobi UMUMAN yozilmaydi — keyin qaytariladigan yozuv "yo'q joydan"
+ayirilib, manfiy son chiqmasin.
+
+Hisobotdagi maosh — hisoblash usuli: davr kunlariga qat'iy oylikning
+ulushi (har kun — oyning 1/kunlar_soni, kelajak kunlarsiz) + shu
+kunlardagi ishbayi. Faqat ega ko'radi.

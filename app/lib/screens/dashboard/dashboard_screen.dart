@@ -12,16 +12,17 @@ import '../../models/item_status.dart';
 import '../../models/order.dart';
 import '../../models/order_history_entry.dart';
 import '../../models/order_status.dart';
+import '../../models/payroll.dart';
 import '../../models/work_section.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_theme.dart';
-import '../../ui/action_menu.dart';
 import '../../ui/bar_chart.dart';
 import '../../ui/surfaces.dart';
 import '../../utils/date_utils.dart';
 import '../../utils/income_stats.dart';
 import '../../utils/money.dart';
 import '../../utils/order_sections.dart';
+import '../../utils/payroll_math.dart';
 import '../../utils/team_stats.dart';
 import '../../utils/uz_dates.dart';
 import '../../widgets/notification_action.dart';
@@ -30,6 +31,7 @@ import '../admin/expenses_screen.dart';
 import '../admin/income_activity_screen.dart';
 import '../home/app_menu.dart';
 import '../new_order/new_order_screen.dart';
+import '../payroll/payroll_screen.dart';
 import '../search/order_search_screen.dart';
 import 'dashboard_sources.dart';
 import 'employee_day_screen.dart';
@@ -82,6 +84,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
   List<Order>? _debtors;
   List<Employee> _employees = const [];
 
+  /// Bugungi ish hisobi (maosh) — `null`: yuklanmoqda.
+  Map<String, WorkTally>? _todayWork;
+  Map<String, StaffPay>? _payStaff;
+
+  /// Maosh tugunlari ochilmagan (baza qoidalari yangilanmagan) — blok
+  /// ko'rsatilmaydi, eski "Jamoa" bloki qoladi.
+  var _payrollOff = false;
+
   // Haftalik grafik — so'ralgandagina.
   var _weekOpen = false;
   List<OrderHistoryEntry>? _weekHistory;
@@ -95,6 +105,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _subs.add(_listen<List<Order>>(_src.debtors(), (v) => _debtors = v));
     _subs.add(_listen<List<Employee>>(
         _src.employees(), (v) => _employees = v));
+    _subs.add(_src.payrollStaff().listen(
+      (v) {
+        if (mounted) setState(() => _payStaff = v);
+      },
+      onError: (Object e) => debugPrint('Maosh sozlamasi o\'qilmadi: $e'),
+    ));
     _scheduleMidnight();
     SharedPreferences.getInstance().then((p) {
       if (p.getBool(_weekKey) == true && mounted) _openWeek();
@@ -134,7 +150,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ..add(_listen<List<Order>>(
           _src.delivered(_day, end), (v) => _todayDelivered = v))
       ..add(_listen<List<Expense>>(
-          _src.expenses(_day, end), (v) => _expenses = v));
+          _src.expenses(_day, end), (v) => _expenses = v))
+      ..add(_src.workDay(_day).listen(
+        (v) {
+          if (mounted) {
+            setState(() {
+              _todayWork = v;
+              _payrollOff = false;
+            });
+          }
+        },
+        onError: (Object e) {
+          debugPrint('Bugungi ish hisobi o\'qilmadi: $e');
+          if (mounted) setState(() => _payrollOff = true);
+        },
+      ));
   }
 
   void _scheduleMidnight() {
@@ -148,6 +178,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         _todayHistory = null;
         _todayDelivered = const [];
         _expenses = const [];
+        _todayWork = null;
       });
       _listenDay();
       if (_weekOpen) _openWeek(force: true);
@@ -210,6 +241,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         .length;
     // Omborxonadagilar "ishda" emas — ular alohida sanaladi.
     final active = s.inWork.length;
+    final earnings = _earnings();
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.light,
@@ -230,7 +262,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         sections: s,
                         user: widget.user,
                       )),
-                  onMenu: () => openAppMenu(context, widget.user),
                 ),
               ),
               SliverPadding(
@@ -263,8 +294,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     const SizedBox(height: 24),
                     _production(summary),
                     const SizedBox(height: 24),
-                    _team(team),
-                    const SizedBox(height: 24),
+                    // Maosh hisobi bor bo'lsa — bugungi ishbay daromad (top 3);
+                    // aks holda (qoidalar yangilanmagan) — avvalgi "Jamoa".
+                    // Ikkalasi birga ko'rsatilmaydi: bir xil ro'yxat ikki
+                    // marta turmasin.
+                    if (earnings.isNotEmpty)
+                      ...earnings
+                    else ...[
+                      _team(team),
+                      const SizedBox(height: 24),
+                    ],
                     _finance(summary),
                     const SizedBox(height: 24),
                     _week(),
@@ -479,6 +518,61 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
+  // ---------------------------------------------------- bugungi ishbay
+
+  /// Bugun eng ko'p ishlagan 3 xodim va ularning ishbay daromadi.
+  /// "Barchasi" — Maosh sahifasi.
+  List<Widget> _earnings() {
+    final work = _todayWork;
+    if (_payrollOff || work == null) return const [];
+    final ranking = todayRanking(
+      today: work,
+      employees: _employees,
+      staff: _payStaff,
+    );
+    if (ranking.isEmpty) return const [];
+    final total = ranking.fold<double>(0, (s, r) => s + r.earned);
+    final top = ranking.take(3).toList();
+    return [
+      SectionHeader(
+        title: 'Bugungi ishbay daromad',
+        subtitle: '${ranking.length} ta xodim · jami ${formatSom(total)}',
+        actionLabel: 'Barchasi',
+        onAction: () => _push((_) => PayrollScreen(user: widget.user)),
+      ),
+      AppCard(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Column(
+          children: [
+            for (var i = 0; i < top.length; i++) ...[
+              if (i > 0) Divider(height: 1, indent: 66, color: context.colorBorder),
+              TodayWorkRow(
+                name: top[i].name,
+                work: top[i].work,
+                earned: top[i].earned,
+                onTap: () => _push((_) => EmployeeDayScreen(
+                      employees: _employees,
+                      user: widget.user,
+                      sources: _src,
+                      initialEmployeeId: top[i].id,
+                      initialName: top[i].name,
+                    )),
+              ),
+            ],
+            if (ranking.length > 3) ...[
+              Divider(height: 1, color: context.colorBorder),
+              TextButton(
+                onPressed: () => _push((_) => PayrollScreen(user: widget.user)),
+                child: Text('Yana ${ranking.length - 3} ta xodim'),
+              ),
+            ],
+          ],
+        ),
+      ),
+      const SizedBox(height: 24),
+    ];
+  }
+
   // ------------------------------------------------------------------ jamoa
 
   Widget _team(List<EmployeeWork> team) {
@@ -600,14 +694,24 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   child: Row(
                     children: [
                       Text('Sof qoldiq', style: theme.textTheme.bodyMedium),
-                      const Spacer(),
-                      Text(
-                        formatSom(net),
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          color: net < 0
-                              ? StageTone.danger.ink(context)
-                              : StageTone.success.ink(context),
-                          fontFeatures: AppFonts.tabular,
+                      const SizedBox(width: 12),
+                      // Katta summa tor ekranda kesilmaydi — kichrayadi.
+                      Expanded(
+                        child: Align(
+                          alignment: Alignment.centerRight,
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Text(
+                              formatSom(net),
+                              maxLines: 1,
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                color: net < 0
+                                    ? StageTone.danger.ink(context)
+                                    : StageTone.success.ink(context),
+                                fontFeatures: AppFonts.tabular,
+                              ),
+                            ),
+                          ),
                         ),
                       ),
                     ],
@@ -761,7 +865,6 @@ class _Hero extends StatelessWidget {
     required this.createdToday,
     required this.deliveredToday,
     required this.onSearch,
-    required this.onMenu,
   });
 
   final AppUser user;
@@ -771,7 +874,6 @@ class _Hero extends StatelessWidget {
   final int createdToday;
   final int deliveredToday;
   final VoidCallback onSearch;
-  final VoidCallback onMenu;
 
   @override
   Widget build(BuildContext context) {
@@ -810,7 +912,9 @@ class _Hero extends StatelessWidget {
                             children: [
                               Text(
                                 user.businessName.isEmpty ? 'Asosiy' : user.businessName,
-                                maxLines: 1,
+                                // Tor ekranda uchta tugma yonida nom
+                                // kesilmasin — ikki qatorga tushadi.
+                                maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
                                 style: theme.textTheme.titleLarge
                                     ?.copyWith(color: Colors.white),
@@ -829,7 +933,7 @@ class _Hero extends StatelessWidget {
                           icon: const Icon(Icons.search_rounded),
                         ),
                         const NotificationAction(),
-                        MoreButton(onPressed: onMenu),
+                        AppMenuAction(user: user, color: Colors.white),
                       ],
                     ),
                   ),

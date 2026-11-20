@@ -8,6 +8,7 @@ import '../../../models/order_item.dart';
 import '../../../theme/app_colors.dart';
 import '../../../theme/app_theme.dart';
 import '../../../ui/action_menu.dart';
+import '../../../ui/sheets.dart';
 import '../../../ui/surfaces.dart';
 import '../../../utils/money.dart';
 import '../../../utils/uz_dates.dart';
@@ -209,25 +210,19 @@ class OrderItemTile extends StatelessWidget {
     final p = permissions;
     if (item.isHanded) return const [];
 
-    Widget hint(String text) => Padding(
-          padding: const EdgeInsets.only(top: 8, right: 8),
-          child: Row(
-            children: [
-              Icon(Icons.info_outline_rounded,
-                  size: 16, color: StageTone.danger.ink(context)),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(
-                  text,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: StageTone.danger.ink(context),
-                        fontWeight: FontWeight.w500,
-                      ),
-                ),
-              ),
-            ],
-          ),
-        );
+    // "Ilova qonuniyatlari" o'lchashni talab qilsa-yu xizmat o'lchanmagan
+    // bo'lsa, tugma O'CHIQ ko'rinadi. Ilgari uning ustida doimiy qizil
+    // yozuv turardi ("Yuvishdan oldin o'lchang") — foydalanuvchi so'rovi
+    // bilan olib tashlandi (2026-11-20): yuqoridagi qizil "O'lchanmagan"
+    // qatori buni allaqachon aytib turibdi. Bosilsa — o'lchash oynasi
+    // ochiladi yoki (vakolat bo'lmasa) qisqa tushuntirish chiqadi.
+    VoidCallback blockedTap() => canMeasureNow
+        ? onMeasure
+        : () => showResult(
+              context,
+              'Bu xizmat avval o\'lchanishi kerak.',
+              error: true,
+            );
 
     Widget buttons(List<Widget> children) => Padding(
           padding: const EdgeInsets.only(top: 10, right: 8),
@@ -251,12 +246,13 @@ class OrderItemTile extends StatelessWidget {
     if (item.status.awaitsWash && p.wash) {
       final blocked = p.measureBeforeWash && unmeasured;
       return [
-        if (blocked) hint('Yuvishdan oldin xizmatni o\'lchang'),
         buttons([
           if (unmeasured && canMeasureNow) measureButton,
           FilledButton.icon(
-            style: _compactFilled(StageTone.washing.fill),
-            onPressed: busy || blocked ? null : onWash,
+            style: blocked
+                ? _compactMuted(context)
+                : _compactFilled(StageTone.washing.fill),
+            onPressed: busy ? null : (blocked ? blockedTap() : onWash),
             icon: const Icon(Icons.local_laundry_service_rounded, size: 18),
             label: const Text('Yuvish'),
           ),
@@ -267,14 +263,17 @@ class OrderItemTile extends StatelessWidget {
     if (item.status == ItemStatus.yuvilmoqda && p.wash) {
       final blocked = p.measureBeforePackaging && unmeasured;
       return [
-        if (blocked) hint('Qadoqlashga o\'tkazishdan oldin o\'lchang'),
         buttons([
           if (unmeasured && canMeasureNow) measureButton,
           FilledButton.icon(
-            style: _compactFilled(StageTone.packaging.fill),
-            onPressed: busy || blocked
+            style: blocked
+                ? _compactMuted(context)
+                : _compactFilled(StageTone.packaging.fill),
+            onPressed: busy
                 ? null
-                : () => onAdvance(ItemStatus.qadoqlashda),
+                : blocked
+                    ? blockedTap()
+                    : () => onAdvance(ItemStatus.qadoqlashda),
             icon: const Icon(Icons.inventory_2_rounded, size: 18),
             label: Text(unmeasured && canMeasureNow
                 ? 'Qadoqlashga'
@@ -317,6 +316,18 @@ final ButtonStyle _compact = OutlinedButton.styleFrom(
   textStyle: const TextStyle(
       fontFamily: AppFonts.sans, fontWeight: FontWeight.w700, fontSize: 14),
 );
+
+/// O'lchanmaguncha bosib bo'lmaydigan tugma — o'chiq ko'rinishda, lekin
+/// bosilsa nima qilish kerakligini aytadi.
+ButtonStyle _compactMuted(BuildContext context) => FilledButton.styleFrom(
+      backgroundColor: context.colorTextSecondary.withValues(alpha: 0.14),
+      foregroundColor: context.colorTextSecondary,
+      elevation: 0,
+      minimumSize: const Size(0, 44),
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      textStyle: const TextStyle(
+          fontFamily: AppFonts.sans, fontWeight: FontWeight.w700, fontSize: 14),
+    );
 
 ButtonStyle _compactFilled(Color color) => FilledButton.styleFrom(
       backgroundColor: color,

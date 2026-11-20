@@ -14,9 +14,12 @@ import 'package:cscrm/models/order.dart';
 import 'package:cscrm/models/order_history_entry.dart';
 import 'package:cscrm/models/order_item.dart';
 import 'package:cscrm/models/order_status.dart';
+import 'package:cscrm/models/payroll.dart';
 import 'package:cscrm/models/product.dart';
 import 'package:cscrm/models/work_section.dart';
+import 'package:cscrm/screens/admin/income_activity_screen.dart';
 import 'package:cscrm/screens/dashboard/dashboard_sources.dart';
+import 'package:cscrm/screens/payroll/payroll_sources.dart';
 import 'package:cscrm/services/license_service.dart';
 
 final sampleNow = DateTime.now();
@@ -217,6 +220,161 @@ class SampleDashboardSources implements DashboardSources {
 
   @override
   Stream<List<Employee>> employees() => Stream.value(sampleEmployees);
+
+  @override
+  Stream<Map<String, WorkTally>> workDay(DateTime day) =>
+      Stream.value(sampleWorkDays[dayKey(day)] ?? const {});
+
+  @override
+  Stream<Map<String, StaffPay>> payrollStaff() => Stream.value(samplePayrollStaff);
+}
+
+// ---------------------------------------------------------------------------
+// Maosh.
+
+WorkTally _tally(
+  String name, {
+  Map<String, double> wash = const {},
+  int washN = 0,
+  double washPay = 0,
+  Map<String, double> pack = const {},
+  int packN = 0,
+  double packPay = 0,
+  int deliverN = 0,
+  double deliverSum = 0,
+  int createN = 0,
+  double createPay = 0,
+  int rewashN = 0,
+  double rewashPay = 0,
+}) =>
+    WorkTally.fromMap({
+      'name': name,
+      'wash': wash,
+      'washN': washN,
+      'washPay': washPay,
+      'pack': pack,
+      'packN': packN,
+      'packPay': packPay,
+      'deliverN': deliverN,
+      'deliverSum': deliverSum,
+      'deliverPay': deliverSum * 0.05,
+      'createN': createN,
+      'createPay': createPay,
+      'rewashN': rewashN,
+      'rewashPay': rewashPay,
+    });
+
+/// Joriy oyning bir necha kuni.
+final sampleWorkDays = <String, Map<String, WorkTally>>{
+  for (var i = 0; i < 6; i++)
+    if (sampleNow.subtract(Duration(days: i)).month == sampleNow.month)
+      dayKey(sampleNow.subtract(Duration(days: i))): {
+        'e2': _tally('Jasur Toshmatov',
+            wash: {'m2': 124.5 - i * 7, 'metr': 41, 'kg': 5, 'kichik': 4, 'katta': 5},
+            washN: 18 - i,
+            washPay: 186750 - i * 9000,
+            rewashN: i == 0 ? 1 : 0,
+            rewashPay: i == 0 ? 9000 : 0),
+        'e1': _tally('Malika Yusupova',
+            pack: {'m2': 96 - i * 4.0, 'dona': 6, 'kichik': 2},
+            packN: 14 - i,
+            packPay: 52000 - i * 2000,
+            createN: 8 - i,
+            createPay: (8 - i) * 3000),
+        'e3': _tally('Sardor Aliyev',
+            deliverN: 5 + i,
+            deliverSum: 1250000 + i * 80000.0,
+            createN: 2,
+            createPay: 6000),
+      },
+};
+
+final samplePayrollStaff = <String, StaffPay>{
+  'e2': const StaffPay(type: SalaryType.piece, pieces: {PieceKind.wash}),
+  'e1': const StaffPay(
+      type: SalaryType.mixed,
+      monthly: 2000000,
+      pieces: {PieceKind.pack, PieceKind.dispatch}),
+  'e3': const StaffPay(
+      type: SalaryType.mixed,
+      monthly: 1500000,
+      pieces: {PieceKind.courier, PieceKind.dispatch}),
+};
+
+const samplePayrollRates = PayrollRates(
+  products: {
+    'p1': ProductRate(wash: 1500, pack: 500),
+    'p2': ProductRate(wash: 1200, pack: 400),
+    'p3': ProductRate(washSmall: 5000, washLarge: 9000, packSmall: 1000, packLarge: 2000),
+  },
+  courierPct: 5,
+  dispatcherMode: DispatcherMode.fixed,
+  dispatcherValue: 3000,
+);
+
+final samplePayments = <PayrollPayment>[
+  PayrollPayment(
+    id: 'pp1',
+    employeeId: 'e1',
+    amount: 500000,
+    kind: PaymentKind.advance,
+    month: monthKey(sampleNow),
+    at: _ago(days: 3),
+    note: 'Avans',
+  ),
+  PayrollPayment(
+    id: 'pp2',
+    employeeId: 'e2',
+    amount: 300000,
+    kind: PaymentKind.advance,
+    month: monthKey(sampleNow),
+    at: _ago(days: 1),
+  ),
+];
+
+class SamplePayrollSources implements PayrollSources {
+  SamplePayrollSources({this.rates0 = samplePayrollRates});
+
+  final PayrollRates rates0;
+
+  @override
+  Stream<PayrollRates> rates() => Stream.value(rates0);
+
+  @override
+  Stream<Map<String, StaffPay>> staff() => Stream.value(samplePayrollStaff);
+
+  @override
+  Stream<Map<String, Map<String, WorkTally>>> workDays(DateTime from, DateTime to) =>
+      Stream.value(sampleWorkDays);
+
+  @override
+  Stream<List<PayrollPayment>> payments(String month) =>
+      Stream.value(samplePayments.where((p) => p.month == month).toList());
+
+  @override
+  Stream<List<Employee>> employees() => Stream.value(sampleEmployees);
+
+  @override
+  Stream<List<Product>> products() => Stream.value(sampleProducts);
+
+  @override
+  Future<void> saveRates(PayrollRates rates) async {}
+
+  @override
+  Future<void> saveStaff(String employeeId, StaffPay pay) async {}
+
+  @override
+  Future<void> addPayment({
+    required String employeeId,
+    required double amount,
+    required PaymentKind kind,
+    required String month,
+    String note = '',
+    String byName = '',
+  }) async {}
+
+  @override
+  Future<void> deletePayment(String id) async {}
 }
 
 // ---------------------------------------------------------------------------
@@ -307,3 +465,25 @@ LicenseStatus sampleLicense({Duration left = const Duration(hours: 5, minutes: 2
       message: '',
       blocked: false,
     );
+
+/// Hisobot sahifasi uchun.
+class SampleReportSources implements ReportSources {
+  @override
+  Stream<({List<Order> orders, List<OrderHistoryEntry> history})> report(
+          DateTime from, DateTime to) =>
+      Stream.value((orders: sampleOrders, history: sampleHistory));
+
+  @override
+  Stream<List<Expense>> expenses(DateTime from, DateTime to) =>
+      Stream.value(sampleExpenses);
+
+  @override
+  Stream<List<Employee>> employees() => Stream.value(sampleEmployees);
+
+  @override
+  Stream<Map<String, StaffPay>> payrollStaff() => Stream.value(samplePayrollStaff);
+
+  @override
+  Stream<Map<String, Map<String, WorkTally>>> workDays(DateTime from, DateTime to) =>
+      Stream.value(sampleWorkDays);
+}

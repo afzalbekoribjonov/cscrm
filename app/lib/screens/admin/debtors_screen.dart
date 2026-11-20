@@ -10,9 +10,10 @@ import '../../models/staff_permission.dart';
 import '../../services/order_service.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_theme.dart';
-import '../../ui/month_section.dart';
+import '../../ui/money_calendar.dart';
 import '../../ui/sheets.dart';
 import '../../ui/surfaces.dart';
+import '../../utils/date_utils.dart';
 import '../../utils/delivery_stats.dart';
 import '../../utils/money.dart';
 import '../../utils/month_groups.dart';
@@ -23,12 +24,15 @@ import '../../widgets/phone_link.dart';
 import '../../widgets/stream_error_view.dart';
 import '../orders/order_detail_screen.dart';
 
-/// Qarzdorlar — OYLAR bo'yicha.
+/// Qarzdorlar — KALENDAR ko'rinishida.
 ///
-/// Ilgari ro'yxat davr tanlagich bilan ochilardi va standart "bugun"
-/// edi: eski qarzlar ko'rinmay qolardi. Endi barcha qarzdorlar bir
-/// sahifada, qarz paydo bo'lgan (buyurtma topshirilgan) oy bo'yicha
-/// guruhlangan — har bir oyning jami summasi sarlavhada.
+///  * Tepada — jami qarz va qarzdorlar soni.
+///  * Oylar tasmasi — har bir oyda paydo bo'lgan (buyurtma topshirilgan)
+///    qarzning jami, bosilsa o'sha oy.
+///  * Kalendar — har bir kunda qancha qarzga qoldi ("240 ming").
+///  * Pastda — tanlangan kunning (yoki butun oyning) qarzdorlari.
+///
+/// Qidiruv yozilsa — kalendarsiz, barcha mos qarzdorlar ro'yxati.
 class DebtorsScreen extends StatefulWidget {
   const DebtorsScreen({
     super.key,
@@ -36,6 +40,7 @@ class DebtorsScreen extends StatefulWidget {
     required this.currentUserName,
     required this.access,
     @visibleForTesting this.debtors,
+    @visibleForTesting this.now,
   });
 
   final String currentUserId;
@@ -44,6 +49,7 @@ class DebtorsScreen extends StatefulWidget {
 
   /// Faqat sinov/rasm uchun — bazasiz namunaviy ro'yxat.
   final Stream<List<Order>>? debtors;
+  final DateTime Function()? now;
 
   @override
   State<DebtorsScreen> createState() => _DebtorsScreenState();
@@ -54,6 +60,10 @@ class _DebtorsScreenState extends State<DebtorsScreen> {
   // Faqat qarzi bor buyurtmalar — `debtAmount` indeksi bo'yicha.
   late final _stream = widget.debtors ?? _service.streamDebtors();
   final _search = TextEditingController();
+
+  DateTime get _now => widget.now?.call() ?? DateTime.now();
+  DateTime? _month;
+  DateTime? _selected;
 
   AppUser get _user => AppUser(
         id: widget.currentUserId,
@@ -102,9 +112,36 @@ class _DebtorsScreenState extends State<DebtorsScreen> {
     return searchKey('${o.customerName} ${o.address}').contains(searchKey(q));
   }
 
+  /// Qarz paydo bo'lgan kun — buyurtma topshirilgan kun.
+  static int _at(Order o) => o.deliveredAt ?? o.createdAt;
+
+  Widget _row(Order order) => _DebtorRow(
+        order: order,
+        canSeePhone: _canSeePhone,
+        onOpen: () => Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => OrderDetailScreen(orderId: order.id, user: _user),
+          ),
+        ),
+        onSettle: () => _settle(order),
+      );
+
+  Widget _list(List<Order> orders) => AppCard(
+        padding: EdgeInsets.zero,
+        child: Column(
+          children: [
+            for (var i = 0; i < orders.length; i++) ...[
+              if (i > 0) Divider(height: 1, indent: 14, color: context.colorBorder),
+              _row(orders[i]),
+            ],
+          ],
+        ),
+      );
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final now = _now;
     return Scaffold(
       appBar: AppBar(title: const Text('Qarzdorlar')),
       body: StreamBuilder<List<Order>>(
@@ -114,14 +151,36 @@ class _DebtorsScreenState extends State<DebtorsScreen> {
           if (!snapshot.hasData) {
             return const Center(child: CircularProgressIndicator());
           }
-          final all = snapshot.data!.where((o) => o.hasDebt).toList();
+          final all = snapshot.data!.where((o) => o.hasDebt).toList()
+            ..sort((a, b) => _at(b).compareTo(_at(a)));
           final total = all.fold<double>(0, (s, o) => s + o.debtAmount);
           final q = _search.text.trim();
           final groups = groupByMonth<Order>(
-            all.where((o) => _matches(o, q)),
-            at: (o) => o.deliveredAt ?? o.createdAt,
+            all,
+            at: _at,
             amount: (o) => o.debtAmount,
           );
+          // Standart oy — eng so'nggi qarz paydo bo'lgan oy.
+          final month = _month ??
+              (groups.isEmpty ? DateTime(now.year, now.month) : groups.first.month);
+          final inMonth = groups
+                  .where((g) => g.month.year == month.year && g.month.month == month.month)
+                  .firstOrNull
+                  ?.items ??
+              const <Order>[];
+          final byDay = <int, double>{};
+          for (final o in inMonth) {
+            final d = UzDates.fromMillis(_at(o)).day;
+            byDay[d] = (byDay[d] ?? 0) + o.debtAmount;
+          }
+          final selected = _selected;
+          final shown = selected == null
+              ? inMonth
+              : inMonth
+                  .where((o) => isSameDay(UzDates.fromMillis(_at(o)), selected))
+                  .toList();
+          final shownTotal = shown.fold<double>(0, (s, o) => s + o.debtAmount);
+          final found = q.isEmpty ? const <Order>[] : all.where((o) => _matches(o, q)).toList();
 
           return ListView(
             padding: EdgeInsets.fromLTRB(Gap.page, 4, Gap.page,
@@ -141,18 +200,23 @@ class _DebtorsScreenState extends State<DebtorsScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text('Jami qarz', style: theme.textTheme.bodySmall),
-                          Text(
-                            formatSom(total),
-                            style: theme.textTheme.headlineSmall?.copyWith(
-                              color: total > 0
-                                  ? StageTone.warning.ink(context)
-                                  : null,
-                              fontFeatures: AppFonts.tabular,
+                          FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              formatSom(total),
+                              style: theme.textTheme.headlineSmall?.copyWith(
+                                color: total > 0
+                                    ? StageTone.warning.ink(context)
+                                    : null,
+                                fontFeatures: AppFonts.tabular,
+                              ),
                             ),
                           ),
                         ],
                       ),
                     ),
+                    const SizedBox(width: 8),
                     Text('${all.length} ta buyurtma',
                         style: theme.textTheme.bodySmall),
                   ],
@@ -166,9 +230,16 @@ class _DebtorsScreenState extends State<DebtorsScreen> {
                   decoration: InputDecoration(
                     hintText: t('Ism, telefon yoki № bo\'yicha qidirish'),
                     prefixIcon: const Icon(Icons.search_rounded),
+                    suffixIcon: q.isEmpty
+                        ? null
+                        : IconButton(
+                            tooltip: t('Tozalash'),
+                            onPressed: () => setState(_search.clear),
+                            icon: const Icon(Icons.close_rounded),
+                          ),
                   ),
                 ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 14),
               if (all.isEmpty)
                 const SizedBox(
                   height: 360,
@@ -179,43 +250,70 @@ class _DebtorsScreenState extends State<DebtorsScreen> {
                     message: 'Barcha buyurtmalar to\'liq to\'langan.',
                   ),
                 )
-              else if (groups.isEmpty)
-                const SizedBox(
-                  height: 260,
-                  child: EmptyState(
-                    icon: Icons.search_off_rounded,
-                    title: 'Topilmadi',
-                  ),
-                )
-              else
-                for (var i = 0; i < groups.length; i++) ...[
-                  MonthSection(
-                    key: ValueKey(groups[i].month),
-                    month: groups[i].month,
-                    count: groups[i].items.length,
-                    countLabel: 'ta qarzdor',
-                    total: groups[i].total,
-                    tone: StageTone.warning,
-                    initiallyOpen: i == 0 || q.isNotEmpty,
-                    children: [
-                      for (final order in groups[i].items)
-                        _DebtorRow(
-                          order: order,
-                          canSeePhone: _canSeePhone,
-                          onOpen: () => Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => OrderDetailScreen(
-                                orderId: order.id,
-                                user: _user,
-                              ),
-                            ),
-                          ),
-                          onSettle: () => _settle(order),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                ],
+              else if (q.isNotEmpty) ...[
+                SectionHeader(
+                  title: 'Qidiruv natijasi',
+                  subtitle: found.isEmpty ? null : '${found.length} ta',
+                ),
+                if (found.isEmpty)
+                  const SizedBox(
+                    height: 220,
+                    child: EmptyState(
+                      icon: Icons.search_off_rounded,
+                      title: 'Topilmadi',
+                    ),
+                  )
+                else
+                  _list(found),
+              ] else ...[
+                MonthTotalsStrip(
+                  months: {for (final g in groups) g.month: g.total},
+                  selected: month,
+                  tone: StageTone.warning,
+                  onSelected: (m) => setState(() {
+                    _month = m;
+                    _selected = null;
+                  }),
+                ),
+                const SizedBox(height: 12),
+                MoneyCalendar(
+                  month: month,
+                  totals: byDay,
+                  tone: StageTone.warning,
+                  selected: selected,
+                  now: now,
+                  onMonthChanged: (m) => setState(() {
+                    _month = m;
+                    _selected = null;
+                  }),
+                  onDaySelected: (d) => setState(() => _selected = d),
+                ),
+                const SizedBox(height: 18),
+                SectionHeader(
+                  title: selected == null
+                      ? '${UzDates.monthYear(month)} — qarzga qolganlar'
+                      : '${UzDates.relativeDay(selected, now: now)}, '
+                          '${UzDates.weekdays[selected.weekday - 1]}',
+                  subtitle: shown.isEmpty
+                      ? null
+                      : '${shown.length} ta · ${formatSom(shownTotal)}',
+                  actionLabel: selected == null ? null : 'Butun oy',
+                  onAction: selected == null
+                      ? null
+                      : () => setState(() => _selected = null),
+                ),
+                if (shown.isEmpty)
+                  AppCard(
+                    child: Text(
+                      selected == null
+                          ? 'Bu oyda qarzga qolgan buyurtma yo\'q.'
+                          : 'Bu kunda qarzga qolgan buyurtma yo\'q.',
+                      style: theme.textTheme.bodyMedium,
+                    ),
+                  )
+                else
+                  _list(shown),
+              ],
             ],
           );
         },

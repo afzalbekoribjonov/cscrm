@@ -13,6 +13,13 @@
 // Ma'lumot namunaviy (tool/sample_data.dart) — bazaga ulanilmaydi.
 
 import 'package:cscrm/screens/admin/admin_home_screen.dart';
+import 'package:cscrm/screens/admin/income_activity_screen.dart';
+import 'package:cscrm/screens/payroll/employee_payroll_screen.dart';
+import 'package:cscrm/screens/payroll/payroll_screen.dart';
+import 'package:cscrm/screens/payroll/payroll_settings_screen.dart';
+import 'package:cscrm/screens/warnings/warnings_screen.dart';
+import 'package:cscrm/services/warning_center.dart';
+import 'package:cscrm/ui/range_picker.dart';
 import 'package:cscrm/screens/admin/debtors_screen.dart';
 import 'package:cscrm/screens/admin/employee_detail_screen.dart';
 import 'package:cscrm/screens/admin/employees_list_screen.dart';
@@ -55,6 +62,7 @@ import 'sample_data.dart';
 const _phone = Size(390, 844);
 const _narrow = Size(320, 640);
 const _tall = Size(390, 1500);
+const _taller = Size(390, 2300);
 
 Widget _app(Widget home, {bool dark = false}) => MaterialApp(
       theme: AppTheme.light(),
@@ -110,6 +118,32 @@ class _BigText extends StatelessWidget {
             .copyWith(textScaler: const TextScaler.linear(1.15)),
         child: child,
       );
+}
+
+/// Ochilishi bilan davr kalendarini ko'rsatadigan yordamchi sahifa.
+class _RangeHarness extends StatefulWidget {
+  const _RangeHarness();
+
+  @override
+  State<_RangeHarness> createState() => _RangeHarnessState();
+}
+
+class _RangeHarnessState extends State<_RangeHarness> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final now = DateTime.now();
+      showRangePicker(
+        context,
+        initial: DateRange(now.subtract(const Duration(days: 8)),
+            now.subtract(const Duration(days: 2))),
+      );
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) => const Scaffold();
 }
 
 /// Ochilishi bilan kalendarni ko'rsatadigan yordamchi sahifa.
@@ -176,7 +210,7 @@ void main() {
         sections: sections,
         onOpenSection: (_) {},
         sources: sources,
-      ), size: _tall);
+      ), size: _taller);
 
       await shot('${p}yuvish', WashScreen(sections: sections, user: _washer));
       await shot('${p}buyurtma-yuvish', OrderDetailScreen(
@@ -269,10 +303,7 @@ void main() {
     LicenseController.instance.value =
         LicenseResolution(status: sampleLicense(), fromCache: false);
     PolicyCenter.instance.serverReady.value = true;
-    await shot('boshqaruv', const AdminHomeScreen(
-      currentUserId: 'owner',
-      currentUserName: 'afzalbek',
-    ), size: _tall);
+    await shot('boshqaruv', AdminHomeScreen(user: _manager), size: _tall);
     await shot('qonuniyatlar', const PoliciesScreen(), size: const Size(390, 1900));
     await shot('sozlamalar', const SettingsScreen(), size: _tall);
     await shot('profil', ProfileScreen(
@@ -309,6 +340,57 @@ void main() {
     ScriptController.instance.value = UzScript.latin;
     LicenseController.instance.value = null;
 
+
+    // --- Maosh, hisobot, ogohlantirish (2026-11-20) ---
+    final payroll = SamplePayrollSources();
+    await shot('maosh', PayrollScreen(user: _manager, sources: payroll),
+        size: _tall);
+    await shot('maosh-tor', _BigText(PayrollScreen(user: _manager, sources: payroll)),
+        size: const Size(320, 1500));
+    await shot('maosh-xodim', EmployeePayrollScreen(
+      employee: sampleEmployees[0],
+      user: _manager,
+      initialMonth: DateTime(sampleNow.year, sampleNow.month),
+      sources: payroll,
+    ), size: const Size(390, 1700));
+    await shot('maosh-sozlamasi', PayrollSettingsScreen(sources: payroll),
+        size: const Size(390, 1800));
+    await shot('hisobot', IncomeActivityScreen(
+      currentUserId: 'owner',
+      currentUserName: 'Boshqaruvchi',
+      access: const StaffAccess.admin(),
+      sources: SampleReportSources(),
+    ), size: const Size(390, 1900));
+    await shot('hisobot-tor', _BigText(IncomeActivityScreen(
+      currentUserId: 'owner',
+      currentUserName: 'Boshqaruvchi',
+      access: const StaffAccess.admin(),
+      sources: SampleReportSources(),
+    )), size: const Size(320, 1400));
+    await shot('kalendar-davr', const _RangeHarness(), size: const Size(390, 900));
+    WarningCenter.instance.value = [
+      WorkWarning(
+        id: 'w1',
+        at: sampleNow.subtract(const Duration(minutes: 40)).millisecondsSinceEpoch,
+        orderId: 1284,
+        productName: 'Gilam',
+        reason: "Chetlarida dog' qolgan",
+        byName: 'Malika Yusupova',
+        deduction: 9000,
+      ),
+      WorkWarning(
+        id: 'w0',
+        at: sampleNow.subtract(const Duration(days: 3)).millisecondsSinceEpoch,
+        orderId: 1201,
+        productName: 'Palos',
+        reason: 'Hidi ketmagan',
+        byName: 'Boshqaruvchi',
+        seenAt: 1,
+      ),
+    ];
+    await shot('ogohlantirishlar', const WarningsScreen());
+    await shot('yuvish-ogohlantirish', WashScreen(sections: sections, user: _washer));
+    WarningCenter.instance.value = const [];
 
     for (final width in [320.0, 390.0]) {
       await shot('menyu-${width.toInt()}', Scaffold(

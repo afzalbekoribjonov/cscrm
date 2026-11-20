@@ -2,6 +2,7 @@ import '../utils/firebase_map.dart';
 import 'comment.dart';
 import 'item_status.dart';
 import 'measure_unit.dart';
+import 'payroll.dart';
 
 class OrderItem {
   const OrderItem({
@@ -21,6 +22,8 @@ class OrderItem {
     this.handedAt,
     this.handedBy = '',
     this.handedByName = '',
+    this.washCredit,
+    this.packCredit,
   });
 
   factory OrderItem.fromMap(String key, Map<dynamic, dynamic> map) {
@@ -65,6 +68,8 @@ class OrderItem {
       handedAt: handedAt != null && handedAt > 0 ? handedAt : null,
       handedBy: map['handedBy'] as String? ?? '',
       handedByName: map['handedByName'] as String? ?? '',
+      washCredit: ItemCredit.fromMap(map['washCredit']),
+      packCredit: ItemCredit.fromMap(map['packCredit']),
     );
   }
 
@@ -101,6 +106,13 @@ class OrderItem {
   final String handedByName;
 
   bool get isHanded => handedAt != null;
+
+  /// Kim yuvgani va unga yozilgan ishbayi (maosh hisobi yoqilgandan
+  /// keyin). Qayta yuvishga qaytganda shu xodim ogohlantiriladi.
+  final ItemCredit? washCredit;
+
+  /// Kim qadoqlagani va unga yozilgan ishbayi.
+  final ItemCredit? packCredit;
 
   /// Hajm matni kiritilganmi (narx hisoblangan).
   bool get isMeasured => hajm.isNotEmpty;

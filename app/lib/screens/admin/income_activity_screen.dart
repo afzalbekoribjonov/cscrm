@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart' hide Text;
 
 import '../../l10n/text.dart';
@@ -5,35 +7,87 @@ import '../../models/employee.dart';
 import '../../models/expense.dart';
 import '../../models/order.dart';
 import '../../models/order_history_entry.dart';
+import '../../models/payroll.dart';
 import '../../models/staff_access.dart';
 import '../../models/work_section.dart';
 import '../../services/employee_service.dart';
 import '../../services/expense_service.dart';
 import '../../services/order_service.dart';
+import '../../services/payroll_service.dart';
 import '../../theme/app_colors.dart';
+import '../../theme/app_theme.dart';
+import '../../ui/range_picker.dart';
 import '../../utils/date_utils.dart';
 import '../../utils/delivery_stats.dart';
 import '../../utils/income_stats.dart';
+import '../../utils/payroll_math.dart';
 import '../../utils/wash_stats.dart';
 import '../../widgets/item_measurement_form.dart' show fmtSom;
-import '../../widgets/period_calendar.dart';
 import '../../widgets/stream_error_view.dart';
 import '../activity/delivery_orders_screen.dart';
 import 'work_items_screen.dart';
 
-/// "Daromad va faollik" - tanlangan kalendar davri bo'yicha ikki blok:
+/// Hisobot uchun ma'lumot manbalari — sahifani bazasiz (namunaviy
+/// ma'lumot bilan) chizib tekshirish uchun alohida shartnoma.
+abstract interface class ReportSources {
+  Stream<({List<Order> orders, List<OrderHistoryEntry> history})> report(
+      DateTime from, DateTime to);
+  Stream<List<Expense>> expenses(DateTime from, DateTime to);
+  Stream<List<Employee>> employees();
+
+  /// Faqat ega uchun. Baza qoidalari yangilanmagan bo'lsa xato beradi —
+  /// shunda maosh hisobga olinmaydi (va bu aytiladi).
+  Stream<Map<String, StaffPay>> payrollStaff();
+  Stream<Map<String, Map<String, WorkTally>>> workDays(DateTime from, DateTime to);
+}
+
+class FirebaseReportSources implements ReportSources {
+  FirebaseReportSources();
+
+  late final _orders = OrderService();
+  late final _expenses = ExpenseService();
+  late final _payroll = PayrollService();
+
+  @override
+  Stream<({List<Order> orders, List<OrderHistoryEntry> history})> report(
+          DateTime from, DateTime to) =>
+      _orders.streamReport(from, to);
+
+  @override
+  Stream<List<Expense>> expenses(DateTime from, DateTime to) =>
+      _expenses.streamExpensesBetween(from, to);
+
+  @override
+  Stream<List<Employee>> employees() => EmployeeService().streamEmployees();
+
+  @override
+  Stream<Map<String, StaffPay>> payrollStaff() => _payroll.streamStaff();
+
+  @override
+  Stream<Map<String, Map<String, WorkTally>>> workDays(
+          DateTime from, DateTime to) =>
+      _payroll.streamWorkDays(from, to);
+}
+
+/// "Hisobotlar" — tanlangan davr bo'yicha biznesning moliyaviy natijasi
+/// va sexdagi ish.
 ///
-///  * **Daromad** - qabul qilingan pul, chiqim, sof foyda, qarzdorlik;
-///  * **Faollik** - yuvilgan hajm (m², metr, kg, dona) va dastavchilar.
+///  * Eng tepada — SOF FOYDA (katta): tushum − chiqimlar − maosh.
+///  * Ostida uchta tashkil etuvchi: yalpi tushum (chiqim va maoshsiz),
+///    chiqimlar, maosh (qat'iy oylikning shu kunlarga ulushi + ishbayi).
+///  * Keyin tushum tafsiloti va faollik.
 ///
-/// Barcha ma'lumot bitta davr filtri ostida - yuqoridagi kalendardan
-/// kunlik/haftalik/oylik yoki istalgan kun tanlanadi.
+/// Davr — kalendardan: istalgan kun, istalgan oraliq yoki butun oy.
+/// Standart — bugun. Ilgari "Kunlik/Haftalik/Oylik" tugmalari bor edi —
+/// olib tashlandi (2026-11-20): kalendar ularning hammasini qamraydi.
 class IncomeActivityScreen extends StatefulWidget {
   const IncomeActivityScreen({
     super.key,
     required this.currentUserId,
     required this.currentUserName,
     required this.access,
+    @visibleForTesting this.sources,
+    @visibleForTesting this.now,
   });
 
   final String currentUserId;
@@ -44,56 +98,102 @@ class IncomeActivityScreen extends StatefulWidget {
   /// ochiladigan buyurtmalarga admin huquqi berib yuborilmasligi shart.
   final StaffAccess access;
 
+  final ReportSources? sources;
+  final DateTime Function()? now;
+
   @override
   State<IncomeActivityScreen> createState() => _IncomeActivityScreenState();
 }
 
 class _IncomeActivityScreenState extends State<IncomeActivityScreen> {
-  OrderService _orderService = OrderService();
-  // Bir marta yaratilib saqlanadi - build() ichida chaqirilsa, davr
-  // almashtirilganda ro'yxatlar "waiting" holatiga qaytib flicker qilardi.
-  // Oqim TANLANGAN DAVRGA bog'liq - davr almashtirilganda qayta
-  // yaratiladi (_applyPeriod). Ilgari bu yerda butun tarix o'qilardi.
-  /// Tanlangan davr EKRAN holatida saqlanadi, tanlagich ichida emas -
-  /// aks holda ro'yxat aylantirilganda tanlov o'z-o'zidan qaytardi.
-  /// Standart: BUGUN.
-  PeriodSelection _selection = PeriodSelection.today();
+  late final ReportSources _src = widget.sources ?? FirebaseReportSources();
+  DateTime get _now => widget.now?.call() ?? DateTime.now();
 
-  /// Oqim TANLANGAN DAVRDAN kelib chiqadi. Ilgari bu yerda "joriy oy"
-  /// qattiq yozilgan edi - tanlov esa bugun. Ikkalasi bir-biriga mos
-  /// bo'lmagani uchun ekran keraksiz ko'p ma'lumot yuklab olardi.
-  late var _reportStream = _orderService.streamReport(
-    _selection.range.$1,
-    _selection.range.$2,
-  );
-  final _employeesStream = EmployeeService().streamEmployees();
-  final _expenseService = ExpenseService();
+  /// Maosh faqat EGAGA ko'rinadi (xodimlar bir-birining oyligini
+  /// ko'rmasligi kerak) — boshqalarda bu so'rov umuman yuborilmaydi.
+  bool get _owner => widget.access.isAdmin;
 
-  /// Chiqimlar ham DAVRGA bog'liq — hisobot bir davr uchun
-  /// chiqarilyapti, butun tarix kerak emas.
-  late var _expensesStream = _expenseService.streamExpensesBetween(
-    _selection.range.$1,
-    _selection.range.$2,
-  );
+  late DateRange _range = DateRange.today(now: _now);
 
-  DateTime get _start => _selection.range.$1;
-  DateTime get _end => _selection.range.$2;
+  final _subs = <StreamSubscription<Object?>>[];
+  StreamSubscription<Object?>? _employeesSub;
+  StreamSubscription<Object?>? _staffSub;
 
-  void _retry() => setState(() {
-        _orderService = OrderService();
-        _reportStream = _orderService.streamReport(_start, _end);
-      });
+  ({List<Order> orders, List<OrderHistoryEntry> history})? _report;
+  List<Expense>? _expenses;
+  List<Employee>? _employees;
+  Map<String, StaffPay>? _staff;
+  Map<String, Map<String, WorkTally>>? _days;
+  Object? _error;
 
-  /// Davr o'zgarganda so'rovni ham yangilaymiz - aks holda ekran eski
-  /// davr ma'lumotini mahalliy filtrlab ko'rsatib, noto'g'ri (kam) raqam
-  /// chiqarardi.
-  void _applyPeriod(PeriodSelection selection) {
-    setState(() {
-      _selection = selection;
-      final (start, end) = selection.range;
-      _reportStream = _orderService.streamReport(start, end);
-      _expensesStream = _expenseService.streamExpensesBetween(start, end);
-    });
+  /// Maosh tugunlari ochilmagan (qoidalar yangilanmagan) — foyda
+  /// maoshsiz hisoblanadi va bu ochiq aytiladi.
+  var _payrollOff = false;
+
+  DateTime get _start => _range.from;
+  DateTime get _end => _range.to;
+
+  @override
+  void initState() {
+    super.initState();
+    _employeesSub = _src.employees().listen(
+      (v) => _set(() => _employees = v),
+      onError: (Object e) => _set(() => _employees = const []),
+    );
+    if (_owner) {
+      _staffSub = _src.payrollStaff().listen(
+        (v) => _set(() => _staff = v),
+        onError: (Object e) => _set(() => _payrollOff = true),
+      );
+    }
+    _listenRange();
+  }
+
+  @override
+  void dispose() {
+    for (final s in _subs) {
+      s.cancel();
+    }
+    _employeesSub?.cancel();
+    _staffSub?.cancel();
+    super.dispose();
+  }
+
+  void _set(VoidCallback f) {
+    if (mounted) setState(f);
+  }
+
+  /// Davr o'zgarganda so'rovlar ham yangilanadi — eski davr ma'lumotini
+  /// mahalliy filtrlab ko'rsatish noto'g'ri (kam) raqam berardi.
+  void _listenRange() {
+    for (final s in _subs) {
+      s.cancel();
+    }
+    _subs.clear();
+    _report = null;
+    _expenses = null;
+    _days = null;
+    _error = null;
+    _subs
+      ..add(_src.report(_start, _end).listen(
+            (v) => _set(() => _report = v),
+            onError: (Object e) => _set(() => _error = e),
+          ))
+      ..add(_src.expenses(_start, _end).listen(
+            (v) => _set(() => _expenses = v),
+            onError: (Object e) => _set(() => _error = e),
+          ));
+    if (_owner) {
+      _subs.add(_src.workDays(_start, _end).listen(
+            (v) => _set(() => _days = v),
+            onError: (Object e) => _set(() => _payrollOff = true),
+          ));
+    }
+  }
+
+  void _applyRange(DateRange range) {
+    setState(() => _range = range);
+    _listenRange();
   }
 
   /// Ko'rsatkich ortidagi ishlar ro'yxatini ochadi.
@@ -131,77 +231,40 @@ class _IncomeActivityScreenState extends State<IncomeActivityScreen> {
     );
   }
 
+  /// Maosh hali yuklanmoqdami (ega uchun, qoidalar ochiq bo'lsa).
+  bool get _payrollLoading =>
+      _owner && !_payrollOff && (_staff == null || _days == null);
+
   @override
   Widget build(BuildContext context) {
+    final error = _error;
+    final loading = _report == null ||
+        _expenses == null ||
+        _employees == null ||
+        _payrollLoading;
     return Scaffold(
-      appBar: AppBar(title: const Text('Daromad va faollik')),
-      body: StreamBuilder<
-          ({List<Order> orders, List<OrderHistoryEntry> history})>(
-        stream: _reportStream,
-        builder: (context, orderSnap) {
-          if (orderSnap.hasError) {
-            return StreamErrorView(error: orderSnap.error!, onRetry: _retry);
-          }
-          return StreamBuilder<List<Expense>>(
-            stream: _expensesStream,
-            builder: (context, expenseSnap) {
-              return StreamBuilder<List<Employee>>(
-                stream: _employeesStream,
-                builder: (context, empSnap) {
-                  // Uchala oqim ham kelmaguncha hisob-kitob qilinmaydi -
-                  // aks holda yarim ma'lumot bilan noto'g'ri raqam
-                  // ko'rinib, keyin sakrab o'zgarardi.
-                  final loading = !orderSnap.hasData ||
-                      !expenseSnap.hasData ||
-                      !empSnap.hasData;
-                  return _buildBody(
-                    context,
-                    orders: orderSnap.data?.orders ?? const [],
-                    history: orderSnap.data?.history ?? const [],
-                    expenses: expenseSnap.data ?? const [],
-                    employees: empSnap.data ?? const [],
-                    loading: loading,
-                  );
-                },
-              );
-            },
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildBody(
-    BuildContext context, {
-    required List<Order> orders,
-    required List<OrderHistoryEntry> history,
-    required List<Expense> expenses,
-    required List<Employee> employees,
-    required bool loading,
-  }) {
-    final theme = Theme.of(context);
-
-    return ListView(
-      padding: EdgeInsets.fromLTRB(
-          16, 16, 16, 24 + MediaQuery.of(context).padding.bottom),
-      children: [
-        PeriodBar(value: _selection, onChanged: _applyPeriod),
-        const SizedBox(height: 20),
-        if (loading)
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 60),
-            child: Center(child: CircularProgressIndicator()),
-          )
-        else
-          ..._buildStats(context, theme, orders, history, expenses, employees),
-      ],
+      appBar: AppBar(title: const Text('Hisobotlar')),
+      body: error != null
+          ? StreamErrorView(error: error, onRetry: () => setState(_listenRange))
+          : ListView(
+              padding: EdgeInsets.fromLTRB(
+                  16, 8, 16, 24 + MediaQuery.of(context).padding.bottom),
+              children: [
+                RangeBar(value: _range, onChanged: _applyRange, now: _now),
+                const SizedBox(height: 16),
+                if (loading)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 60),
+                    child: Center(child: CircularProgressIndicator()),
+                  )
+                else
+                  ..._buildStats(context),
+              ],
+            ),
     );
   }
 
   /// Hajm bo'limi: sarlavha, izoh va birlik bo'yicha qatorlar.
-  ///
-  /// Yuvish va qadoqlash bir xil ko'rinishda chiziladi — ikkalasi bir xil
-  /// ma'noli ko'rsatkich, faqat qaysi bosqich ekani boshqa.
   List<Widget> _volumeSection(
     BuildContext context,
     ThemeData theme, {
@@ -212,6 +275,7 @@ class _IncomeActivityScreenState extends State<IncomeActivityScreen> {
     required IconData icon,
     required Color color,
   }) {
+    final period = _range.label(now: _now);
     return [
       Row(
         children: [
@@ -227,7 +291,7 @@ class _IncomeActivityScreenState extends State<IncomeActivityScreen> {
               onPressed: () => _openWorkItems(
                 context,
                 title: title,
-                subtitle: '${stats.totalItems} ta xizmat · ${_selection.label}',
+                subtitle: '${stats.totalItems} ta xizmat · $period',
                 items: stats.allItems,
                 color: color,
               ),
@@ -252,14 +316,14 @@ class _IncomeActivityScreenState extends State<IncomeActivityScreen> {
             child: _StatRow(
               icon: icon,
               color: color,
-              label: '${v.unit.label}  ·  ${v.itemCount} ta',
+              label: '${v.unit.label} · ${v.itemCount} ta',
               value: formatVolume(v.quantity, v.unit),
               onInspect: () => _openWorkItems(
                 context,
                 title: '$title — ${v.unit.label}',
                 subtitle:
                     '${formatVolume(v.quantity, v.unit)} · ${v.itemCount} ta '
-                    'xizmat · ${_selection.label}',
+                    'xizmat · $period',
                 items: v.items,
                 color: color,
               ),
@@ -269,30 +333,37 @@ class _IncomeActivityScreenState extends State<IncomeActivityScreen> {
     ];
   }
 
-  List<Widget> _buildStats(
-    BuildContext context,
-    ThemeData theme,
-    List<Order> orders,
-    List<OrderHistoryEntry> history,
-    List<Expense> expenses,
-    List<Employee> employees,
-  ) {
-    // ---- Daromad ----
+  List<Widget> _buildStats(BuildContext context) {
+    final theme = Theme.of(context);
+    final orders = _report!.orders;
+    final history = _report!.history;
+    final expenses = _expenses!;
+    final employees = _employees!;
+
+    // ---- Moliya ----
     final delivered = orders
         .where((o) =>
             o.deliveredAt != null &&
             isWithinRange(o.deliveredAt!, _start, _end))
         .toList();
-    // Pul QAYSI KUNI OLINGAN bo'lsa, o'sha kunning daromadi. Qarz
+    // Pul QAYSI KUNI OLINGAN bo'lsa, o'sha kunning tushumi. Qarz
     // to'lovlari yetkazilgan kunga emas, to'langan kunga yoziladi.
     final incomeStats = incomeForRange(orders, history, _start, _end);
-    final cash = incomeStats.cash;
-    final card = incomeStats.card;
     final income = incomeStats.total;
     final expenseTotal = expenses
         .where((e) => isWithinRange(e.spentAt, _start, _end))
         .fold<double>(0, (sum, e) => sum + e.amount);
-    final profit = income - expenseTotal;
+    final salary = _owner && !_payrollOff
+        ? salaryCost(
+            from: _start,
+            to: _end,
+            staff: _staff ?? const {},
+            days: _days ?? const {},
+            employees: employees,
+            today: _now,
+          )
+        : null;
+    final profit = income - expenseTotal - (salary?.total ?? 0);
     final debt = delivered.fold<double>(0, (sum, o) => sum + o.debtAmount);
     final debtCount = delivered.where((o) => o.hasDebt).length;
     final discount =
@@ -301,16 +372,13 @@ class _IncomeActivityScreenState extends State<IncomeActivityScreen> {
     // ---- Faollik ----
     final wash = washStatsForRange(orders, history, _start, _end);
     // Yuvish va qadoqlash ALOHIDA hisoblanadi: bir kunda yuvilgan narsa
-    // ertasiga qadoqlanishi mumkin, ya'ni ikki raqam teng bo'lishi
-    // shart emas.
+    // ertasiga qadoqlanishi mumkin.
     final packaged = packagedStatsForRange(orders, history, _start, _end);
     final created =
         orders.where((o) => isWithinRange(o.createdAt, _start, _end)).length;
     final statsByEmployee = deliveryStatsByEmployee(orders, _start, _end);
     // Yetgazmani BOSHQARUVCHI ham qiladi, u esa xodimlar ro'yxatida
-    // yo'q. Shu sabab ro'yxat ikki manbadan yig'iladi - aks holda
-    // boshqaruvchi yetkazgan buyurtmalar hech qayerda ko'rinmasdi va
-    // jami raqam dastavchiklar yig'indisiga to'g'ri kelmasdi.
+    // yo'q — ro'yxat ikki manbadan yig'iladi.
     final drivers = deliveryPerformers(
       orders: orders,
       statsById: statsByEmployee,
@@ -322,25 +390,64 @@ class _IncomeActivityScreenState extends State<IncomeActivityScreen> {
     );
 
     return [
-      _SectionHeader(
-        icon: Icons.payments_rounded,
-        title: 'Daromad',
-        subtitle: 'Tanlangan davrda qabul qilingan pul va chiqimlar',
+      _ProfitHero(
+        profit: profit,
+        includesSalary: salary != null,
+        days: _range.days,
       ),
       const SizedBox(height: 12),
-      _ProfitBanner(income: income, expense: expenseTotal, profit: profit),
-      const SizedBox(height: 10),
+      _PartRow(
+        icon: Icons.account_balance_wallet_rounded,
+        tone: StageTone.success,
+        label: 'Yalpi tushum',
+        caption: 'Chiqim va maoshsiz, olingan pul',
+        value: fmtSom(income),
+        onInspect: delivered.isEmpty
+            ? null
+            : () => _openOrders(context, 'Davr bo\'yicha yetkazmalar', delivered),
+      ),
+      const SizedBox(height: 8),
+      _PartRow(
+        icon: Icons.receipt_long_rounded,
+        tone: StageTone.danger,
+        label: 'Chiqimlar',
+        caption: 'Shu davrda sarflangan',
+        value: expenseTotal > 0 ? '−${fmtSom(expenseTotal)}' : fmtSom(0),
+      ),
+      if (_owner) ...[
+        const SizedBox(height: 8),
+        _PartRow(
+          icon: Icons.payments_rounded,
+          tone: StageTone.brand,
+          label: 'Maosh',
+          caption: salary == null
+              ? 'Maosh hisobi tez orada qo\'shiladi'
+              : salary.fixed > 0
+                  ? 'Ishbayi ${fmtSom(salary.piece)} · oylik ulushi ${fmtSom(salary.fixed)}'
+                  : 'Xodimlarning ishbayi',
+          value: salary == null
+              ? '—'
+              : salary.total > 0
+                  ? '−${fmtSom(salary.total)}'
+                  : fmtSom(0),
+        ),
+      ],
+      const SizedBox(height: 22),
+      _SectionHeader(
+        icon: Icons.payments_rounded,
+        title: 'Tushum tafsiloti',
+        subtitle: 'Pul qanday olingan',
+      ),
+      const SizedBox(height: 12),
       _StatRow(
         icon: Icons.payments_outlined,
         color: AppColors.success,
         label: 'Naqd pul',
-        value: fmtSom(cash),
+        value: fmtSom(incomeStats.cash),
         onInspect: () => _openOrders(
           context,
           'Naqd to\'langan buyurtmalar',
-          delivered
-              .where((o) => o.paymentMethod == cashPaymentLabel)
-              .toList(),
+          delivered.where((o) => o.paymentMethod == cashPaymentLabel).toList(),
         ),
       ),
       const SizedBox(height: 8),
@@ -348,22 +455,31 @@ class _IncomeActivityScreenState extends State<IncomeActivityScreen> {
         icon: Icons.credit_card_rounded,
         color: AppColors.accent,
         label: 'Karta orqali',
-        value: fmtSom(card),
+        value: fmtSom(incomeStats.card),
         onInspect: () => _openOrders(
           context,
           'Karta orqali to\'langan buyurtmalar',
-          delivered
-              .where((o) => o.paymentMethod == cardPaymentLabel)
-              .toList(),
+          delivered.where((o) => o.paymentMethod == cardPaymentLabel).toList(),
         ),
       ),
-      const SizedBox(height: 8),
-      _StatRow(
-        icon: Icons.receipt_long_rounded,
-        color: AppColors.danger,
-        label: 'Chiqimlar',
-        value: fmtSom(expenseTotal),
-      ),
+      if (incomeStats.other > 0) ...[
+        const SizedBox(height: 8),
+        _StatRow(
+          icon: Icons.more_horiz_rounded,
+          color: AppColors.info,
+          label: 'Boshqa usulda',
+          value: fmtSom(incomeStats.other),
+        ),
+      ],
+      if (incomeStats.debtPayments > 0) ...[
+        const SizedBox(height: 8),
+        _StatRow(
+          icon: Icons.history_rounded,
+          color: AppColors.info,
+          label: 'Shundan qarz to\'lovlari',
+          value: fmtSom(incomeStats.debtPayments),
+        ),
+      ],
       if (discount > 0) ...[
         const SizedBox(height: 8),
         _StatRow(
@@ -382,7 +498,7 @@ class _IncomeActivityScreenState extends State<IncomeActivityScreen> {
       _StatRow(
         icon: Icons.account_balance_wallet_outlined,
         color: AppColors.danger,
-        label: 'Qarzdorlik ($debtCount ta)',
+        label: 'Qarzga qoldi ($debtCount ta)',
         value: fmtSom(debt),
         emphasise: debt > 0,
         onInspect: debtCount == 0
@@ -393,19 +509,7 @@ class _IncomeActivityScreenState extends State<IncomeActivityScreen> {
                   delivered.where((o) => o.hasDebt).toList(),
                 ),
       ),
-      const SizedBox(height: 12),
-      Align(
-        alignment: Alignment.centerRight,
-        child: TextButton.icon(
-          onPressed: delivered.isEmpty
-              ? null
-              : () =>
-                  _openOrders(context, 'Davr bo\'yicha yetkazmalar', delivered),
-          icon: const Icon(Icons.arrow_forward_rounded, size: 18),
-          label: const Text('Yetkazmalarni ko\'rish'),
-        ),
-      ),
-      const SizedBox(height: 20),
+      const SizedBox(height: 22),
       _SectionHeader(
         icon: Icons.insights_rounded,
         title: 'Faollik',
@@ -430,7 +534,7 @@ class _IncomeActivityScreenState extends State<IncomeActivityScreen> {
                 icon: Icons.local_shipping_rounded,
                 color: AppColors.statusDelivered,
                 value: '${delivered.length} ta',
-                label: 'Yetkazilgan',
+                label: 'Topshirilgan',
               ),
             ),
           ],
@@ -452,9 +556,7 @@ class _IncomeActivityScreenState extends State<IncomeActivityScreen> {
         context,
         theme,
         title: 'Qadoqlangan hajm',
-        hint: 'Xizmat "Tayyor" holatiga o\'tkazilgan sana bo\'yicha. '
-            'Yuvilgan hajmga teng bo\'lishi shart emas — bugun yuvilgani '
-            'ertaga qadoqlanishi mumkin.',
+        hint: 'Xizmat "Tayyor" holatiga o\'tkazilgan sana bo\'yicha.',
         emptyText: 'Bu davrda qadoqlangan xizmat yo\'q',
         stats: packaged,
         icon: Icons.inventory_2_rounded,
@@ -487,6 +589,168 @@ class _IncomeActivityScreenState extends State<IncomeActivityScreen> {
           );
         }),
     ];
+  }
+}
+
+/// Sof foyda — sahifaning eng muhim raqami.
+class _ProfitHero extends StatelessWidget {
+  const _ProfitHero({
+    required this.profit,
+    required this.includesSalary,
+    required this.days,
+  });
+
+  final double profit;
+  final bool includesSalary;
+  final int days;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final positive = profit >= 0;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: positive
+              ? AppColors.heroGradient
+              : const [Color(0xFF991B1B), Color(0xFFDC2626)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(Radii.lg),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                positive ? Icons.trending_up_rounded : Icons.trending_down_rounded,
+                color: Colors.white70,
+                size: 20,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                'Sof foyda',
+                style: theme.textTheme.titleSmall?.copyWith(color: Colors.white),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              positive ? fmtSom(profit) : '−${fmtSom(profit.abs())}',
+              style: theme.textTheme.displaySmall?.copyWith(
+                color: Colors.white,
+                fontFeatures: AppFonts.tabular,
+              ),
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            includesSalary
+                ? 'Tushum − chiqimlar − maosh'
+                : 'Tushum − chiqimlar',
+            style: theme.textTheme.bodySmall?.copyWith(color: Colors.white70),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Sof foydaning tashkil etuvchisi: ikonka, nom, izoh va summa.
+class _PartRow extends StatelessWidget {
+  const _PartRow({
+    required this.icon,
+    required this.tone,
+    required this.label,
+    required this.caption,
+    required this.value,
+    this.onInspect,
+  });
+
+  final IconData icon;
+  final StageTone tone;
+  final String label;
+  final String caption;
+  final String value;
+  final VoidCallback? onInspect;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Material(
+      color: context.colorSurface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(Radii.md),
+        side: BorderSide(color: context.colorBorder),
+      ),
+      child: InkWell(
+        onTap: onInspect,
+        borderRadius: BorderRadius.circular(Radii.md),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 12, 10, 12),
+          // Nom va summa BIR qatorda, izoh esa ostida — butun kenglikda.
+          // Tor ekranda izoh summa yonida siqilib, 3-4 qatorga
+          // bo'linib ketmaydi; juda katta summa esa kichrayadi, kesilmaydi.
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: tone.soft(context),
+                  borderRadius: BorderRadius.circular(11),
+                ),
+                child: Icon(icon, size: 20, color: tone.ink(context)),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      children: [
+                        Text(label, style: theme.textTheme.titleSmall),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Align(
+                            alignment: Alignment.centerRight,
+                            child: FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Text(
+                                value,
+                                maxLines: 1,
+                                style: theme.textTheme.titleSmall?.copyWith(
+                                  color: tone.ink(context),
+                                  fontWeight: FontWeight.w800,
+                                  fontFeatures: AppFonts.tabular,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        if (onInspect != null)
+                          Icon(Icons.chevron_right_rounded,
+                              size: 20, color: context.colorTextTertiary),
+                      ],
+                    ),
+                    const SizedBox(height: 2),
+                    Text(caption, style: theme.textTheme.bodySmall),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -527,94 +791,6 @@ class _SectionHeader extends StatelessWidget {
               ),
               Text(subtitle, style: theme.textTheme.bodySmall),
             ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-/// Sof foyda banneri - daromad, chiqim va farq bir joyda.
-class _ProfitBanner extends StatelessWidget {
-  const _ProfitBanner({
-    required this.income,
-    required this.expense,
-    required this.profit,
-  });
-
-  final double income;
-  final double expense;
-  final double profit;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final positive = profit >= 0;
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: positive
-              ? AppColors.brandGradient
-              : [AppColors.danger, AppColors.danger.withValues(alpha: 0.75)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(18),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Sof foyda',
-            style: theme.textTheme.bodySmall?.copyWith(color: Colors.white70),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            fmtSom(profit),
-            style: theme.textTheme.headlineSmall?.copyWith(
-              color: Colors.white,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              Expanded(
-                child: _BannerCell(label: 'Daromad', value: fmtSom(income)),
-              ),
-              Container(width: 1, height: 30, color: Colors.white24),
-              Expanded(
-                child: _BannerCell(label: 'Chiqim', value: fmtSom(expense)),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _BannerCell extends StatelessWidget {
-  const _BannerCell({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label,
-            style: theme.textTheme.bodySmall?.copyWith(color: Colors.white70)),
-        Text(
-          value,
-          style: theme.textTheme.titleSmall?.copyWith(
-            color: Colors.white,
-            fontWeight: FontWeight.w800,
           ),
         ),
       ],

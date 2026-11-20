@@ -3,6 +3,7 @@ import 'comment.dart';
 import 'item_status.dart';
 import 'order_item.dart';
 import 'order_status.dart';
+import 'payroll.dart';
 
 /// Bitta hodisaning "kim va qachon" belgisi.
 ///
@@ -70,6 +71,7 @@ class Order {
     this.prepaidAmount = 0,
     this.pickupLat,
     this.pickupLng,
+    this.createCredit,
   });
 
   factory Order.fromMap(String id, Map<dynamic, dynamic> map) {
@@ -120,6 +122,7 @@ class Order {
       prepaidAmount: (map['prepaidAmount'] as num?)?.toDouble() ?? 0,
       pickupLat: (map['pickupLat'] as num?)?.toDouble(),
       pickupLng: (map['pickupLng'] as num?)?.toDouble(),
+      createCredit: CreateCredit.fromMap(map['createCredit']),
     );
   }
 
@@ -214,6 +217,10 @@ class Order {
   final double? pickupLng;
 
   bool get hasPickupLocation => pickupLat != null && pickupLng != null;
+
+  /// Buyurtma yaratilganda dispetcherga yozilgan ulush (maosh hisobi
+  /// yoqilgandan keyin yaratilganlarda). Buyurtma o'chirilsa qaytariladi.
+  final CreateCredit? createCredit;
 
   /// Buyurtma raqami: "№ 125". Belgi va raqam orasida ajralmas bo'shliq —
   /// tor joyda ham ikki qatorga bo'linib ketmaydi.

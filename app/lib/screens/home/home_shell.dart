@@ -12,10 +12,12 @@ import '../../services/live_sections.dart';
 import '../../services/message_center.dart';
 import '../../services/order_service.dart';
 import '../../services/order_sync_service.dart';
+import '../../services/payroll_center.dart';
 import '../../services/policy_service.dart';
 import '../../services/push_service.dart';
 import '../../services/session_service.dart';
 import '../../services/sound_service.dart';
+import '../../services/warning_center.dart';
 import '../../ui/app_nav_bar.dart';
 import '../../ui/sheets.dart';
 import '../../utils/date_utils.dart';
@@ -89,6 +91,13 @@ class _HomeShellState extends State<HomeShell> {
     OrderSyncService.instance.start();
     PolicyCenter.instance.start();
     PolicyCenter.instance.addListener(_recompute);
+    // Maosh: ishbayi narxlari (ish bajarilganda hisoblash uchun) va
+    // xodimning qayta yuvish ogohlantirishlari.
+    PayrollCenter.instance.start();
+    final employeeId = widget.session.employeeId;
+    if (employeeId != null && employeeId.isNotEmpty) {
+      WarningCenter.instance.start(employeeId);
+    }
     _listenToOrders();
     _listenToEmployee();
     _listenToWriteFailures();
@@ -202,6 +211,8 @@ class _HomeShellState extends State<HomeShell> {
     await AuthService().signOut();
     await SessionService().clearSession();
     await PolicyCenter.instance.stop();
+    await PayrollCenter.instance.stop();
+    await WarningCenter.instance.stop();
     if (!mounted) return;
     showResult(context, reason, error: true);
     Navigator.of(context).pushAndRemoveUntil(

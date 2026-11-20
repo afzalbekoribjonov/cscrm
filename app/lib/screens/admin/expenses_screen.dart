@@ -6,7 +6,7 @@ import '../../models/expense.dart';
 import '../../services/expense_service.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_theme.dart';
-import '../../ui/month_section.dart';
+import '../../ui/money_calendar.dart';
 import '../../ui/sheets.dart';
 import '../../ui/surfaces.dart';
 import '../../ui/uz_date_picker.dart';
@@ -16,17 +16,22 @@ import '../../utils/month_groups.dart';
 import '../../utils/uz_dates.dart';
 import '../../widgets/stream_error_view.dart';
 
-/// Chiqimlar — OYLAR bo'yicha.
+/// Chiqimlar — KALENDAR ko'rinishida.
 ///
-/// Har bir oy sarlavhasida oy nomi va o'sha oydagi jami chiqim; oy
-/// ochilsa — kunma-kun yozuvlar. Dastlab oxirgi 3 oy yuklanadi, eskirog'i
-/// faqat so'ralganda (butun tarix bir yo'la yuklanmaydi).
+///  * Oylar tasmasi — har bir oyning jami chiqimi, bosilsa o'sha oy.
+///  * Kalendar — har bir kun katagida o'sha kungi chiqim ("180 ming"),
+///    ko'p sarf qilingan kun to'qroq rangda.
+///  * Pastda — tanlangan kunning (yoki butun oyning) yozuvlari.
+///
+/// Dastlab oxirgi 6 oy yuklanadi; eskiroq oyga o'tilganda oraliq
+/// kengayadi (butun tarix bir yo'la yuklanmaydi).
 class ExpensesScreen extends StatefulWidget {
   const ExpensesScreen({
     super.key,
     required this.currentUserId,
     required this.currentUserName,
     @visibleForTesting this.expensesOf,
+    @visibleForTesting this.now,
   });
 
   final String currentUserId;
@@ -34,34 +39,42 @@ class ExpensesScreen extends StatefulWidget {
 
   /// Faqat sinov/rasm uchun — bazasiz namunaviy chiqimlar.
   final Stream<List<Expense>> Function(DateTime from, DateTime to)? expensesOf;
+  final DateTime Function()? now;
 
   @override
   State<ExpensesScreen> createState() => _ExpensesScreenState();
 }
 
 class _ExpensesScreenState extends State<ExpensesScreen> {
-  static const _step = 3;
-  static const _maxMonths = 24;
+  static const _window = 6;
+  static const _maxMonths = 36;
 
   late final _service = ExpenseService();
-  var _months = _step;
+  DateTime get _now => widget.now?.call() ?? DateTime.now();
+
+  late DateTime _month = DateTime(_now.year, _now.month);
+  DateTime? _selected;
+
+  /// Yuklangan oraliqning boshi (oy).
+  late DateTime _from = DateTime(_now.year, _now.month - (_window - 1));
   late Stream<List<Expense>> _stream = _build();
 
-  DateTime get _from {
-    final now = DateTime.now();
-    return DateTime(now.year, now.month - (_months - 1));
-  }
+  DateTime get _oldest => DateTime(_now.year, _now.month - (_maxMonths - 1));
 
   Stream<List<Expense>> _build() {
-    final to = endOfDay(DateTime.now());
+    final to = endOfDay(_now);
     return widget.expensesOf?.call(_from, to) ??
         _service.streamExpensesBetween(_from, to);
   }
 
-  void _more() {
+  void _showMonth(DateTime m) {
     setState(() {
-      _months = (_months + _step).clamp(_step, _maxMonths);
-      _stream = _build();
+      _month = DateTime(m.year, m.month);
+      _selected = null;
+      if (_month.isBefore(_from)) {
+        _from = _month;
+        _stream = _build();
+      }
     });
   }
 
@@ -85,7 +98,7 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final now = DateTime.now();
+    final now = _now;
     return Scaffold(
       appBar: AppBar(title: const Text('Chiqimlar')),
       floatingActionButton: FloatingActionButton(
@@ -100,17 +113,40 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
           if (!snapshot.hasData) {
             return const Center(child: CircularProgressIndicator());
           }
+          final all = snapshot.data!;
           final groups = groupByMonth<Expense>(
-            snapshot.data!,
+            all,
             at: (e) => e.spentAt,
             amount: (e) => e.amount,
           );
-          final thisMonth = groups
-              .where((g) => g.month.year == now.year && g.month.month == now.month)
-              .firstOrNull;
-          final todayTotal = snapshot.data!
+          final monthTotals = <DateTime, double>{
+            DateTime(now.year, now.month): 0,
+            for (final g in groups) g.month: g.total,
+          };
+          final inMonth = groups
+                  .where((g) =>
+                      g.month.year == _month.year && g.month.month == _month.month)
+                  .firstOrNull
+                  ?.items ??
+              const <Expense>[];
+          final byDay = <int, double>{};
+          final countByDay = <int, int>{};
+          for (final e in inMonth) {
+            final d = UzDates.fromMillis(e.spentAt).day;
+            byDay[d] = (byDay[d] ?? 0) + e.amount;
+            countByDay[d] = (countByDay[d] ?? 0) + 1;
+          }
+          final selected = _selected;
+          final shown = selected == null
+              ? inMonth
+              : inMonth
+                  .where((e) => isSameDay(UzDates.fromMillis(e.spentAt), selected))
+                  .toList();
+          final shownTotal = shown.fold<double>(0, (s, e) => s + e.amount);
+          final todayTotal = all
               .where((e) => isSameDay(UzDates.fromMillis(e.spentAt), now))
               .fold<double>(0, (s, e) => s + e.amount);
+          final monthTotal = monthTotals[_month] ?? 0;
 
           return ListView(
             padding: EdgeInsets.fromLTRB(Gap.page, 4, Gap.page,
@@ -124,16 +160,20 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('${UzDates.monthName(now.month)} oyida',
+                          Text('${UzDates.monthYear(_month)} chiqimi',
                               style: theme.textTheme.bodySmall),
-                          Text(
-                            formatSom(thisMonth?.total ?? 0),
-                            style: theme.textTheme.headlineSmall?.copyWith(
-                              color: StageTone.danger.ink(context),
-                              fontFeatures: AppFonts.tabular,
+                          FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              formatSom(monthTotal),
+                              style: theme.textTheme.headlineSmall?.copyWith(
+                                color: StageTone.danger.ink(context),
+                                fontFeatures: AppFonts.tabular,
+                              ),
                             ),
                           ),
-                          Text('${thisMonth?.items.length ?? 0} ta chiqim',
+                          Text('${inMonth.length} ta chiqim',
                               style: theme.textTheme.bodySmall),
                         ],
                       ),
@@ -155,40 +195,73 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                   ],
                 ),
               ),
-              const SizedBox(height: 16),
-              if (groups.isEmpty)
-                const SizedBox(
-                  height: 320,
-                  child: EmptyState(
-                    icon: Icons.receipt_long_outlined,
-                    title: 'Chiqim yozilmagan',
-                    message: 'Ijara, kimyo vositalari, yoqilg\'i — har bir '
-                        'sarfni "+" tugmasi orqali yozing.',
+              const SizedBox(height: 12),
+              MonthTotalsStrip(
+                months: monthTotals,
+                selected: _month,
+                tone: StageTone.danger,
+                onSelected: _showMonth,
+              ),
+              const SizedBox(height: 12),
+              MoneyCalendar(
+                month: _month,
+                totals: byDay,
+                counts: countByDay,
+                tone: StageTone.danger,
+                selected: selected,
+                now: now,
+                canGoBack: _month.isAfter(_oldest),
+                onMonthChanged: _showMonth,
+                onDaySelected: (d) => setState(() => _selected = d),
+              ),
+              const SizedBox(height: 18),
+              SectionHeader(
+                title: selected == null
+                    ? '${UzDates.monthYear(_month)} — barcha chiqimlar'
+                    : '${UzDates.relativeDay(selected, now: now)}, '
+                        '${UzDates.weekdays[selected.weekday - 1]}',
+                subtitle: shown.isEmpty
+                    ? null
+                    : '${shown.length} ta · ${formatSom(shownTotal)}',
+                actionLabel: selected == null ? null : 'Butun oy',
+                onAction: selected == null
+                    ? null
+                    : () => setState(() => _selected = null),
+              ),
+              if (shown.isEmpty)
+                AppCard(
+                  child: Row(
+                    children: [
+                      const IconTile(
+                          icon: Icons.receipt_long_outlined,
+                          tone: StageTone.neutral),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          selected == null
+                              ? 'Bu oyda chiqim yozilmagan. Har bir sarfni "+" '
+                                  'tugmasi orqali yozing.'
+                              : 'Bu kunda chiqim yo\'q.',
+                          style: theme.textTheme.bodyMedium,
+                        ),
+                      ),
+                    ],
                   ),
                 )
               else
-                for (var i = 0; i < groups.length; i++) ...[
-                  MonthSection(
-                    key: ValueKey(groups[i].month),
-                    month: groups[i].month,
-                    count: groups[i].items.length,
-                    countLabel: 'ta chiqim',
-                    total: groups[i].total,
-                    tone: StageTone.danger,
-                    initiallyOpen: i == 0,
+                AppCard(
+                  padding: EdgeInsets.zero,
+                  child: Column(
                     children: [
-                      for (final e in groups[i].items)
-                        _ExpenseRow(expense: e, onTap: () => _openForm(expense: e)),
+                      for (var i = 0; i < shown.length; i++) ...[
+                        if (i > 0)
+                          Divider(height: 1, indent: 14, color: context.colorBorder),
+                        _ExpenseRow(
+                          expense: shown[i],
+                          onTap: () => _openForm(expense: shown[i]),
+                        ),
+                      ],
                     ],
-                  ),
-                  const SizedBox(height: 10),
-                ],
-              if (_months < _maxMonths)
-                Center(
-                  child: TextButton.icon(
-                    onPressed: _more,
-                    icon: const Icon(Icons.history_rounded),
-                    label: const Text('Oldingi oylarni ko\'rsatish'),
                   ),
                 ),
             ],

@@ -29,6 +29,13 @@ export const OWNER =
 /** To'xtatilgan biznes o'qiy oladi, lekin yoza olmaydi. */
 export const NOT_SUSPENDED = `${T}.child('license').child('suspended').val() !== true`;
 
+/** Pul summasi: manfiy emas, aqlga sig'adigan chegara ichida. */
+const MONEY = 'newData.isNumber() && newData.val() >= 0 && newData.val() <= 1000000000';
+
+/** O'lchov birligi kaliti (ilovadagi `MeasureUnit.key`). */
+const UNIT_KEY =
+  "($unit === 'm2' || $unit === 'metr' || $unit === 'kg' || $unit === 'dona' || $unit === 'kichik' || $unit === 'katta')";
+
 const backendOnly = (note, extra = {}) => ({
   '//': note,
   '.read': false,
@@ -193,6 +200,109 @@ export const rules = {
 
         payments: { '.read': MEMBER, '.write': false },
         payment_requests: { '.read': MEMBER, '.write': false },
+
+        // ================= MAOSH (2026-11-20) =================
+        payroll_rates: {
+          '//': "Ishbayi narxlari va ulushlar. Hamma a'zo O'QIYDI — xodimning telefoni ish bajarilgan paytda shu narx bilan hisoblaydi. Faqat EGA yozadi. Kalitlar va chegaralar qat'iy.",
+          '.read': MEMBER,
+          '.write': `${OWNER} && ${NOT_SUSPENDED}`,
+          '.validate': 'newData.hasChildren()',
+          products: {
+            $productId: {
+              wash: { '.validate': MONEY },
+              pack: { '.validate': MONEY },
+              washSmall: { '.validate': MONEY },
+              washLarge: { '.validate': MONEY },
+              packSmall: { '.validate': MONEY },
+              packLarge: { '.validate': MONEY },
+              $other: { '.validate': false },
+            },
+          },
+          courierPct: { '.validate': 'newData.isNumber() && newData.val() >= 0 && newData.val() <= 50' },
+          dispatcherMode: { '.validate': "newData.val() === 'percent' || newData.val() === 'fixed'" },
+          dispatcherValue: { '.validate': MONEY },
+          updatedAt: { '.validate': 'newData.isNumber()' },
+          $other: { '.validate': false },
+        },
+
+        payroll_staff: {
+          '//': "Har bir xodimning maosh turi va oyligi. FAQAT EGA o'qiydi va yozadi — xodimlar bir-birining oyligini ko'rmaydi.",
+          '.read': OWNER,
+          $employeeId: {
+            '.write': `${OWNER} && ${NOT_SUSPENDED}`,
+            '.validate': "newData.hasChildren(['type'])",
+            type: { '.validate': "newData.val() === 'piece' || newData.val() === 'fixed' || newData.val() === 'mixed'" },
+            monthly: { '.validate': MONEY },
+            pieces: {
+              $kind: { '.validate': "newData.isBoolean() && ($kind === 'wash' || $kind === 'pack' || $kind === 'courier' || $kind === 'dispatch')" },
+            },
+            updatedAt: { '.validate': 'newData.isNumber()' },
+            $other: { '.validate': false },
+          },
+        },
+
+        payroll_payments: {
+          '//': "Avans va oylik to'lovlari. FAQAT EGA. `month` indeksi — bir oyning to'lovlari bitta so'rov bilan.",
+          '.read': OWNER,
+          '.indexOn': ['month'],
+          $paymentId: {
+            '.write': `${OWNER} && ${NOT_SUSPENDED}`,
+            '.validate': "newData.hasChildren(['employeeId', 'amount', 'kind', 'month', 'at'])",
+            employeeId: { '.validate': 'newData.isString() && newData.val().length > 0 && newData.val().length <= 128' },
+            amount: { '.validate': 'newData.isNumber() && newData.val() > 0 && newData.val() <= 1000000000' },
+            kind: { '.validate': "newData.val() === 'advance' || newData.val() === 'salary'" },
+            month: { '.validate': 'newData.isString() && newData.val().matches(/^[0-9]{4}-[0-9]{2}$/)' },
+            at: { '.validate': 'newData.isNumber()' },
+            note: { '.validate': 'newData.isString() && newData.val().length <= 300' },
+            byName: { '.validate': 'newData.isString() && newData.val().length <= 120' },
+            $other: { '.validate': false },
+          },
+        },
+
+        work_days: {
+          '//': "Bajarilgan ish — kunlik YIG'INDI (`ServerValue.increment`): kun (yyyymmdd) → xodim → hajm, soni, ishbayi. Ishni bajargan (yoki qayta yuvishga qaytargan, buyurtmani topshirgan) a'zoning telefoni yozadi, shuning uchun a'zolar yozadi; o'qish — FAQAT EGA. Maydonlar va kalit ko'rinishi qat'iy.",
+          '.read': OWNER,
+          $day: {
+            $employeeId: {
+              '.write': `${MEMBER} && ${NOT_SUSPENDED} && $day.matches(/^[0-9]{8}$/)`,
+              name: { '.validate': 'newData.isString() && newData.val().length <= 120' },
+              wash: { $unit: { '.validate': `newData.isNumber() && ${UNIT_KEY}` } },
+              pack: { $unit: { '.validate': `newData.isNumber() && ${UNIT_KEY}` } },
+              ...Object.fromEntries(
+                ['washN', 'washPay', 'packN', 'packPay', 'deliverN', 'deliverSum', 'deliverPay',
+                  'createN', 'createPay', 'dispatchN', 'dispatchSum', 'dispatchPay', 'rewashN', 'rewashPay']
+                  .map((k) => [k, { '.validate': 'newData.isNumber()' }]),
+              ),
+              $other: { '.validate': false },
+            },
+          },
+        },
+
+        warnings: {
+          '//': "Qayta yuvish ogohlantirishlari: xodim → yozuvlar. Yozuvni istalgan a'zo YARATADI (xizmatni qayta yuvishga qaytargan), mavjudini o'zgartira olmaydi. Xodim faqat O'ZINIKINI o'qiydi va faqat `seenAt` (tanishdim) belgisini qo'yadi. Ega hammasini ko'radi va o'chira oladi.",
+          '.read': OWNER,
+          $employeeId: {
+            '.read': `${MEMBER} && auth.token.employeeId === $employeeId`,
+            '.indexOn': ['at'],
+            $warningId: {
+              '.write': `${MEMBER} && ${NOT_SUSPENDED} && (!data.exists() || ${OWNER})`,
+              '.validate': "newData.hasChildren(['at', 'orderId', 'byName'])",
+              at: { '.validate': 'newData.isNumber()' },
+              orderId: { '.validate': 'newData.isNumber()' },
+              itemKey: { '.validate': 'newData.isString() && newData.val().length <= 32' },
+              productName: { '.validate': 'newData.isString() && newData.val().length <= 200' },
+              reason: { '.validate': 'newData.isString() && newData.val().length <= 500' },
+              byId: { '.validate': 'newData.isString() && newData.val().length <= 128' },
+              byName: { '.validate': 'newData.isString() && newData.val().length <= 120' },
+              deduction: { '.validate': 'newData.isNumber() && newData.val() >= 0' },
+              seenAt: {
+                '.write': `${MEMBER} && ${NOT_SUSPENDED} && auth.token.employeeId === $employeeId && data.parent().exists()`,
+                '.validate': 'newData.isNumber()',
+              },
+              $other: { '.validate': false },
+            },
+          },
+        },
 
         $other: { '.validate': false },
       },

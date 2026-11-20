@@ -5,7 +5,9 @@ import '../screens/auth/login_screen.dart';
 import '../services/auth_service.dart';
 import '../services/license_controller.dart';
 import '../services/message_center.dart';
+import '../services/payroll_center.dart';
 import '../services/policy_service.dart';
+import '../services/warning_center.dart';
 import '../services/order_sync_service.dart';
 import '../services/session_service.dart';
 import '../ui/sheets.dart';
@@ -45,6 +47,8 @@ Future<void> confirmAndLogout(BuildContext context) async {
   // qolmasligi uchun kesh ham tozalanadi.
   await LicenseController.instance.stop();
   await PolicyCenter.instance.stop();
+  await PayrollCenter.instance.stop();
+  await WarningCenter.instance.stop();
   MessageCenter.instance.clear();
   // Yuborilmagan buyurtmalar navbati ham tozalanadi: ular shu
   // foydalanuvchining ishi, keyingisiga o'tib ketmasligi kerak.

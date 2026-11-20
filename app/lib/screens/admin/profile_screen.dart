@@ -149,16 +149,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       'tekshirib, sahifani qayta oching.'),
                 )
               else
-                _Plans(
+                _PlansCarousel(
                   plans: _plans,
                   currentPlanId: status?.planId,
                   onPick: _openPayment,
                 ),
-              if (_payment != null &&
-                  (_payment!.phone.isNotEmpty || _payment!.telegram.isNotEmpty)) ...[
-                const SizedBox(height: 24),
-                _Support(payment: _payment!),
-              ],
+              const SizedBox(height: 24),
+              _Support(phone: _payment?.phone ?? ''),
             ],
           );
         },
@@ -391,8 +388,13 @@ class _RequestCard extends StatelessWidget {
   }
 }
 
-class _Plans extends StatelessWidget {
-  const _Plans({
+/// Tariflar — yon tomonga suriladigan kartalar (karusel).
+///
+/// Har bir tarif alohida katta kartada: narxi, oyiga qanchaga tushishi,
+/// tejash foizi va "Tanlash" tugmasi. Joriy (yoki tavsiya etilgan) tarif
+/// birinchi ko'rinadi; pastdagi nuqtalar nechta tarif borligini ko'rsatadi.
+class _PlansCarousel extends StatefulWidget {
+  const _PlansCarousel({
     required this.plans,
     required this.currentPlanId,
     required this.onPick,
@@ -403,31 +405,85 @@ class _Plans extends StatelessWidget {
   final ValueChanged<SubscriptionPlan> onPick;
 
   @override
+  State<_PlansCarousel> createState() => _PlansCarouselState();
+}
+
+class _PlansCarouselState extends State<_PlansCarousel> {
+  late int _page = _initialPage();
+  late final _controller =
+      PageController(viewportFraction: 0.84, initialPage: _page);
+
+  int _initialPage() {
+    final plans = widget.plans;
+    var i = plans.indexWhere((p) => p.id == widget.currentPlanId);
+    if (i < 0) i = plans.indexWhere((p) => p.highlight);
+    return i < 0 ? 0 : i;
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final plans = widget.plans;
     // Tejash 1 oylik tarifga nisbatan hisoblanadi.
     final baseline = plans
         .where((p) => p.months == 1 && !p.priceUnset)
         .map((p) => p.price)
         .firstOrNull;
+    final scale = MediaQuery.textScalerOf(context).scale(1);
     return Column(
       children: [
-        for (final plan in plans)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 10),
-            child: _PlanRow(
-              plan: plan,
-              current: plan.id == currentPlanId,
-              baseline: baseline,
-              onTap: () => onPick(plan),
+        SizedBox(
+          // Katta shriftda ham karta ichi sig'sin.
+          height: 226 * scale.clamp(1.0, 1.3),
+          child: PageView.builder(
+            controller: _controller,
+            padEnds: plans.length > 1,
+            itemCount: plans.length,
+            onPageChanged: (i) => setState(() => _page = i),
+            itemBuilder: (context, i) => Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 6),
+              child: _PlanCard2(
+                plan: plans[i],
+                current: plans[i].id == widget.currentPlanId,
+                baseline: baseline,
+                onTap: () => widget.onPick(plans[i]),
+              ),
             ),
           ),
+        ),
+        if (plans.length > 1) ...[
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              for (var i = 0; i < plans.length; i++)
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  margin: const EdgeInsets.symmetric(horizontal: 3),
+                  width: i == _page ? 20 : 7,
+                  height: 7,
+                  decoration: BoxDecoration(
+                    color: i == _page
+                        ? AppColors.primary
+                        : context.colorBorderStrong,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+            ],
+          ),
+        ],
       ],
     );
   }
 }
 
-class _PlanRow extends StatelessWidget {
-  const _PlanRow({
+class _PlanCard2 extends StatelessWidget {
+  const _PlanCard2({
     required this.plan,
     required this.current,
     required this.baseline,
@@ -459,66 +515,158 @@ class _PlanRow extends StatelessWidget {
     final theme = Theme.of(context);
     final per = _perMonth;
     final saving = _saving;
-    return AppCard(
-      onTap: onTap,
-      borderColor: current ? AppColors.primary : null,
-      padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
-      child: Row(
-        children: [
-          Expanded(
+    final featured = plan.highlight && !current;
+    final dark = featured;
+    final fg = dark ? Colors.white : context.colorTextPrimary;
+    final sub = dark ? Colors.white70 : context.colorTextSecondary;
+
+    return Material(
+      color: dark ? null : context.colorSurface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(Radii.xl),
+        side: BorderSide(
+          color: current
+              ? AppColors.primary
+              : dark
+                  ? Colors.transparent
+                  : context.colorBorder,
+          width: current ? 2 : 1,
+        ),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Ink(
+        decoration: dark
+            ? const BoxDecoration(
+                gradient: LinearGradient(
+                  colors: AppColors.heroGradient,
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+              )
+            : null,
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 4,
-                  crossAxisAlignment: WrapCrossAlignment.center,
+                Row(
                   children: [
-                    Text(plan.name, style: theme.textTheme.titleSmall),
+                    Expanded(
+                      child: Text(
+                        plan.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.titleMedium?.copyWith(color: fg),
+                      ),
+                    ),
                     if (current)
                       const TonePill(label: 'Joriy', tone: StageTone.brand, dense: true)
-                    else if (saving != null)
-                      TonePill(
-                          label: '$saving% tejash',
-                          tone: StageTone.success,
-                          dense: true),
+                    else if (featured)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.18),
+                          borderRadius: BorderRadius.circular(Radii.pill),
+                        ),
+                        child: const Text(
+                          'Tavsiya',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 11.5,
+                          ),
+                        ),
+                      ),
                   ],
                 ),
-                const SizedBox(height: 2),
+                const SizedBox(height: 12),
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text.rich(
+                    TextSpan(children: [
+                      TextSpan(
+                        text: plan.priceUnset
+                            ? 'Kelishiladi'
+                            : formatMoney(plan.price.round()),
+                        style: theme.textTheme.headlineMedium?.copyWith(
+                          color: fg,
+                          fontFeatures: AppFonts.tabular,
+                        ),
+                      ),
+                      if (!plan.priceUnset)
+                        TextSpan(
+                          text: ' so\'m',
+                          style: theme.textTheme.titleSmall?.copyWith(color: sub),
+                        ),
+                    ]),
+                    maxLines: 1,
+                  ),
+                ),
+                const SizedBox(height: 4),
                 Text(
-                  per == null ? plan.description : '${formatMoney(per)} so\'m/oy',
-                  maxLines: 1,
+                  per == null
+                      ? (plan.description.isEmpty ? ' ' : plan.description)
+                      : 'Oyiga ${formatMoney(per)} so\'mdan',
+                  maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.bodySmall,
+                  style: theme.textTheme.bodyMedium?.copyWith(color: sub),
+                ),
+                const Spacer(),
+                if (saving != null)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: Row(
+                      children: [
+                        Icon(Icons.savings_rounded,
+                            size: 18,
+                            color: dark ? Colors.white : StageTone.success.ink(context)),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            '$saving% tejaysiz',
+                            style: theme.textTheme.labelLarge?.copyWith(
+                              color: dark ? Colors.white : StageTone.success.ink(context),
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    style: FilledButton.styleFrom(
+                      minimumSize: const Size.fromHeight(46),
+                      backgroundColor: dark ? Colors.white : null,
+                      foregroundColor: dark ? AppColors.primaryDark : null,
+                    ),
+                    onPressed: onTap,
+                    child: Text(current ? 'Uzaytirish' : 'Tanlash'),
+                  ),
                 ),
               ],
             ),
           ),
-          const SizedBox(width: 12),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                plan.priceUnset ? 'Kelishiladi' : formatMoney(plan.price.round()),
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontFeatures: AppFonts.tabular,
-                ),
-              ),
-              if (!plan.priceUnset) Text('so\'m', style: theme.textTheme.bodySmall),
-            ],
-          ),
-          const SizedBox(width: 4),
-          Icon(Icons.chevron_right_rounded, color: context.colorTextTertiary),
-        ],
+        ),
       ),
     );
   }
 }
 
+/// "Yordam": qo'ng'iroq (CSCRM telefoni, sozlangan bo'lsa) va rasmiy
+/// Telegram kanali — https://t.me/cscrm_uz (foydalanuvchi so'rovi,
+/// 2026-11-20: havola sozlamaga emas, doim shu kanalga olib boradi).
 class _Support extends StatelessWidget {
-  const _Support({required this.payment});
+  const _Support({required this.phone});
 
-  final PaymentInfo payment;
+  final String phone;
+
+  static const telegramHandle = 'cscrm_uz';
+  static final telegramUrl = Uri.parse('https://t.me/cscrm_uz');
 
   Future<void> _open(BuildContext context, Uri uri) async {
     try {
@@ -533,8 +681,7 @@ class _Support extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final phone = digitsOnly(payment.phone);
-    final tg = payment.telegram.replaceAll('@', '').trim();
+    final digits = digitsOnly(phone);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -546,22 +693,23 @@ class _Support extends StatelessWidget {
           padding: EdgeInsets.zero,
           child: Column(
             children: [
-              if (phone.isNotEmpty)
+              ListTile(
+                leading: const IconTile(icon: Icons.send_rounded, tone: StageTone.info),
+                title: const Text('Telegram'),
+                subtitle: const Text.verbatim('@$telegramHandle'),
+                trailing: Icon(Icons.open_in_new_rounded,
+                    size: 18, color: context.colorTextTertiary),
+                onTap: () => _open(context, telegramUrl),
+              ),
+              if (digits.isNotEmpty) ...[
+                Divider(height: 1, indent: 72, color: context.colorBorder),
                 ListTile(
                   leading: const IconTile(icon: Icons.call_outlined, tone: StageTone.success),
                   title: const Text('Qo\'ng\'iroq qilish'),
-                  subtitle: Text(formatPhoneForDisplay(payment.phone)),
-                  onTap: () => _open(context, Uri(scheme: 'tel', path: '+$phone')),
+                  subtitle: Text(formatPhoneForDisplay(phone)),
+                  onTap: () => _open(context, Uri(scheme: 'tel', path: '+$digits')),
                 ),
-              if (phone.isNotEmpty && tg.isNotEmpty)
-                Divider(height: 1, indent: 72, color: context.colorBorder),
-              if (tg.isNotEmpty)
-                ListTile(
-                  leading: const IconTile(icon: Icons.send_rounded, tone: StageTone.info),
-                  title: const Text('Telegram'),
-                  subtitle: Text.verbatim('@$tg'),
-                  onTap: () => _open(context, Uri.parse('https://t.me/$tg')),
-                ),
+              ],
             ],
           ),
         ),

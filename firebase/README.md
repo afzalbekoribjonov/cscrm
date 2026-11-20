@@ -23,6 +23,16 @@ node rules.mjs               # JSON'larni qayta yig'ish
 npm test                     # emulatorda sinov — JONLI BAZAGA TEGMAYDI
 ```
 
+Windows ba'zan 9000-portni o'zi band qilib qo'yadi (Hyper-V; tekshirish:
+`netsh interface ipv4 show excludedportrange protocol=tcp`). Shunda
+emulatorni boshqa portda ishga tushiring — sinov manzilni
+`FIREBASE_DATABASE_EMULATOR_HOST` dan oladi:
+
+```bash
+npx firebase emulators:exec --config <port 9400 bo'lgan nusxa> --only database \
+  --project demo-cscrm "node --test test/rules.test.mjs"
+```
+
 Sinov uchun Java 11+ kerak (emulator Java'da ishlaydi). Sinovdagi
 "ilova:" holatlari ilovaning haqiqiy yozuv yo'llari: ular o'tmasa, yangi
 qoida mijozlar qo'lidagi ilovani buzadi — joylamang.

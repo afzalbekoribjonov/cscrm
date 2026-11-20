@@ -39,10 +39,7 @@ Future<void> openAppMenu(BuildContext context, AppUser user) {
         icon: Icons.dashboard_customize_outlined,
         label: 'Boshqaruv paneli',
         subtitle: 'Xodimlar, xizmatlar, qoidalar va profil',
-        onTap: () => push((_) => AdminHomeScreen(
-              currentUserId: user.id,
-              currentUserName: user.name,
-            )),
+        onTap: () => push((_) => AdminHomeScreen(user: user)),
       ),
     if (warehouseOn && access.has(WorkSection.ombor))
       MenuAction(
@@ -127,6 +124,35 @@ Future<void> openAppMenu(BuildContext context, AppUser user) {
       ),
     ],
   );
+}
+
+/// App bar'ning o'ng chetidagi tugma.
+///
+///  * BOSHQARUVCHIDA — boshqaruv belgisi: Boshqaruv panelini BIR bosishda,
+///    to'liq sahifada ochadi (foydalanuvchi so'rovi, 2026-11-20).
+///  * XODIMDA — "⋮": unga ochiq qo'shimcha imkoniyatlar menyusi.
+class AppMenuAction extends StatelessWidget {
+  const AppMenuAction({super.key, required this.user, this.color});
+
+  final AppUser user;
+
+  /// Bosh sahifaning rangli sarlavhasida — oq.
+  final Color? color;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!user.isManager) {
+      return MoreButton(onPressed: () => openAppMenu(context, user));
+    }
+    return IconButton(
+      tooltip: t('Boshqaruv paneli'),
+      color: color,
+      onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+        builder: (_) => AdminHomeScreen(user: user),
+      )),
+      icon: const Icon(Icons.admin_panel_settings_outlined),
+    );
+  }
 }
 
 class _AccountHeader extends StatelessWidget {

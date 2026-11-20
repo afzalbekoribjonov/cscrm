@@ -39,7 +39,6 @@ import '../new_order/product_picker_sheet.dart';
 import 'widgets/comment_bubble.dart';
 import 'widgets/edit_item_sheet.dart';
 import 'widgets/handover_sheet.dart';
-import 'widgets/order_history_view.dart';
 import 'widgets/order_item_tile.dart';
 import 'widgets/order_sheets.dart';
 
@@ -77,15 +76,14 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
   late final _orderStream =
       widget.orderStream ?? _service.streamOrder(widget.orderId);
 
-  /// Tarix faqat KERAK BO'LGANDA yuklanadi (tarix bo'limi ochilganda yoki
-  /// xizmat tarixi so'ralganda). Ilgari har bir buyurtma ochilishi bilan
-  /// yuklanardi — ko'pincha hech kim qaramasa ham.
+  /// Tarix faqat KERAK BO'LGANDA yuklanadi — xizmatning "O'zgarishlar
+  /// tarixi" ochilganda. Buyurtma darajasidagi umumiy tarix kartasi
+  /// olib tashlangan (2026-11-20): kerakli ma'lumot xizmat tarixida.
   final _history = ValueNotifier<List<OrderHistoryEntry>?>(null);
   StreamSubscription<List<OrderHistoryEntry>>? _historySub;
 
   final _commentCtrl = TextEditingController();
   var _sendingComment = false;
-  var _historyOpen = false;
   var _busy = false;
 
   AppUser get _user => widget.user;
@@ -445,7 +443,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
       destructive: true,
     );
     if (!ok || !mounted) return;
-    await _service.deleteOrder(order.id);
+    await _service.deleteOrder(order);
     if (mounted) Navigator.of(context).pop();
   }
 
@@ -664,15 +662,6 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                   controller: _commentCtrl,
                   sending: _sendingComment,
                   onSend: () => _sendComment(order),
-                ),
-                const SizedBox(height: 12),
-                _HistoryCard(
-                  open: _historyOpen,
-                  history: _history,
-                  onToggle: () {
-                    _ensureHistory();
-                    setState(() => _historyOpen = !_historyOpen);
-                  },
                 ),
               ],
             ),
@@ -1109,67 +1098,6 @@ class _CommentsCard extends StatelessWidget {
               ],
             ),
           ],
-        ],
-      ),
-    );
-  }
-}
-
-class _HistoryCard extends StatelessWidget {
-  const _HistoryCard({
-    required this.open,
-    required this.history,
-    required this.onToggle,
-  });
-
-  final bool open;
-  final ValueNotifier<List<OrderHistoryEntry>?> history;
-  final VoidCallback onToggle;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return AppCard(
-      padding: EdgeInsets.zero,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          InkWell(
-            onTap: onToggle,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(14, 14, 10, 14),
-              child: Row(
-                children: [
-                  Icon(Icons.history_rounded,
-                      size: 18, color: context.colorTextSecondary),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text('O\'zgarishlar tarixi',
-                        style: theme.textTheme.titleSmall),
-                  ),
-                  Icon(
-                    open
-                        ? Icons.keyboard_arrow_up_rounded
-                        : Icons.keyboard_arrow_down_rounded,
-                    color: context.colorTextSecondary,
-                  ),
-                ],
-              ),
-            ),
-          ),
-          if (open)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
-              child: ValueListenableBuilder<List<OrderHistoryEntry>?>(
-                valueListenable: history,
-                builder: (context, entries, _) => entries == null
-                    ? const Padding(
-                        padding: EdgeInsets.all(12),
-                        child: Center(child: CircularProgressIndicator()),
-                      )
-                    : HistoryTimeline(entries: entries),
-              ),
-            ),
         ],
       ),
     );

@@ -3,10 +3,10 @@ import 'package:flutter/material.dart' hide Text;
 import '../../l10n/text.dart';
 import '../../models/app_user.dart';
 import '../../models/work_section.dart';
-import '../../ui/action_menu.dart';
 import '../../ui/surfaces.dart';
 import '../../utils/order_sections.dart';
 import '../../widgets/notification_action.dart';
+import '../../widgets/warning_action.dart';
 import '../search/order_search_screen.dart';
 import 'app_menu.dart';
 
@@ -70,8 +70,11 @@ class SectionScaffold extends StatelessWidget {
                 ),
               )),
             ),
+          // Ko'rilmagan qayta yuvish ogohlantirishi bo'lsa — qo'ng'iroqdan
+          // oldin qizil "!" (bo'lmasa joy egallamaydi).
+          const WarningAction(),
           const NotificationAction(),
-          MoreButton(onPressed: () => openAppMenu(context, user)),
+          AppMenuAction(user: user),
           const SizedBox(width: 4),
         ],
         bottom: allowed ? bottom : null,

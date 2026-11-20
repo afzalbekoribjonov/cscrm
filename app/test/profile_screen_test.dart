@@ -155,8 +155,35 @@ void main() {
     await tester.pumpWidget(screen(licence: status()));
     await tester.pump();
     // 3 oylik: 540 000 / 3 = 180 000 so'm/oy; 1 oylik 200 000 ga nisbatan
-    // 10% tejash.
-    expect(find.text(t('10% tejash')), findsOneWidget);
+    // 10% tejash. Tariflar karuselda: ikkinchi karta ham qisman ko'rinadi.
+    expect(find.text(t('10% tejaysiz')), findsOneWidget);
+  });
+
+  testWidgets('tariflar yon tomonga suriladigan karuselda', (tester) async {
+    await tester.pumpWidget(screen(licence: status()));
+    await tester.pump();
+    expect(find.byType(PageView), findsOneWidget);
+    // Joriy tarif birinchi ko'rinadi — "Uzaytirish" tugmasi bilan.
+    expect(find.text(t('Uzaytirish')), findsOneWidget);
+    await tester.drag(find.byType(PageView), const Offset(-300, 0));
+    await tester.pumpAndSettle();
+    expect(find.text(t('Tanlash')), findsWidgets);
+  });
+
+  testWidgets("Telegram — doim rasmiy kanal (t.me/cscrm_uz)", (tester) async {
+    // Server Telegram manzilini bermagan bo'lsa ham havola turadi.
+    await tester.pumpWidget(screen(licence: status()));
+    await tester.pump();
+    await tester.scrollUntilVisible(
+      find.text('@cscrm_uz'),
+      300,
+      // Sahifaning o'zi (tik) — karusel (gorizontal) emas.
+      scrollable: find
+          .byWidgetPredicate((w) =>
+              w is Scrollable && w.axisDirection == AxisDirection.down)
+          .first,
+    );
+    expect(find.text('@cscrm_uz'), findsOneWidget);
   });
 
   testWidgets("obuna holati aniqlanmagan bo'lsa ham sahifa ochiladi",

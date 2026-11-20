@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/foundation.dart';
 
@@ -12,9 +14,11 @@ import '../utils/date_utils.dart';
 import '../utils/firebase_map.dart';
 import '../utils/offline_write.dart';
 import '../utils/order_totals.dart';
+import '../models/payroll.dart';
+import '../utils/money.dart';
 import '../utils/phone.dart';
 import 'tenant_scope.dart';
-import '../utils/money.dart';
+import 'work_ledger.dart';
 
 /// Hisoblash bosqichida tayyorlangan, alohida jismoniy birlikka aylantirilgan
 /// mahsulot — hali Firebase'ga yozilmagan, faqat qurilmada.
@@ -84,10 +88,39 @@ abstract interface class OrderWriter {
 }
 
 class OrderService implements OrderWriter {
-  OrderService({TenantScope? scope}) : _scope = scope ?? TenantScope.current;
+  OrderService({TenantScope? scope, WorkLedger? ledger})
+      : _scope = scope ?? TenantScope.current,
+        _ledgerOverride = ledger;
 
   /// Barcha yo'llar shu doiradan o'tadi - `/tenants/{tenantId}/...`.
   final TenantScope _scope;
+
+  final WorkLedger? _ledgerOverride;
+
+  /// Maosh uchun ish hisobi (kim nima qildi, qancha ishbayi). Buyurtma
+  /// yozuvidan ALOHIDA va "yubor va kutma" uslubida yoziladi — u
+  /// buyurtma bilan ishlashni hech qachon to'xtatmaydi.
+  late final WorkLedger _ledger = _ledgerOverride ?? WorkLedger(scope: _scope);
+
+  /// Tranzaksiya MUVAFFAQIYATLI yakunlangach [onCommitted] chaqiriladi.
+  ///
+  /// Ish hisobi faqat shundan keyin yoziladi: tranzaksiya bekor bo'lsa
+  /// (masalan boshqa xodim xizmatni allaqachon o'tkazib bo'lgan) yoki
+  /// rad etilsa, ishbayi ham yozilmaydi. Internet yo'q bo'lsa — aloqa
+  /// tiklanib, server tasdiqlagach yoziladi.
+  Future<void> _transact(
+    DatabaseReference ref,
+    TransactionHandler handler, {
+    void Function()? onCommitted,
+  }) async {
+    final tx = ref.runTransaction(handler);
+    if (onCommitted != null) {
+      unawaited(tx.then((result) {
+        if (result.committed) onCommitted();
+      }, onError: (Object _) {}));
+    }
+    await awaitOrQueue(tx);
+  }
 
   /// Bir vaqtda ochiq turadigan buyurtmalar soni uchun yuqori chegara.
   ///
@@ -463,6 +496,23 @@ class OrderService implements OrderWriter {
     final trimmedComment = comment?.trim() ?? '';
     final historyKey = _newHistoryKey();
 
+    // Dispetcher ulushi: "har buyurtmaga N so'm" rejimida — yaratilgan
+    // KUNI (navbatdan kelgan buyurtmada — qurilmada yozilgan kuni).
+    // Kvitansiya buyurtmada saqlanadi: buyurtma o'chirilsa qaytariladi,
+    // topshirilganda esa foiz ulushi ikkinchi marta yozilmaydi.
+    final ledgerOn = _ledger.enabled;
+    final rates = _ledger.rates;
+    final createCredit = ledgerOn
+        ? CreateCredit(
+            by: createdBy,
+            day: dayKey(createdAt == null
+                ? DateTime.now()
+                : DateTime.fromMillisecondsSinceEpoch(createdAt)),
+            pay: rates.dispatchFixedPay,
+            mode: rates.dispatcherMode,
+          )
+        : null;
+
     // Hisoblagich muvaffaqiyatli oshdi, ya'ni bir soniya oldin aloqa bor
     // edi. Shu sabab yozuvni `awaitOrQueue` bilan qo'yamiz: buyurtma
     // mahalliy keshda darhol paydo bo'ladi va ro'yxatda ko'rinadi.
@@ -505,6 +555,7 @@ class OrderService implements OrderWriter {
         'totalPrice': totalPrice,
         'lastActionAt': ServerValue.timestamp,
         'lastActionBy': createdBy,
+        if (createCredit != null) 'createCredit': createCredit.toMap(),
         if (trimmedComment.isNotEmpty)
           'comments': {
             '0': {
@@ -523,6 +574,12 @@ class OrderService implements OrderWriter {
         'toStatus': initialStatus.key,
       }),
     }));
+
+    if (createCredit != null) {
+      _ledger.commit(LedgerBatch()
+        ..create(createCredit.day, createdBy, createdByName,
+            pay: createCredit.pay));
+    }
   }
 
   /// Buyurtma darajasidagi (mahsulotlarga bog'liq bo'lmagan) holat
@@ -582,6 +639,16 @@ class OrderService implements OrderWriter {
     required String byName,
   }) async {
     final trimmedReason = rewashReason?.trim() ?? '';
+    final ledgerOn = _ledger.enabled;
+    final rates = _ledger.rates;
+    final today = dayKey(DateTime.now());
+
+    // Tranzaksiya ichida (SERVERDAGI holatdan) aniqlanadi. Tranzaksiya
+    // bir necha marta ishlashi mumkin — har safar boshidan tozalanadi,
+    // oxirgi (tasdiqlangan) ishlashning natijasi qoladi.
+    ItemCredit? credited;
+    ItemCredit? reversed;
+    var changed = false;
 
     await _mutateOrder(
       orderId: order.id,
@@ -602,9 +669,15 @@ class OrderService implements OrderWriter {
         if (trimmedReason.isNotEmpty) 'note': trimmedReason,
       },
       mutate: (map, items) {
+        credited = null;
+        reversed = null;
+        changed = false;
         final existing = items[item.key];
         if (existing is! Map) return;
         final updated = Map<String, dynamic>.from(existing);
+        // Boshqa xodim xizmatni allaqachon shu holatga o'tkazgan bo'lsa,
+        // ishbayi IKKINCHI marta yozilmaydi.
+        changed = updated['status'] != toStatus.key;
         updated['status'] = toStatus.key;
         if (trimmedReason.isNotEmpty) {
           updated['rewashReason'] = trimmedReason;
@@ -613,6 +686,44 @@ class OrderService implements OrderWriter {
         // "Yuvish" bosilganda vaqt yangidan boshlanadi.
         if (toStatus == ItemStatus.qaytaYuvildi) {
           updated.remove('washStartedAt');
+        }
+
+        if (ledgerOn && changed) {
+          final productId = updated['productId'] as String? ?? '';
+          final unit = MeasureUnit.fromKey(updated['unit'] as String?);
+          final rawQty = updated['quantity'];
+          final qty = rawQty is num && rawQty > 0 ? rawQty.toDouble() : 0.0;
+          switch (toStatus) {
+            case ItemStatus.qadoqlashda:
+              // Yuvildi — ishbayi yuvgan xodimga, bugungi kunga.
+              credited = ItemCredit(
+                by: byEmployeeId,
+                name: byName,
+                day: today,
+                pay: rates.washPay(productId, unit, qty),
+                unit: unit,
+                quantity: qty,
+              );
+              updated['washCredit'] = credited!.toMap();
+            case ItemStatus.tayyor:
+              credited = ItemCredit(
+                by: byEmployeeId,
+                name: byName,
+                day: today,
+                pay: rates.packPay(productId, unit, qty),
+                unit: unit,
+                quantity: qty,
+              );
+              updated['packCredit'] = credited!.toMap();
+            case ItemStatus.qaytaYuvildi:
+              // Yuvgan xodimning shu xizmat uchun olgan ishbayi qaytarib
+              // olinadi. Kvitansiya o'chiriladi — ikki marta olinmaydi.
+              reversed = ItemCredit.fromMap(updated['washCredit']);
+              updated.remove('washCredit');
+            case ItemStatus.navbatda:
+            case ItemStatus.yuvilmoqda:
+              break;
+          }
         }
         items[item.key] = updated;
 
@@ -652,7 +763,79 @@ class OrderService implements OrderWriter {
           map['readyByName'] = null;
         }
       },
+      onCommitted: () {
+        if (!changed) return;
+        final batch = LedgerBatch();
+        final c = credited;
+        if (c != null) {
+          if (toStatus == ItemStatus.qadoqlashda) {
+            batch.wash(c);
+          } else {
+            batch.pack(c);
+          }
+        }
+        final r = reversed;
+        if (r != null) batch.rewash(today, r);
+        _ledger.commit(batch);
+
+        if (toStatus == ItemStatus.qaytaYuvildi) {
+          _warnWasher(
+            order: order,
+            item: item,
+            reason: trimmedReason,
+            washed: r,
+            byEmployeeId: byEmployeeId,
+            byName: byName,
+          );
+        }
+      },
     );
+  }
+
+  /// Qayta yuvishga qaytgan xizmatni YUVGAN xodimni ogohlantiradi.
+  ///
+  /// Kim yuvgani xizmatdagi kvitansiyadan olinadi. Maosh hisobi
+  /// yoqilishidan OLDIN yuvilgan xizmatlarda kvitansiya yo'q — ular uchun
+  /// buyurtma tarixidan qidiriladi (bitta kichik, indeksli so'rov).
+  void _warnWasher({
+    required Order order,
+    required OrderItem item,
+    required String reason,
+    required ItemCredit? washed,
+    required String byEmployeeId,
+    required String byName,
+  }) {
+    if (!_ledger.enabled) return;
+    WarningDraft draft(String id) => WarningDraft(
+          employeeId: id,
+          orderId: order.id,
+          itemKey: item.key,
+          productName: item.productName,
+          reason: reason,
+          byId: byEmployeeId,
+          byName: byName,
+          deduction: washed?.pay ?? 0,
+        );
+    if (washed != null) {
+      _ledger.warn(draft(washed.by));
+      return;
+    }
+    unawaited(() async {
+      try {
+        final snap = await awaitOrFail(
+          _scope
+              .ref('order_history')
+              .orderByChild('orderId')
+              .equalTo(order.id)
+              .get(),
+          timeout: const Duration(seconds: 10),
+        );
+        final washer = lastWasherOf(_parseHistory(snap), item.key);
+        if (washer != null) _ledger.warn(draft(washer));
+      } catch (e) {
+        debugPrint('Yuvgan xodim topilmadi: $e');
+      }
+    }());
   }
 
   /// "Yuvish" tugmasi: navbatdagi (yoki qayta yuvishga qaytgan) xizmatlar
@@ -736,12 +919,14 @@ class OrderService implements OrderWriter {
     final keys = {for (final i in items) i.key};
     final handed = <OrderItem>[];
     var applied = 0.0;
+    // Dastavchik ulushi — AYNAN topshirilgan xizmatlar narxidan.
+    var handedSum = 0.0;
+    final today = dayKey(DateTime.now());
 
     // `markDelivered` bilan bir xil yo'l: aloqa sust bo'lsa ham mijoz
     // eshigi oldida ish to'xtamasin — o'zgarish qurilmada darhol
     // qo'llanadi va aloqa tiklanganda serverda qayta tekshiriladi.
-    await awaitOrQueue(
-        _scope.ref('orders/${order.id}').runTransaction((current) {
+    await _transact(_scope.ref('orders/${order.id}'), (current) {
       if (current == null) return Transaction.abort();
       final map = Map<String, dynamic>.from(current as Map);
       if (map['status'] == OrderStatus.yetgazildi.key) {
@@ -749,6 +934,7 @@ class OrderService implements OrderWriter {
       }
       final all = Map<String, dynamic>.from(asFirebaseMap(map['items']));
       handed.clear();
+      handedSum = 0;
       for (final key in keys) {
         final raw = all[key];
         if (raw is! Map) continue;
@@ -759,6 +945,8 @@ class OrderService implements OrderWriter {
           ..['handedBy'] = byEmployeeId
           ..['handedByName'] = byName;
         handed.add(items.firstWhere((i) => i.key == key));
+        final price = raw['price'];
+        if (price is num && price > 0) handedSum += price;
       }
       if (handed.isEmpty) return Transaction.abort();
 
@@ -772,7 +960,12 @@ class OrderService implements OrderWriter {
       map['items'] = all;
       map.addAll(_lastAction(byEmployeeId));
       return Transaction.success(map);
-    }));
+    }, onCommitted: () {
+      if (!_ledger.enabled) return;
+      _ledger.commit(LedgerBatch()
+        ..deliver(today, byEmployeeId, byName,
+            sum: handedSum, pay: _ledger.rates.courierPay(handedSum)));
+    });
 
     if (handed.isEmpty) return;
     final names = handed.map((i) => i.productName).join(', ');
@@ -868,10 +1061,11 @@ class OrderService implements OrderWriter {
     required Map<String, Object?> historyEntry,
     required void Function(Map<String, dynamic> order, Map<String, dynamic> items)
         mutate,
+    void Function()? onCommitted,
   }) async {
     final ref = _scope.ref('orders/$orderId');
 
-    await awaitOrQueue(ref.runTransaction((current) {
+    await _transact(ref, (current) {
       // Buyurtma o'chirilgan bo'lsa qayta yaratib yubormaymiz.
       if (current == null) return Transaction.abort();
 
@@ -886,7 +1080,7 @@ class OrderService implements OrderWriter {
       map.addAll(_lastAction(byEmployeeId));
 
       return Transaction.success(map);
-    }));
+    }, onCommitted: onCommitted);
 
     // Tarix ALOHIDA yoziladi: tranzaksiya faqat o'z tuguni ichiga yoza
     // oladi, tarix esa endi boshqa tugunda. Nazariy jihatdan tranzaksiya
@@ -917,6 +1111,10 @@ class OrderService implements OrderWriter {
     final oldLabel = item.isMeasured
         ? '${item.hajm} (${formatSom(item.price)})'
         : 'o\'lchanmagan';
+    // Xizmat yuvilgandan KEYIN o'lchangan yoki o'lchami tuzatilgan bo'lsa,
+    // yuvgan xodimning ishbayi yangi o'lchamga moslanadi (o'sha kuni).
+    ItemCredit? creditBefore;
+    ItemCredit? creditAfter;
 
     await _mutateOrder(
       orderId: order.id,
@@ -942,7 +1140,35 @@ class OrderService implements OrderWriter {
         updated['quantity'] = quantity;
         if (newProductId != null) updated['productId'] = newProductId;
         if (newProductName != null) updated['productName'] = newProductName;
+
+        creditBefore = null;
+        creditAfter = null;
+        final washed = ItemCredit.fromMap(updated['washCredit']);
+        if (washed != null && _ledger.enabled) {
+          final productId = updated['productId'] as String? ?? '';
+          final revised = ItemCredit(
+            by: washed.by,
+            name: washed.name,
+            day: washed.day,
+            pay: _ledger.rates.washPay(productId, unit, quantity),
+            unit: unit,
+            quantity: quantity,
+          );
+          if (revised.pay != washed.pay ||
+              revised.unit != washed.unit ||
+              revised.quantity != washed.quantity) {
+            creditBefore = washed;
+            creditAfter = revised;
+            updated['washCredit'] = revised.toMap();
+          }
+        }
         items[item.key] = updated;
+      },
+      onCommitted: () {
+        final before = creditBefore;
+        final after = creditAfter;
+        if (before == null || after == null) return;
+        _ledger.commit(LedgerBatch()..reviseWash(before, after));
       },
     );
   }
@@ -1054,8 +1280,19 @@ class OrderService implements OrderWriter {
     // AYNAN shu yoziladi (so'ralgan emas).
     var received = paymentAmount;
 
-    await awaitOrQueue(
-        _scope.ref('orders/${order.id}').runTransaction((current) {
+    // Maosh ulushlari — tranzaksiya ichida, SERVERDAGI holatdan:
+    //  * dastavchik: hali berilmagan (shu payt topshirilgan) xizmatlar
+    //    narxidan foiz;
+    //  * dispetcher (foiz rejimi): buyurtmaning YAKUNIY narxidan foiz,
+    //    buyurtmani yaratgan xodimga.
+    final today = dayKey(DateTime.now());
+    var deliverSum = 0.0;
+    var orderTotal = 0.0;
+    var creatorId = '';
+    var creatorName = '';
+    CreateCredit? createCredit;
+
+    await _transact(_scope.ref('orders/${order.id}'), (current) {
       if (current == null) return Transaction.abort();
       final map = Map<String, dynamic>.from(current as Map);
 
@@ -1066,6 +1303,16 @@ class OrderService implements OrderWriter {
       }
 
       final items = Map<String, dynamic>.from(asFirebaseMap(map['items']));
+      deliverSum = 0;
+      for (final raw in items.values) {
+        if (raw is! Map || (raw['handedAt'] as num?) != null) continue;
+        final price = raw['price'];
+        if (price is num && price > 0) deliverSum += price;
+      }
+      orderTotal = sumItemPrices(items);
+      creatorId = map['createdBy'] as String? ?? '';
+      creatorName = map['createdByName'] as String? ?? '';
+      createCredit = CreateCredit.fromMap(map['createCredit']);
       // Bo'lib topshirishda oldindan olingan pul — mijozdan faqat qolgan
       // qismi so'raladi va farq (qarz/skidka) shu qoldiqdan hisoblanadi.
       final prepaid = (map['prepaidAmount'] as num?)?.toDouble() ?? 0;
@@ -1123,7 +1370,23 @@ class OrderService implements OrderWriter {
       map.addAll(_lastAction(byEmployeeId));
 
       return Transaction.success(map);
-    }));
+    }, onCommitted: () {
+      if (!_ledger.enabled) return;
+      final rates = _ledger.rates;
+      final batch = LedgerBatch()
+        ..deliver(today, byEmployeeId, byName,
+            sum: deliverSum, pay: rates.courierPay(deliverSum));
+      // Yaratilganda "har buyurtmaga N so'm" olgan buyurtma uchun foiz
+      // ulushi IKKINCHI marta yozilmaydi.
+      final fixedAtCreation = createCredit?.mode == DispatcherMode.fixed;
+      if (rates.dispatcherMode == DispatcherMode.percent &&
+          !fixedAtCreation &&
+          creatorId.isNotEmpty) {
+        batch.dispatch(today, creatorId, creatorName,
+            sum: orderTotal, pay: rates.dispatchPercentPay(orderTotal));
+      }
+      _ledger.commit(batch);
+    });
 
     // Tarix alohida tugunda — tranzaksiya u yerga yoza olmaydi.
     //
@@ -1286,8 +1549,12 @@ class OrderService implements OrderWriter {
     return raw is Map ? Order.fromMap('$orderId', raw) : null;
   }
 
-  Future<void> deleteOrder(int orderId) async {
-    await awaitOrQueue(_scope.ref('orders/$orderId').remove());
+  /// Buyurtmani o'chiradi. Yaratilganda dispetcherga yozilgan ulush
+  /// (bo'lsa) qaytarib olinadi — o'chirilgan buyurtma uchun to'lanmaydi.
+  Future<void> deleteOrder(Order order) async {
+    await awaitOrQueue(_scope.ref('orders/${order.id}').remove());
+    final credit = order.createCredit;
+    if (credit != null) _ledger.commit(LedgerBatch()..uncreate(credit));
   }
 
   /// Buyurtmaning asosiy ma'lumotlarini tahrirlaydi (mahsulotlar, holat va
@@ -1308,4 +1575,24 @@ class OrderService implements OrderWriter {
       'deliveryType': deliveryType.key,
     }));
   }
+}
+
+/// Xizmatni oxirgi marta kim yuvgani (qadoqlashga o'tkazgani) — buyurtma
+/// tarixidan. Maosh hisobi yoqilishidan oldin yuvilgan xizmatlar uchun.
+String? lastWasherOf(List<OrderHistoryEntry> history, String itemKey) {
+  String? washer;
+  var at = -1;
+  for (final h in history) {
+    if (h.type != 'item_status_changed' ||
+        h.toStatus != ItemStatus.qadoqlashda.key ||
+        h.itemKey != itemKey ||
+        h.byEmployeeId.isEmpty) {
+      continue;
+    }
+    if (h.at >= at) {
+      at = h.at;
+      washer = h.byEmployeeId;
+    }
+  }
+  return washer;
 }
